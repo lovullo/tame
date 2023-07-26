@@ -32,6 +32,24 @@
 #       }
 #   }
 #
+# But edges also support arbitrary code definitions:
+#
+#   object_rel! {
+#       Source -> {
+#           tree TargetA {
+#               fn pre_add_edge(...) {
+#                   // ...
+#               }
+#           },
+#           tree TargetB,
+#           cross TargetC,
+#       }
+#   }
+#
+# And because of that,
+#   this script hard-codes the expected level of nesting just to make life
+#   easier.
+#
 # This script expects to receive a list of files containing such
 #   definitions.
 # It will output,
@@ -81,7 +99,8 @@ BEGINFILE {
 /^object_rel! {$/, /^}$/ { in_block = 1 }
 
 # `Foo -> {` line declares the source of the relation.
-in_block && /->/ {
+# We hard-code the expected depth to simplify parsing.
+in_block && /^    \w+ -> \{$/ {
     block_src = $1
 
     printf "  # `%s` from `%s:%d`\n", block_src, FILENAME, FNR
@@ -92,7 +111,7 @@ in_block && /->/ {
 # A closing curly brace always means that we've finished with the current
 #   source relation,
 #     since we're at the innermost level of nesting.
-block_src && /}/ {
+block_src && /^    }$/ {
     block_src = ""
     print ""
 }
@@ -116,7 +135,12 @@ block_src && /^ *\/\/ empty$/ {
 #       we must independently define each one.
 # But that's okay;
 #   the output is quite legible.
-block_src && $NF ~ /\w+,$/ {
+block_src && /^        \w+ \w+(,| \{)$/ {
+    # Clean up the end of the string _before_ pulling information out of
+    #   fields,
+    #     since the number of fields can vary.
+    gsub(/(,| \{)$/, "")
+
     # Edge type (cross, tree)
     ty = $(NF-1)
 
@@ -138,8 +162,6 @@ block_src && $NF ~ /\w+,$/ {
             attrs="[style=dashed,arrowhead=normal]";
             break;
     }
-
-    gsub(/,$/, "")
 
     # This may need updating over time as object names in Rust sources
     #   exceed the fixed-width definition here.

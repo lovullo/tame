@@ -18,6 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::asg::air::test::{as_pkg_body, Sut};
 use crate::span::dummy::*;
 use crate::{
     asg::{
@@ -333,18 +334,9 @@ fn tpl_holds_dangling_expressions() {
           BindIdent(id_tpl),
 
           // Dangling expression.
-          // This would be inlined at an application site,
-          //   and so this changes the shape of the template.
           ExprStart(ExprOp::Sum, S3),
           ExprEnd(S4),
-
-          // Dangling
-          //   (TODO: This won't be valid;
-          //      extract into separate test case to check for a new
-          //      AsgError variant.)
-          ExprStart(ExprOp::Sum, S5),
-          ExprEnd(S6),
-        TplEnd(S7),
+        TplEnd(S5),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -353,12 +345,96 @@ fn tpl_holds_dangling_expressions() {
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
     let tpl = oi_tpl.resolve(&asg);
 
-    // TODO: Until the above is invalid,
-    //   the second is overwriting the first.
-    assert_eq!(TplShape::Expr(S5.merge(S6).unwrap()), tpl.shape());
+    // The above `Expr` would be inlined at an application site,
+    //   and so this changes the shape of the template.
+    assert_eq!(TplShape::Expr(S3.merge(S4).unwrap()), tpl.shape());
 
     assert_eq!(
-        vec![S5.merge(S6).unwrap(), S3.merge(S4).unwrap(),],
+        vec![S3.merge(S4).unwrap()],
+        oi_tpl
+            .edges_filtered::<Expr>(&asg)
+            .map(ObjectIndex::cresolve(&asg))
+            .map(Expr::span)
+            .collect::<Vec<_>>()
+    );
+}
+
+// As of TAMER,
+//   a new restriction is that templates can't just inline whatever they
+//   want into their expression expansion context.
+#[test]
+fn multi_dangling_invalid_expr_shape() {
+    let id_tpl = spair("_tpl_", S2);
+
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(id_tpl),
+
+          // We have an expression to be expanded inline.
+          // We cannot have another.
+          ExprStart(ExprOp::Sum, S3),
+          ExprEnd(S4),
+
+          // ...but we're provided another!
+          // This should error.
+          ExprStart(ExprOp::Sum, S5),
+          ExprEnd(S6),
+        TplEnd(S7),
+    ];
+
+    let mut sut = Sut::parse(as_pkg_body(toks));
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Parsed::Incomplete), // PkgStart
+              Ok(Parsed::Incomplete), // TplStart
+                Ok(Parsed::Incomplete), // BindIdent
+
+                // This one's okay.
+                Ok(Parsed::Incomplete), // ExprStart
+                Ok(Parsed::Incomplete), // ExprEnd
+
+                // We start out okay,
+                //   because an edge for a dangling expression is not added
+                //   until after the expression ends
+                //     (we have until then to bind an identifier).
+                Ok(Parsed::Incomplete), // ExprStart
+                // But the ending token will trigger the error.
+                Err(ParseError::StateError(
+                    AsgError::TplShapeExprMulti(
+                        Some(id_tpl),
+                        S5.merge(S6).unwrap(),
+                        S3.merge(S4).unwrap()
+                    )
+                )),
+
+                // RECOVERY: We do not add the edge,
+                //   but the object otherwise continues to exist on the
+                //   graph,
+                //     unreachable.
+              Ok(Parsed::Incomplete), // TplEnd
+            Ok(Parsed::Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let ctx = sut.finalize().unwrap().into_private_context();
+    let asg = ctx.asg_ref();
+
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
+    let tpl = oi_tpl.resolve(&asg);
+
+    // The error above should be evidence for this,
+    //   but let's make sure the error didn't somehow cause the shape to
+    //   change.
+    assert_eq!(TplShape::Expr(S3.merge(S4).unwrap()), tpl.shape());
+
+    // The template should have only one inline expression;
+    //   it should have discarded the other.
+    assert_eq!(
+        vec![S3.merge(S4).unwrap()],
         oi_tpl
             .edges_filtered::<Expr>(&asg)
             .map(ObjectIndex::cresolve(&asg))

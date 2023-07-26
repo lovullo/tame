@@ -167,7 +167,25 @@ pub enum AsgError {
     /// The provided [`Span`] indicates the location of the start of the
     ///   metavariable definition.
     UnexpectedMeta(Span),
+
+    /// A template already has a shape of
+    ///   [`TplShape::Expr`](super::graph::object::tpl::TplShape::Expr),
+    ///     but another expression was found that would violate this shape
+    ///     constraint.
+    ///
+    /// The template name is provided if it is known at the time of the
+    ///   error.
+    TplShapeExprMulti(Option<SPair>, ErrorOccurrenceSpan, FirstOccurrenceSpan),
 }
+
+/// A [`Span`] representing the subject of this error.
+type ErrorOccurrenceSpan = Span;
+
+/// A [`Span`] representing the first occurrence of an object related to the
+///   subject of this error.
+///
+/// This should be paired with [`ErrorOccurrenceSpan`].
+type FirstOccurrenceSpan = Span;
 
 impl Display for AsgError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -250,6 +268,18 @@ impl Display for AsgError {
             UnexpectedMeta(_) => {
                 write!(f, "unexpected metavariable definition")
             }
+
+            TplShapeExprMulti(Some(name), _, _) => write!(
+                f,
+                "definition of template {} would produce multiple inline \
+                   expressions when expanded",
+                TtQuote::wrap(name),
+            ),
+            TplShapeExprMulti(None, _, _) => write!(
+                f,
+                "template definition would produce multiple inline \
+                   expressions when expanded"
+            ),
         }
     }
 }
@@ -445,6 +475,42 @@ impl Diagnostic for AsgError {
                     span.help("metavariables are expected to occur in a template context"),
                 ]
             }
+
+            // TODO: Perhaps we should have a documentation page that can be
+            //   referenced with examples and further rationale,
+            //     like Rust does.
+            TplShapeExprMulti(oname, err, first) => oname
+                .map(|name| name.note("for this template"))
+                .into_iter()
+                .chain(vec![
+                    first.note(
+                        "this is the first expression that would be inlined \
+                           at an expansion site",
+                    ),
+                    err.error(
+                        "template cannot inline more than one expression \
+                           into an expansion site",
+                    ),
+                    err.help(
+                        "this restriction is intended to ensure that \
+                           templates expand in ways that are consistent \
+                           given any expansion context; consider either:",
+                    ),
+                    err.help(
+                        "  - wrapping both expressions in a parent \
+                             expression; or",
+                    ),
+                    err.help(
+                        "  - giving at least one expression an id to prevent \
+                             inlining",
+                    ),
+                    // in case they were wondering
+                    err.help(
+                        "this restriction did not exist in versions of \
+                           TAME prior to TAMER",
+                    ),
+                ])
+                .collect(),
         }
     }
 }

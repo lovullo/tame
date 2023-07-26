@@ -30,7 +30,7 @@ use crate::{
     span::dummy::*,
 };
 
-type Sut = AirAggregate;
+pub type Sut = AirAggregate;
 
 use Air::*;
 use Parsed::Incomplete;
@@ -689,13 +689,20 @@ pub fn parse_as_pkg_body<I: IntoIterator<Item = Air>>(
 where
     <I as IntoIterator>::IntoIter: Debug,
 {
+    Sut::parse(as_pkg_body(toks))
+}
+
+pub fn as_pkg_body<I: IntoIterator<Item = Air>>(
+    toks: I,
+) -> impl Iterator<Item = Air> + Debug
+where
+    <I as IntoIterator>::IntoIter: Debug,
+{
     use std::iter;
 
-    Sut::parse(
-        iter::once(PkgStart(S1, spair("/incidental-pkg", S1)))
-            .chain(toks.into_iter())
-            .chain(iter::once(PkgEnd(S1))),
-    )
+    iter::once(PkgStart(S1, spair("/incidental-pkg", S1)))
+        .chain(toks.into_iter())
+        .chain(iter::once(PkgEnd(S1)))
 }
 
 pub(super) fn asg_from_pkg_body_toks<I: IntoIterator<Item = Air>>(

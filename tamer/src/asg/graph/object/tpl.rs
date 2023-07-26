@@ -176,7 +176,22 @@ object_rel! {
                 commit: impl FnOnce(&mut Asg),
             ) -> Result<(), AsgError> {
                 let span = to_oi.resolve(asg).span();
-                from_oi.map_obj(asg, |tpl| tpl.overwrite(TplShape::Expr(span)));
+                let tpl_name = from_oi
+                    .ident(asg)
+                    .and_then(|oi| oi.resolve(asg).name());
+
+                from_oi.try_map_obj(asg, |tpl| match tpl.shape() {
+                    TplShape::Expr(first) => {
+                        Err((
+                            tpl,
+                            AsgError::TplShapeExprMulti(tpl_name, span, first)
+                        ))
+                    },
+
+                    TplShape::Unknown | TplShape::Empty => {
+                        Ok(tpl.overwrite(TplShape::Expr(span)))
+                    },
+                })?;
 
                 Ok(commit(asg))
             }

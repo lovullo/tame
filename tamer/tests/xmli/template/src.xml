@@ -20,19 +20,11 @@
     <c:sum>
       <c:product />
     </c:sum>
-
-    <c:product>
-      <c:sum />
-    </c:product>
   </template>
 
   <template name="_with-static-mix_"
             desc="Both identified and unidentified that may or may
                   not be reachable in expansion context">
-    <c:sum>
-      <c:product />
-    </c:sum>
-
     <c:product> <!-- depth N -->
       <c:sum /> <!-- depth N+1 -->
     </c:product>
@@ -48,9 +40,9 @@
 
     <rate yields="tplStaticMix" /> <!-- begins at depth N+1 -->
 
-    <c:sum>
+    <rate yields="tplStaticMixEnd">
       <c:product />
-    </c:sum>
+    </rate>
   </template>
 
   Short-hand template application.

@@ -20,19 +20,11 @@
     <c:sum>
       <c:product />
     </c:sum>
-
-    <c:product>
-      <c:sum />
-    </c:product>
   </template>
 
   <template name="_with-static-mix_"
             desc="Both identified and unidentified that may or may
                   not be reachable in expansion context">
-    <c:sum>
-      <c:product />
-    </c:sum>
-
     <c:product>
       <c:sum />
     </c:product>
@@ -48,9 +40,9 @@
 
     <rate yields="tplStaticMix" />
 
-    <c:sum>
+    <rate yields="tplStaticMixEnd">
       <c:product />
-    </c:sum>
+    </rate>
   </template>
 
 
@@ -100,9 +92,9 @@
 
   <template name="_short-hand-nullary-body_" desc="Nullary with body" />
   <apply-template name="_short-hand-nullary-body_">
-    <with-param name="@values@" value="___dsgr-bfe___" />
+    <with-param name="@values@" value="___dsgr-bb5___" />
   </apply-template>
-  <template name="___dsgr-bfe___"
+  <template name="___dsgr-bb5___"
             desc="Desugared body of shorthand template application of `_short-hand-nullary-body_`">
     <c:product>
       <c:sum />
@@ -113,9 +105,9 @@
   <apply-template name="_short-hand-nary-body_">
     <with-param name="@bar@" value="baz" />
     <with-param name="@baz@" value="quux" />
-    <with-param name="@values@" value="___dsgr-cb5___" />
+    <with-param name="@values@" value="___dsgr-c6c___" />
   </apply-template>
-  <template name="___dsgr-cb5___"
+  <template name="___dsgr-c6c___"
             desc="Desugared body of shorthand template application of `_short-hand-nary-body_`">
     <c:sum>
       <c:product />
@@ -125,9 +117,9 @@
   <template name="_short-hand-nullary-outer_"
             desc="Outer template holding an inner" />
   <apply-template name="_short-hand-nullary-outer_">
-    <with-param name="@values@" value="___dsgr-d99___" />
+    <with-param name="@values@" value="___dsgr-d50___" />
   </apply-template>
-  <template name="___dsgr-d99___"
+  <template name="___dsgr-d50___"
             desc="Desugared body of shorthand template application of `_short-hand-nullary-outer_`">
     <template name="_short-hand-nullary-inner-dfn-inner_"
               desc="Inner template applied inner" />
@@ -137,9 +129,9 @@
   <template name="_short-hand-nullary-inner-dfn-outer_"
             desc="Define template outer but apply inner" />
   <apply-template name="_short-hand-nullary-outer_">
-    <with-param name="@values@" value="___dsgr-eed___" />
+    <with-param name="@values@" value="___dsgr-ea4___" />
   </apply-template>
-  <template name="___dsgr-eed___"
+  <template name="___dsgr-ea4___"
             desc="Desugared body of shorthand template application of `_short-hand-nullary-outer_`">
     <apply-template name="_short-hand-nullary-inner-dfn-outer_" />
   </template>
@@ -148,9 +140,9 @@
             desc="Unary with body" />
   <apply-template name="_short-hand-unary-with-body_">
     <with-param name="@foo@" value="bar" />
-    <with-param name="@values@" value="___dsgr-fb4___" />
+    <with-param name="@values@" value="___dsgr-f6b___" />
   </apply-template>
-  <template name="___dsgr-fb4___"
+  <template name="___dsgr-f6b___"
             desc="Desugared body of shorthand template application of `_short-hand-unary-with-body_`">
     <template name="_short-hand-unary-with-body-inner_"
               desc="Inner template" />
