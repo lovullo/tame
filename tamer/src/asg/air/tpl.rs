@@ -229,6 +229,7 @@ impl ParseState for AirTplAggregate {
                 match ctx.expansion_oi() {
                     Some(oi_target) => tpl
                         .oi()
+                        .close(ctx.asg_mut(), span)
                         .expand_into(ctx.asg_mut(), oi_target)
                         .map(|_| ())
                         .transition(Toplevel(tpl.anonymous_reachable())),

@@ -150,6 +150,41 @@ pub enum TplShape {
     Expr(Span),
 }
 
+impl TplShape {
+    fn try_adapt_to(
+        self,
+        other: TplShape,
+        tpl_name: Option<SPair>,
+    ) -> Result<Self, AsgError> {
+        match (self, other) {
+            (TplShape::Expr(first_span), TplShape::Expr(bad_span)) => {
+                Err(AsgError::TplShapeExprMulti(tpl_name, bad_span, first_span))
+            }
+
+            // Higher levels of specificity take precedence.
+            (shape @ TplShape::Expr(_), TplShape::Empty)
+            | (TplShape::Empty, shape @ TplShape::Expr(_))
+            | (shape @ TplShape::Empty, TplShape::Empty) => Ok(shape),
+
+            // Unknown is not yet handled.
+            (
+                TplShape::Unknown,
+                TplShape::Empty | TplShape::Unknown | TplShape::Expr(_),
+            )
+            | (TplShape::Empty | TplShape::Expr(_), TplShape::Unknown) => {
+                todo!("TplShape::Unknown")
+            }
+        }
+    }
+
+    fn overwrite_span_if_any(self, span: Span) -> Self {
+        match self {
+            TplShape::Empty | TplShape::Unknown => self,
+            TplShape::Expr(_) => TplShape::Expr(span),
+        }
+    }
+}
+
 impl Display for TplShape {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // phrase as "template with ..."
@@ -175,22 +210,18 @@ object_rel! {
                 _ctx_span: Option<Span>,
                 commit: impl FnOnce(&mut Asg),
             ) -> Result<(), AsgError> {
+                let tpl_name = from_oi.name(asg);
                 let span = to_oi.resolve(asg).span();
-                let tpl_name = from_oi
-                    .ident(asg)
-                    .and_then(|oi| oi.resolve(asg).name());
 
-                from_oi.try_map_obj(asg, |tpl| match tpl.shape() {
-                    TplShape::Expr(first) => {
-                        Err((
-                            tpl,
-                            AsgError::TplShapeExprMulti(tpl_name, span, first)
-                        ))
-                    },
+                from_oi.try_map_obj(asg, |tpl| {
+                    let new = tpl
+                        .shape()
+                        .try_adapt_to(TplShape::Expr(span), tpl_name);
 
-                    TplShape::Unknown | TplShape::Empty => {
-                        Ok(tpl.overwrite(TplShape::Expr(span)))
-                    },
+                    match new {
+                        Ok(shape) => Ok(tpl.overwrite(shape)),
+                        Err(e) => Err((tpl, e)),
+                    }
                 })?;
 
                 Ok(commit(asg))
@@ -202,7 +233,35 @@ object_rel! {
         dyn Ident,
 
         // Template application.
-        tree Tpl,
+        tree Tpl {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                from_oi: ObjectIndex<Self>,
+                to_oi: ObjectIndex<Tpl>,
+                _ctx_span: Option<Span>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                let tpl_name = from_oi.name(asg);
+                let apply = to_oi.resolve(asg);
+                let apply_shape = apply
+                    .shape()
+                    .overwrite_span_if_any(apply.span());
+
+                // TODO: Refactor; very similar to Expr edge above.
+                from_oi.try_map_obj(asg, |tpl| {
+                    let new = tpl
+                        .shape()
+                        .try_adapt_to(apply_shape, tpl_name);
+
+                    match new {
+                        Ok(shape) => Ok(tpl.overwrite(shape)),
+                        Err(e) => Err((tpl, e)),
+                    }
+                })?;
+
+                Ok(commit(asg))
+            }
+        },
 
         // Short template description and arbitrary documentation to be
         //   expanded into the application site.
@@ -211,6 +270,16 @@ object_rel! {
 }
 
 impl ObjectIndex<Tpl> {
+    /// Name of template,
+    ///   if any.
+    ///
+    /// A template may either be anonymous,
+    ///   or it may not yet have a name because it is still under
+    ///   construction.
+    pub fn name(&self, asg: &Asg) -> Option<SPair> {
+        self.ident(asg).and_then(|oi| oi.resolve(asg).name())
+    }
+
     /// Attempt to complete a template definition.
     ///
     /// This updates the span of the template to encompass the entire
