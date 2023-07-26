@@ -20,7 +20,7 @@
 //! Expressions on the ASG.
 
 use super::{prelude::*, Doc, Ident, ObjectIndexTo, Tpl};
-use crate::{f::Functor, num::Dim, span::Span};
+use crate::{f::Map, num::Dim, span::Span};
 use std::fmt::Display;
 
 #[cfg(doc)]
@@ -52,7 +52,7 @@ impl Expr {
     }
 }
 
-impl Functor<Span> for Expr {
+impl Map<Span> for Expr {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
             Self(op, dim, span) => Self(op, dim, f(span)),

@@ -29,7 +29,7 @@ use self::object::{
 use super::{AsgError, Object, ObjectIndex, ObjectKind};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
-    f::Functor,
+    f::Map,
     global,
     span::Span,
 };

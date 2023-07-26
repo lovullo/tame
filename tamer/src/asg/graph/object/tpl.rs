@@ -22,7 +22,7 @@
 use std::fmt::Display;
 
 use super::{prelude::*, Doc, Expr, Ident};
-use crate::{f::Functor, parse::util::SPair, span::Span};
+use crate::{f::Map, parse::util::SPair, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -46,7 +46,7 @@ impl Tpl {
     }
 }
 
-impl Functor<Span> for Tpl {
+impl Map<Span> for Tpl {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
         match self {
             Self(span, shape) => Self(f(span), shape),
@@ -54,7 +54,7 @@ impl Functor<Span> for Tpl {
     }
 }
 
-impl Functor<TplShape> for Tpl {
+impl Map<TplShape> for Tpl {
     fn map(self, f: impl FnOnce(TplShape) -> TplShape) -> Self::Target {
         match self {
             Self(span, shape) => Self(span, f(shape)),

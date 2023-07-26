@@ -21,7 +21,7 @@
 
 use super::{prelude::*, Doc, Ident, Tpl};
 use crate::{
-    f::Functor,
+    f::Map,
     fmt::{DisplayWrapper, TtQuote},
     parse::{util::SPair, Token},
     span::Span,
@@ -87,7 +87,7 @@ impl Display for Pkg {
     }
 }
 
-impl Functor<Span> for Pkg {
+impl Map<Span> for Pkg {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
         match self {
             Self(span, path) => Self(f(span), path),

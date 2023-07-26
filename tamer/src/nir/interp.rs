@@ -108,7 +108,7 @@ use memchr::memchr2;
 use super::{Nir, NirEntity};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan, Diagnostic},
-    f::Functor,
+    f::Map,
     fmt::{DisplayWrapper, TtQuote},
     parse::{prelude::*, util::SPair, NoContext},
     span::Span,

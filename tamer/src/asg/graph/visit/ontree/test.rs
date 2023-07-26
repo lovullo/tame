@@ -24,7 +24,7 @@ use crate::{
         graph::object::ObjectRelTy,
         ExprOp,
     },
-    f::Functor,
+    f::Map,
     parse::{
         util::{spair, SPair},
         ParseState,

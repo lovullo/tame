@@ -57,7 +57,7 @@ mod tplshort;
 
 use crate::{
     diagnose::{Annotate, Diagnostic},
-    f::Functor,
+    f::Map,
     fmt::{DisplayWrapper, TtQuote},
     parse::{util::SPair, Object, Token},
     span::Span,
@@ -228,7 +228,7 @@ impl Nir {
     }
 }
 
-impl Functor<SymbolId> for Nir {
+impl Map<SymbolId> for Nir {
     /// Map over a token's [`SymbolId`].
     ///
     /// This allows modifying a token's [`SymbolId`] while retaining the

@@ -46,7 +46,7 @@ use super::{
     CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream,
 };
 use crate::{
-    f::Functor,
+    f::Map,
     parse::prelude::*,
     span::Span,
     sym::{st::is_common_whitespace, GlobalSymbolResolve, SymbolId},
@@ -248,7 +248,7 @@ impl<T: TextType> From<Attr> for XirfToken<T> {
     }
 }
 
-impl<T: TextType> Functor<Depth> for XirfToken<T> {
+impl<T: TextType> Map<Depth> for XirfToken<T> {
     fn map(self, f: impl FnOnce(Depth) -> Depth) -> Self::Target {
         use XirfToken::*;
 

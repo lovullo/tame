@@ -26,7 +26,7 @@
 //!     to use outside of the domain of the parsing system itself.
 
 use super::{prelude::*, state::TransitionData};
-use crate::{f::Functor, span::Span, sym::SymbolId};
+use crate::{f::Map, span::Span, sym::SymbolId};
 use std::fmt::Display;
 
 /// A [`SymbolId`] with a corresponding [`Span`].
@@ -83,7 +83,7 @@ impl SPair {
     }
 }
 
-impl Functor<SymbolId> for SPair {
+impl Map<SymbolId> for SPair {
     /// Map over the [`SymbolId`] of the pair while retaining the original
     ///   associated [`Span`].
     ///
@@ -98,7 +98,7 @@ impl Functor<SymbolId> for SPair {
     }
 }
 
-impl Functor<Span> for SPair {
+impl Map<Span> for SPair {
     /// Map over the [`Span`] of the pair while retaining the associated
     ///   [`SymbolId`].
     ///

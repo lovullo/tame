@@ -36,7 +36,7 @@ use super::{
 use crate::{
     diagnose::Annotate,
     diagnostic_unreachable,
-    f::Functor,
+    f::Map,
     parse::{prelude::*, StateStack},
     span::Span,
     sym::SymbolId,
@@ -1310,7 +1310,7 @@ impl<T> AsRef<T> for EnvScopeKind<T> {
     }
 }
 
-impl<T, U> Functor<T, U> for EnvScopeKind<T> {
+impl<T, U> Map<T, U> for EnvScopeKind<T> {
     type Target = EnvScopeKind<U>;
 
     fn map(self, f: impl FnOnce(T) -> U) -> Self::Target {

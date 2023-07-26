@@ -31,7 +31,7 @@ use super::{
 };
 use crate::{
     asg::{graph::object::ObjectIndexTo, ObjectKind},
-    f::Functor,
+    f::Map,
     parse::prelude::*,
 };
 

@@ -23,7 +23,7 @@ use super::{prelude::*, Expr, Meta, Pkg, Tpl};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, Diagnostic},
     diagnostic_todo,
-    f::Functor,
+    f::Map,
     fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},
     parse::{util::SPair, Token},

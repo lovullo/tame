@@ -36,7 +36,7 @@ use super::{prelude::*, Doc, Ident};
 use crate::{
     diagnose::Annotate,
     diagnostic_todo,
-    f::Functor,
+    f::Map,
     fmt::{DisplayWrapper, TtQuote},
     parse::{util::SPair, Token},
     span::Span,
@@ -156,7 +156,7 @@ impl Display for Meta {
     }
 }
 
-impl Functor<Span> for Meta {
+impl Map<Span> for Meta {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
         match self {
             Self::Required(span) => Self::Required(f(span)),

@@ -123,7 +123,7 @@ use super::{Asg, AsgError};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     diagnostic_panic,
-    f::Functor,
+    f::Map,
     parse::util::SPair,
     span::{Span, UNKNOWN_SPAN},
 };
@@ -924,7 +924,7 @@ impl ObjectIndex<Object> {
     }
 }
 
-impl<O: ObjectKind> Functor<Span> for ObjectIndex<O> {
+impl<O: ObjectKind> Map<Span> for ObjectIndex<O> {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
             Self(index, span, ph) => Self(index, f(span), ph),

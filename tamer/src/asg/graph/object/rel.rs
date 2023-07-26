@@ -30,7 +30,7 @@ use crate::{
         graph::{object::Tpl, AsgRelMut},
         Asg, AsgError,
     },
-    f::Functor,
+    f::Map,
     span::Span,
 };
 use std::{fmt::Display, marker::PhantomData};
@@ -481,7 +481,7 @@ impl DynObjectRel<ObjectIndex<Object>, ObjectIndex<Object>> {
     }
 }
 
-impl<S, T, U, V> Functor<(S, T), (U, V)> for DynObjectRel<S, T> {
+impl<S, T, U, V> Map<(S, T), (U, V)> for DynObjectRel<S, T> {
     type Target = DynObjectRel<U, V>;
 
     fn map(self, f: impl FnOnce((S, T)) -> (U, V)) -> Self::Target {

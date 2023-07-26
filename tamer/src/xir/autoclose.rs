@@ -101,7 +101,7 @@ use super::{
     CloseSpan, OpenSpan, QName,
 };
 use crate::{
-    f::Functor,
+    f::Map,
     parse::prelude::*,
     span::{Span, UNKNOWN_SPAN},
     xir::EleSpan,

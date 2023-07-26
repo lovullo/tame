@@ -33,11 +33,12 @@
 
 /// A type providing a `map` function from inner type `T` to `U`.
 ///
-/// In an abuse of terminology,
-///   this functor is polymorphic over the entire trait,
+/// This used to be called `Functor`,
+///   but was renamed because it was an abuse of terminology;
+///   this is polymorphic over the entire trait,
 ///     rather than just the definition of `map`,
-///   allowing implementations to provide multiple specialized `map`s
-///     without having to define individual `map_*` methods.
+///     allowing implementations to provide multiple specialized `map`s
+///       without having to define individual `map_*` methods.
 /// Rust will often be able to infer the proper types and invoke the
 ///   intended `map` function within a given context,
 ///     but methods may still be explicitly disambiguated using the
@@ -46,16 +47,13 @@
 ///   if a functor requires a monomorphic function
 ///     (so `T = U`),
 ///   then it's not really a functor.
-/// We'll refer to these structures informally as monomorphic functors,
-///   since they provide the same type of API as a functor,
-///   but cannot change the underlying type.
 ///
 /// This trait also provides a number of convenience methods that can be
-///   implemented in terms of [`Functor::map`].
+///   implemented in terms of [`Map::map`].
 ///
 /// Why a primitive `map` instead of `fmap`?
 /// ========================================
-/// One of the methods of this trait is [`Functor::fmap`],
+/// One of the methods of this trait is [`Map::fmap`],
 ///   which [is motivated by Haskell][haskell-functor].
 /// This trait implements methods in terms of [`map`](Self::map) rather than
 ///   [`fmap`](Self::fmap) because `map` is a familiar idiom in Rust and
@@ -66,8 +64,8 @@
 ///   which is additional boilerplate relative to `map`.
 ///
 /// [haskell-functor]: https://hackage.haskell.org/package/base/docs/Data-Functor.html
-pub trait Functor<T, U = T>: Sized {
-    /// Type of object resulting from [`Functor::map`] operation.
+pub trait Map<T, U = T>: Sized {
+    /// Type of object resulting from [`Map::map`] operation.
     ///
     /// The term "target" originates from category theory,
     ///   representing the codomain of the functor.
@@ -83,7 +81,7 @@ pub trait Functor<T, U = T>: Sized {
     ///   all others are implemented in terms of it.
     fn map(self, f: impl FnOnce(T) -> U) -> Self::Target;
 
-    /// Curried form of [`Functor::map`],
+    /// Curried form of [`Map::map`],
     ///   with arguments reversed.
     ///
     /// `fmap` returns a unary closure that accepts an object of type
@@ -106,22 +104,22 @@ pub trait Functor<T, U = T>: Sized {
     ///
     /// This is intended for cases where there's a single element that will
     ///   be replaced,
-    ///     taking advantage of [`Functor`]'s trait-level polymorphism.
+    ///     taking advantage of [`Map`]'s trait-level polymorphism.
     fn overwrite(self, value: U) -> Self::Target {
         self.map(|_| value)
     }
 
-    /// Curried form of [`Functor::overwrite`],
+    /// Curried form of [`Map::overwrite`],
     ///   with arguments reversed.
     fn foverwrite(value: U) -> impl FnOnce(Self) -> Self::Target {
         move |x| x.overwrite(value)
     }
 }
 
-impl<T, U> Functor<T, U> for Option<T> {
+impl<T, U> Map<T, U> for Option<T> {
     type Target = Option<U>;
 
-    fn map(self, f: impl FnOnce(T) -> U) -> <Self as Functor<T, U>>::Target {
+    fn map(self, f: impl FnOnce(T) -> U) -> <Self as Map<T, U>>::Target {
         Option::map(self, f)
     }
 }
