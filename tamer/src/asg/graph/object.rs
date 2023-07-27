@@ -123,7 +123,7 @@ use super::{Asg, AsgError};
 use crate::{
     diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
     diagnostic_panic,
-    f::Map,
+    f::{Map, TryMap},
     parse::util::SPair,
     span::{Span, UNKNOWN_SPAN},
 };
@@ -735,6 +735,26 @@ impl<O: ObjectKind> ObjectIndex<O> {
         asg.try_map_obj(self, f)
     }
 
+    /// Resolve the identifier and map over an inner `T` of the resulting
+    ///   [`Object`] narrowed to [`ObjectKind`] `O`,
+    ///     replacing the object on the given [`Asg`].
+    ///
+    /// This uses [`Self::try_map_obj`] to retrieve the object from
+    ///   the [`Asg`].
+    ///
+    /// If this operation is [`Infallible`],
+    ///   see [`Self::map_obj_inner`].
+    pub fn try_map_obj_inner<T, E>(
+        self,
+        asg: &mut Asg,
+        f: impl FnOnce(T) -> <O as TryMap<T>>::FnResult<E>,
+    ) -> Result<Self, E>
+    where
+        O: TryMap<T, Result<E> = Result<O, (O, E)>>,
+    {
+        self.try_map_obj(asg, O::try_fmap(f))
+    }
+
     /// Resolve the identifier and infallibly map over the resulting
     ///   [`Object`] narrowed to [`ObjectKind`] `O`,
     ///     replacing the object on the given [`Asg`].
@@ -749,6 +769,22 @@ impl<O: ObjectKind> ObjectIndex<O> {
             Ok(oi) => oi,
             Err::<_, Infallible>(_) => unreachable!(),
         }
+    }
+
+    /// Resolve the identifier and map over an inner `T` of the resulting
+    ///   [`Object`] narrowed to [`ObjectKind`] `O`,
+    ///     replacing the object on the given [`Asg`].
+    ///
+    /// This uses [`Self::map_obj`] to retrieve the object from
+    ///   the [`Asg`].
+    ///
+    /// If this operation is _not_ [`Infallible`],
+    ///   see [`Self::try_map_obj_inner`].
+    pub fn map_obj_inner<T>(self, asg: &mut Asg, f: impl FnOnce(T) -> T) -> Self
+    where
+        O: Map<T, Target = O>,
+    {
+        self.map_obj(asg, O::fmap(f))
     }
 
     /// Lift [`Self`] into [`Option`] and [`filter`](Option::filter) based

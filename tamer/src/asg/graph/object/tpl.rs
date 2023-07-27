@@ -22,11 +22,7 @@
 use std::fmt::Display;
 
 use super::{prelude::*, Doc, Expr, Ident};
-use crate::{
-    f::{Map, TryMap},
-    parse::util::SPair,
-    span::Span,
-};
+use crate::{f::Map, parse::util::SPair, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -193,6 +189,17 @@ impl TplShape {
     }
 }
 
+/// Attempt to adapt a template shape to that of another.
+///
+/// This returns a partially applied [`TplShape::try_adapt_to`],
+///   where the remaining argument is `self`.
+fn try_adapt_to(
+    other: TplShape,
+    tpl_name: Option<SPair>,
+) -> impl FnOnce(TplShape) -> Result<TplShape, (TplShape, AsgError)> {
+    move |s| s.try_adapt_to(other, tpl_name)
+}
+
 impl Display for TplShape {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // phrase as "template with ..."
@@ -221,11 +228,10 @@ object_rel! {
                 let tpl_name = from_oi.name(asg);
                 let span = to_oi.resolve(asg).span();
 
-                from_oi.try_map_obj(asg, |tpl| {
-                    tpl.try_map(|shape: TplShape| {
-                        shape.try_adapt_to(TplShape::Expr(span), tpl_name)
-                    })
-                })?;
+                from_oi.try_map_obj_inner(
+                    asg,
+                    try_adapt_to(TplShape::Expr(span), tpl_name),
+                )?;
 
                 Ok(commit(asg))
             }
@@ -250,12 +256,10 @@ object_rel! {
                     .shape()
                     .overwrite_span_if_any(apply.span());
 
-                // TODO: Refactor; very similar to Expr edge above.
-                from_oi.try_map_obj(asg, |tpl| {
-                    tpl.try_map(|shape: TplShape| {
-                        shape.try_adapt_to(apply_shape, tpl_name)
-                    })
-                })?;
+                from_oi.try_map_obj_inner(
+                    asg,
+                    try_adapt_to(apply_shape, tpl_name),
+                )?;
 
                 Ok(commit(asg))
             }
