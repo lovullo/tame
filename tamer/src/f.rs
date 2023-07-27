@@ -51,6 +51,9 @@
 /// This trait also provides a number of convenience methods that can be
 ///   implemented in terms of [`Map::map`].
 ///
+/// If a mapping can fail,
+///   see [`TryMap`].
+///
 /// Why a primitive `map` instead of `fmap`?
 /// ========================================
 /// One of the methods of this trait is [`Map::fmap`],
@@ -121,6 +124,59 @@ impl<T, U> Map<T, U> for Option<T> {
 
     fn map(self, f: impl FnOnce(T) -> U) -> <Self as Map<T, U>>::Target {
         Option::map(self, f)
+    }
+}
+
+/// A type providing a `try_map` function from inner type `T` to `U`.
+///
+/// This is a fallible version of [`Map`];
+///   see that trait for more information.
+pub trait TryMap<T, U = T>: Sized {
+    /// Type of object resulting from [`TryMap::try_map`] operation.
+    ///
+    /// The term "target" originates from category theory,
+    ///   representing the codomain of the functor.
+    type Target = Self;
+
+    /// Result of the mapping function.
+    type FnResult<E> = Result<T, (T, E)>;
+
+    /// Result of the entire map operation.
+    type Result<E> = Result<Self, (Self, E)>;
+
+    /// A structure-preserving map between types `T` and `U`.
+    ///
+    /// This unwraps any number of `T` from `Self` and applies the
+    ///   function `f` to transform it into `U`,
+    ///     wrapping the result back up into [`Self`].
+    ///
+    /// Since this method takes ownership over `self` rather than a mutable
+    ///   reference,
+    ///     [`Self::FnResult`] is expected to return some version of `T`
+    ///     alongside the error `E`;
+    ///       this is usually the original `self`,
+    ///         but does not have to be.
+    /// Similarly,
+    ///   [`Self::Result`] will also return [`Self`] in the event of an
+    ///   error.
+    ///
+    /// This is the only method that needs to be implemented on this trait;
+    ///   all others are implemented in terms of it.
+    fn try_map<E>(
+        self,
+        f: impl FnOnce(T) -> Self::FnResult<E>,
+    ) -> Self::Result<E>;
+
+    /// Curried form of [`TryMap::try_map`],
+    ///   with arguments reversed.
+    ///
+    /// `try_fmap` returns a unary closure that accepts an object of type
+    ///   [`Self`].
+    /// This is more amenable to function composition and a point-free style.
+    fn try_fmap<E>(
+        f: impl FnOnce(T) -> Self::FnResult<E>,
+    ) -> impl FnOnce(Self) -> Self::Result<E> {
+        move |x| x.try_map(f)
     }
 }
 

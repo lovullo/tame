@@ -22,7 +22,11 @@
 use std::fmt::Display;
 
 use super::{prelude::*, Doc, Expr, Ident};
-use crate::{f::Map, parse::util::SPair, span::Span};
+use crate::{
+    f::{Map, TryMap},
+    parse::util::SPair,
+    span::Span,
+};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -54,10 +58,16 @@ impl Map<Span> for Tpl {
     }
 }
 
-impl Map<TplShape> for Tpl {
-    fn map(self, f: impl FnOnce(TplShape) -> TplShape) -> Self::Target {
+impl TryMap<TplShape> for Tpl {
+    fn try_map<E>(
+        self,
+        f: impl FnOnce(TplShape) -> Self::FnResult<E>,
+    ) -> Self::Result<E> {
         match self {
-            Self(span, shape) => Self(span, f(shape)),
+            Self(span, x) => match f(x) {
+                Ok(shape) => Ok(Self(span, shape)),
+                Err((shape, e)) => Err((Self(span, shape), e)),
+            },
         }
     }
 }
@@ -151,15 +161,22 @@ pub enum TplShape {
 }
 
 impl TplShape {
+    /// Attempt to adapt a template shape to that of another.
+    ///
+    /// If the shape of `other` is a refinement of the shape of `self`,
+    ///   then `other` will be chosen.
+    /// If the shape of `other` conflicts with `self`,
+    ///   an appropriate [`AsgError`] will describe the problem.
     fn try_adapt_to(
         self,
         other: TplShape,
         tpl_name: Option<SPair>,
-    ) -> Result<Self, AsgError> {
+    ) -> Result<Self, (Self, AsgError)> {
         match (self, other) {
-            (TplShape::Expr(first_span), TplShape::Expr(bad_span)) => {
-                Err(AsgError::TplShapeExprMulti(tpl_name, bad_span, first_span))
-            }
+            (TplShape::Expr(first_span), TplShape::Expr(bad_span)) => Err((
+                self,
+                AsgError::TplShapeExprMulti(tpl_name, bad_span, first_span),
+            )),
 
             // Higher levels of specificity take precedence.
             (shape @ TplShape::Expr(_), TplShape::Empty)
@@ -177,6 +194,14 @@ impl TplShape {
         }
     }
 
+    /// If the shape stores [`Span`] information as evidence of inference,
+    ///   overwrite it with the provided `span`.
+    ///
+    /// This is most commonly used to encapsulate a previous shape
+    ///   inference.
+    /// For example,
+    ///   a template application's span may overwrite the inferred shape of
+    ///   its own body.
     fn overwrite_span_if_any(self, span: Span) -> Self {
         match self {
             TplShape::Empty | TplShape::Unknown => self,
@@ -214,14 +239,9 @@ object_rel! {
                 let span = to_oi.resolve(asg).span();
 
                 from_oi.try_map_obj(asg, |tpl| {
-                    let new = tpl
-                        .shape()
-                        .try_adapt_to(TplShape::Expr(span), tpl_name);
-
-                    match new {
-                        Ok(shape) => Ok(tpl.overwrite(shape)),
-                        Err(e) => Err((tpl, e)),
-                    }
+                    tpl.try_map(|shape| {
+                        shape.try_adapt_to(TplShape::Expr(span), tpl_name)
+                    })
                 })?;
 
                 Ok(commit(asg))
@@ -249,14 +269,9 @@ object_rel! {
 
                 // TODO: Refactor; very similar to Expr edge above.
                 from_oi.try_map_obj(asg, |tpl| {
-                    let new = tpl
-                        .shape()
-                        .try_adapt_to(apply_shape, tpl_name);
-
-                    match new {
-                        Ok(shape) => Ok(tpl.overwrite(shape)),
-                        Err(e) => Err((tpl, e)),
-                    }
+                    tpl.try_map(|shape| {
+                        shape.try_adapt_to(apply_shape, tpl_name)
+                    })
                 })?;
 
                 Ok(commit(asg))
