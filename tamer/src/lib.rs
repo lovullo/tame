@@ -254,13 +254,14 @@ pub mod global;
 extern crate static_assertions;
 
 #[macro_use]
+pub mod f;
+#[macro_use]
 pub mod diagnose;
 #[macro_use]
 pub mod xir;
 
 pub mod asg;
 pub mod convert;
-pub mod f;
 pub mod fmt;
 pub mod fs;
 pub mod iter;

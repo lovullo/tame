@@ -50,26 +50,9 @@ impl Tpl {
     }
 }
 
-impl Map<Span> for Tpl {
-    fn map(self, f: impl FnOnce(Span) -> Span) -> Self::Target {
-        match self {
-            Self(span, shape) => Self(f(span), shape),
-        }
-    }
-}
-
-impl TryMap<TplShape> for Tpl {
-    fn try_map<E>(
-        self,
-        f: impl FnOnce(TplShape) -> Self::FnResult<E>,
-    ) -> Self::Result<E> {
-        match self {
-            Self(span, x) => match f(x) {
-                Ok(shape) => Ok(Self(span, shape)),
-                Err((shape, e)) => Err((Self(span, shape), e)),
-            },
-        }
-    }
+impl_mono_map! {
+    Span => Tpl(@, shape),
+    TplShape => Tpl(span, @),
 }
 
 impl Display for Tpl {
@@ -239,7 +222,7 @@ object_rel! {
                 let span = to_oi.resolve(asg).span();
 
                 from_oi.try_map_obj(asg, |tpl| {
-                    tpl.try_map(|shape| {
+                    tpl.try_map(|shape: TplShape| {
                         shape.try_adapt_to(TplShape::Expr(span), tpl_name)
                     })
                 })?;
@@ -269,7 +252,7 @@ object_rel! {
 
                 // TODO: Refactor; very similar to Expr edge above.
                 from_oi.try_map_obj(asg, |tpl| {
-                    tpl.try_map(|shape| {
+                    tpl.try_map(|shape: TplShape| {
                         shape.try_adapt_to(apply_shape, tpl_name)
                     })
                 })?;

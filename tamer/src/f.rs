@@ -180,6 +180,80 @@ pub trait TryMap<T, U = T>: Sized {
     }
 }
 
+/// Generate monomorphic [`TryMap`] and [`Map`] implementations for the
+///   provided type.
+///
+/// This macro is suitable for otherwise-boilerplate `impl`s for these
+///   traits.
+/// If you expect anything more than a generic `map` or `try_map` operation,
+///   then you should implement the traits manually.
+///
+/// Only tuple structs are supported at present.
+///
+/// For example:
+///
+/// ```
+/// # #[macro_use] extern crate tamer;
+/// # use tamer::impl_mono_map;
+/// # use tamer::f::Map;
+/// # fn main() {
+///   #[derive(Debug, PartialEq)]
+///   struct Foo(u8, Bar);
+///
+///   #[derive(Debug, PartialEq)]
+///   enum Bar { A, B };
+///
+///   impl_mono_map! {
+///       u8 => Foo(@, bar),
+///       Bar => Foo(n, @),
+///   }
+///
+///   assert_eq!(Foo(5, Bar::A).overwrite(Bar::B), Foo(5, Bar::B));
+/// # }
+/// ```
+///
+/// Each line above generates a pair of `impl`s,
+///   each for `Foo`,
+///   where `@` represents the tuple item being mapped over.
+#[macro_export] // for doc test above
+macro_rules! impl_mono_map {
+    ($($t:ty => $tup:ident( $($pre:ident,)* @ $(, $post:ident),* ),)+) => {
+        $(
+            impl $crate::f::TryMap<$t> for $tup {
+                fn try_map<E>(
+                    self,
+                    f: impl FnOnce($t) -> Self::FnResult<E>,
+                ) -> Self::Result<E> {
+                    match self {
+                        Self($($pre,)* x $(, $post),*) => match f(x) {
+                            Ok(y) => Ok(Self($($pre,)* y $(, $post),*)),
+                            Err((y, e)) => Err((
+                                Self($($pre,)* y $(, $post),*),
+                                e,
+                            )),
+                        },
+                    }
+                }
+            }
+
+            impl $crate::f::Map<$t> for $tup {
+                fn map(self, f: impl FnOnce($t) -> $t) -> Self::Target {
+                    use std::convert::Infallible;
+                    use $crate::f::TryMap;
+
+                    // `unwrap()` requires `E: Debug`,
+                    //   so this avoids that bound.
+                    match self.try_map::<Infallible>(|x| Ok(f(x))) {
+                        Ok(y) => y,
+                        // Verbosely emphasize unreachability
+                        Err::<_, (_, Infallible)>(_) => unreachable!(),
+                    }
+                }
+            }
+        )+
+    }
+}
+
 /// A nullary [`Fn`] delaying some computation.
 ///
 /// For the history and usage of this term in computing,
