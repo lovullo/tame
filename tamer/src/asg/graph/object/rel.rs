@@ -27,7 +27,7 @@ use super::{
 };
 use crate::{
     asg::{
-        graph::{object::Tpl, AsgRelMut},
+        graph::{object::Tpl, AsgRelMut, ProposedRel},
         Asg, AsgError,
     },
     f::Map,
@@ -864,7 +864,6 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError>;
 
     /// Check whether an edge exists from `self` to `to_oi`.
@@ -948,14 +947,14 @@ where
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         O::pre_add_edge(
             asg,
-            self.widen().must_narrow_into::<O>(),
-            to_oi,
-            ctx_span,
-            commit,
+            ProposedRel {
+                from_oi: self.widen().must_narrow_into::<O>(),
+                to_oi,
+                ctx_span,
+            },
         )
     }
 }
@@ -976,16 +975,16 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         macro_rules! pre_add_edge {
             ($ty:ident) => {
                 $ty::pre_add_edge(
                     asg,
-                    self.widen().must_narrow_into::<$ty>(),
-                    to_oi,
-                    ctx_span,
-                    commit,
+                    ProposedRel {
+                        from_oi: self.widen().must_narrow_into::<$ty>(),
+                        to_oi,
+                        ctx_span,
+                    },
                 )
             };
         }
@@ -1020,10 +1019,9 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         match self {
-            Self(oito) => oito.pre_add_edge(asg, to_oi, ctx_span, commit),
+            Self(oito) => oito.pre_add_edge(asg, to_oi, ctx_span),
         }
     }
 }

@@ -22,7 +22,7 @@
 use std::fmt::Display;
 
 use super::{prelude::*, Doc, Expr, Ident};
-use crate::{f::Map, parse::util::SPair, span::Span};
+use crate::{asg::graph::ProposedRel, f::Map, parse::util::SPair, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -220,20 +220,15 @@ object_rel! {
         tree Expr {
             fn pre_add_edge(
                 asg: &mut Asg,
-                from_oi: ObjectIndex<Self>,
-                to_oi: ObjectIndex<Expr>,
-                _ctx_span: Option<Span>,
-                commit: impl FnOnce(&mut Asg),
+                rel: ProposedRel<Self, Expr>,
             ) -> Result<(), AsgError> {
-                let tpl_name = from_oi.name(asg);
-                let span = to_oi.resolve(asg).span();
+                let tpl_name = rel.from_oi.name(asg);
+                let span = rel.to_oi.resolve(asg).span();
 
-                from_oi.try_map_obj_inner(
+                rel.from_oi.try_map_obj_inner(
                     asg,
                     try_adapt_to(TplShape::Expr(span), tpl_name),
-                )?;
-
-                Ok(commit(asg))
+                ).map(|_| ())
             }
         },
 
@@ -245,23 +240,18 @@ object_rel! {
         tree Tpl {
             fn pre_add_edge(
                 asg: &mut Asg,
-                from_oi: ObjectIndex<Self>,
-                to_oi: ObjectIndex<Tpl>,
-                _ctx_span: Option<Span>,
-                commit: impl FnOnce(&mut Asg),
+                rel: ProposedRel<Self, Tpl>,
             ) -> Result<(), AsgError> {
-                let tpl_name = from_oi.name(asg);
-                let apply = to_oi.resolve(asg);
+                let tpl_name = rel.from_oi.name(asg);
+                let apply = rel.to_oi.resolve(asg);
                 let apply_shape = apply
                     .shape()
                     .overwrite_span_if_any(apply.span());
 
-                from_oi.try_map_obj_inner(
+                rel.from_oi.try_map_obj_inner(
                     asg,
                     try_adapt_to(apply_shape, tpl_name),
-                )?;
-
-                Ok(commit(asg))
+                ).map(|_| ())
             }
         },
 

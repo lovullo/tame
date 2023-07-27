@@ -211,8 +211,8 @@ impl Asg {
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
     ) -> Result<(), AsgError> {
-        from_oi.pre_add_edge(self, to_oi, ctx_span, |asg| {
-            asg.graph.add_edge(
+        from_oi.pre_add_edge(self, to_oi, ctx_span).map(|()| {
+            self.graph.add_edge(
                 from_oi.widen().into(),
                 to_oi.into(),
                 (from_oi.src_rel_ty(), OB::rel_ty(), ctx_span),
@@ -511,14 +511,11 @@ pub trait AsgRelMut<OB: ObjectRelatable>: ObjectRelatable {
     ///   type for you.
     fn pre_add_edge(
         asg: &mut Asg,
-        _from_oi: ObjectIndex<Self>,
-        _to_oi: ObjectIndex<OB>,
-        _ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
+        rel: ProposedRel<Self, OB>,
     ) -> Result<(), AsgError>;
 }
 
-impl<O: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for O {
+impl<OA: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for OA {
     /// Default edge creation method for all [`ObjectKind`]s.
     ///
     /// This takes the place of a default implementation on the trait itself
@@ -531,14 +528,20 @@ impl<O: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for O {
     ///     overridden for a particular edge for a particular object
     ///       (see [`object::tpl`] as an example).
     default fn pre_add_edge(
-        asg: &mut Asg,
-        _from_oi: ObjectIndex<O>,
-        _to_oi: ObjectIndex<OB>,
-        _ctx_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
+        _asg: &mut Asg,
+        _rel: ProposedRel<Self, OB>,
     ) -> Result<(), AsgError> {
-        Ok(commit(asg))
+        let _ = _rel.ctx_span; // TODO: remove when used (dead_code)
+        Ok(())
     }
+}
+
+/// The relationship proposed by [`Asg::add_edge`],
+///   requiring approval from [`AsgRelMut::pre_add_edge`].
+pub struct ProposedRel<OA: ObjectKind, OB: ObjectKind> {
+    from_oi: ObjectIndex<OA>,
+    to_oi: ObjectIndex<OB>,
+    ctx_span: Option<Span>,
 }
 
 #[cfg(test)]
