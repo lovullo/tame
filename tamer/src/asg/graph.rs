@@ -211,8 +211,8 @@ impl Asg {
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
     ) -> Result<(), AsgError> {
-        from_oi.pre_add_edge(self, to_oi, ctx_span).map(|()| {
-            self.graph.add_edge(
+        from_oi.pre_add_edge(self, to_oi, ctx_span, |asg| {
+            asg.graph.add_edge(
                 from_oi.widen().into(),
                 to_oi.into(),
                 (from_oi.src_rel_ty(), OB::rel_ty(), ctx_span),
@@ -512,6 +512,7 @@ pub trait AsgRelMut<OB: ObjectRelatable>: ObjectRelatable {
     fn pre_add_edge(
         asg: &mut Asg,
         rel: ProposedRel<Self, OB>,
+        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError>;
 }
 
@@ -528,11 +529,12 @@ impl<OA: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for OA {
     ///     overridden for a particular edge for a particular object
     ///       (see [`object::tpl`] as an example).
     default fn pre_add_edge(
-        _asg: &mut Asg,
+        asg: &mut Asg,
         _rel: ProposedRel<Self, OB>,
+        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         let _ = _rel.ctx_span; // TODO: remove when used (dead_code)
-        Ok(())
+        Ok(commit(asg))
     }
 }
 

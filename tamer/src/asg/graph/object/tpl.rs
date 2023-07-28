@@ -221,6 +221,7 @@ object_rel! {
             fn pre_add_edge(
                 asg: &mut Asg,
                 rel: ProposedRel<Self, Expr>,
+                commit: impl FnOnce(&mut Asg),
             ) -> Result<(), AsgError> {
                 let tpl_name = rel.from_oi.name(asg);
                 let span = rel.to_oi.resolve(asg).span();
@@ -228,7 +229,9 @@ object_rel! {
                 rel.from_oi.try_map_obj_inner(
                     asg,
                     try_adapt_to(TplShape::Expr(span), tpl_name),
-                ).map(|_| ())
+                )?;
+
+                Ok(commit(asg))
             }
         },
 
@@ -241,6 +244,7 @@ object_rel! {
             fn pre_add_edge(
                 asg: &mut Asg,
                 rel: ProposedRel<Self, Tpl>,
+                commit: impl FnOnce(&mut Asg),
             ) -> Result<(), AsgError> {
                 let tpl_name = rel.from_oi.name(asg);
                 let apply = rel.to_oi.resolve(asg);
@@ -251,7 +255,9 @@ object_rel! {
                 rel.from_oi.try_map_obj_inner(
                     asg,
                     try_adapt_to(apply_shape, tpl_name),
-                ).map(|_| ())
+                )?;
+
+                Ok(commit(asg))
             }
         },
 

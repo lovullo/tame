@@ -864,6 +864,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError>;
 
     /// Check whether an edge exists from `self` to `to_oi`.
@@ -947,6 +948,7 @@ where
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         O::pre_add_edge(
             asg,
@@ -955,6 +957,7 @@ where
                 to_oi,
                 ctx_span,
             },
+            commit,
         )
     }
 }
@@ -975,6 +978,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         macro_rules! pre_add_edge {
             ($ty:ident) => {
@@ -985,6 +989,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
                         to_oi,
                         ctx_span,
                     },
+                    commit,
                 )
             };
         }
@@ -1019,9 +1024,10 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
         ctx_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         match self {
-            Self(oito) => oito.pre_add_edge(asg, to_oi, ctx_span),
+            Self(oito) => oito.pre_add_edge(asg, to_oi, ctx_span, commit),
         }
     }
 }
