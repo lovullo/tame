@@ -274,7 +274,7 @@ object_rel! {
                         rel.from_oi.try_map_obj_inner(
                             asg,
                             try_adapt_to(TplShape::Unknown(ref_span), tpl_name),
-                        )?;
+                        ).map(|_| ())
                     }
 
                     // TAME is referentally transparent,
@@ -284,29 +284,18 @@ object_rel! {
                         rel.from_oi.try_map_obj_inner(
                             asg,
                             try_adapt_to(TplShape::Expr(ref_span), tpl_name),
-                        )?;
+                        ).map(|_| ())
                     }
 
                     // This is the same as the `Tpl` tree edge below,
                     //   but a named template instead of an anonymous one.
                     (Some(ref_span), Some(IdentDefinition::Tpl(to_oi))) => {
-                        // TODO: Factor common logic between this and the
-                        //   `Tpl->Tpl` edge below.
-                        let tpl_name = to_oi.name(asg);
-                        let apply = to_oi.resolve(asg);
-                        let apply_shape = apply
-                            .shape()
-                            .overwrite_span_if_any(ref_span);
-
-                        rel.from_oi.try_map_obj_inner(
-                            asg,
-                            try_adapt_to(apply_shape, tpl_name),
-                        )?;
+                        apply_tpl_shape(asg, rel.from_oi, to_oi, Some(ref_span))
                     }
 
                     // The mere _existence_ of metavariables (template
                     //   params) do not influence the expansion shape.
-                    (Some(_), Some(IdentDefinition::Meta(_))) => (),
+                    (Some(_), Some(IdentDefinition::Meta(_))) => Ok(()),
 
                     // Lack of span means that this is not a cross edge,
                     //   and so not a reference;
@@ -316,8 +305,8 @@ object_rel! {
                     //       which does not impact template shape.
                     // TODO: Let's make that span assumption explicit in the
                     //   `ProposeRel` abstraction.
-                    (None, _) => (),
-                }
+                    (None, _) => Ok(()),
+                }?;
 
                 Ok(commit(asg))
             }
@@ -330,17 +319,7 @@ object_rel! {
                 rel: ProposedRel<Self, Tpl>,
                 commit: impl FnOnce(&mut Asg),
             ) -> Result<(), AsgError> {
-                let tpl_name = rel.from_oi.name(asg);
-                let apply = rel.to_oi.resolve(asg);
-                let apply_shape = apply
-                    .shape()
-                    .overwrite_span_if_any(apply.span());
-
-                rel.from_oi.try_map_obj_inner(
-                    asg,
-                    try_adapt_to(apply_shape, tpl_name),
-                )?;
-
+                apply_tpl_shape(asg, rel.from_oi, rel.to_oi, None)?;
                 Ok(commit(asg))
             }
         },
@@ -349,6 +328,35 @@ object_rel! {
         //   expanded into the application site.
         tree Doc,
     }
+}
+
+/// Apply the shape of a template to a parent template.
+///
+/// Phrased another way:
+///   given a template application `oi_apply` in the body of a parent
+///   template `oi_parent`,
+///     infer the appropriate shape for `oi_parent`.
+///
+/// If `oi_apply` is behind a reference,
+///   `ref_span` may be used to override the diagnostic span stored within
+///   the shape.
+/// Since this is used to report shape errors to the user,
+///   this span should _always_ be within the context of `oi_parent`.
+fn apply_tpl_shape(
+    asg: &mut Asg,
+    oi_parent: ObjectIndex<Tpl>,
+    oi_apply: ObjectIndex<Tpl>,
+    ref_span: Option<Span>,
+) -> Result<(), AsgError> {
+    let tpl_name = oi_parent.name(asg);
+    let apply = oi_apply.resolve(asg);
+    let apply_shape = apply
+        .shape()
+        .overwrite_span_if_any(ref_span.unwrap_or(apply.span()));
+
+    oi_parent.try_map_obj_inner(asg, try_adapt_to(apply_shape, tpl_name))?;
+
+    Ok(())
 }
 
 impl ObjectIndex<Tpl> {
