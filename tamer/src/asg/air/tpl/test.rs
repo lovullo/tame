@@ -592,7 +592,7 @@ fn tpl_nested() {
     let oi_tpl_inner_ident =
         oi_tpl_outer.lookup_local_linear(&asg, id_tpl_inner);
     let tpl_inner = oi_tpl_inner_ident
-        .and_then(|oi| oi.definition::<Tpl>(&asg))
+        .and_then(|oi| oi.definition_narrow::<Tpl>(&asg))
         .map(ObjectIndex::cresolve(&asg));
 
     assert_eq!(S3.merge(S5), tpl_inner.map(Tpl::span));
@@ -699,7 +699,7 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
     let span_outer = ctx
         .env_scope_lookup::<Ident>(oi_outer, id_param_outer)
         .expect("missing id_param_outer Ident")
-        .definition::<Meta>(asg)
+        .definition_narrow::<Meta>(asg)
         .expect("missing id_param_outer definition")
         .resolve(asg)
         .span();
@@ -709,13 +709,13 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
     let oi_inner = ctx
         .env_scope_lookup::<Ident>(oi_outer, id_tpl_inner)
         .expect("could not locate inner Tpl's Ident")
-        .definition::<Tpl>(asg)
+        .definition_narrow::<Tpl>(asg)
         .expect("missing inner Tpl");
 
     let span_inner = ctx
         .env_scope_lookup::<Ident>(oi_inner, id_param_inner)
         .expect("missing id_param_inner Ident")
-        .definition::<Meta>(asg)
+        .definition_narrow::<Meta>(asg)
         .expect("missing id_param_inner definition")
         .resolve(asg)
         .span();
@@ -780,7 +780,7 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
 
     // The identifier should be bound to the expression.
     let oi_expr = oi_ident
-        .definition::<Expr>(asg)
+        .definition_narrow::<Expr>(asg)
         .expect("abstract identifier did not bind to Expr");
 
     assert_eq!(S3.merge(S5).unwrap(), oi_expr.resolve(asg).span());

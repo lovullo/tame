@@ -185,7 +185,7 @@ fn tpl_apply_nested_missing() {
     let oi_tpl_inner = oi_tpl_outer
         .lookup_local_linear(&asg, id_tpl_inner)
         .expect("could not locate inner template as a local")
-        .definition::<Tpl>(&asg)
+        .definition_narrow::<Tpl>(&asg)
         .expect("could not resolve inner template ref to Tpl");
 
     // We should have two inner template applications.
@@ -206,7 +206,7 @@ fn tpl_apply_nested_missing() {
         inners
             .iter()
             .flat_map(|oi| oi.edges_filtered::<Ident>(&asg))
-            .filter_map(|oi| oi.definition(&asg))
+            .filter_map(|oi| oi.definition_narrow(&asg))
             .collect::<Vec<_>>(),
     );
 }

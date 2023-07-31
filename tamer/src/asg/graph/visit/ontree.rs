@@ -492,7 +492,9 @@ mod order {
                             Ident(oi_ident) => {
                                 // This is the (comparatively) expensive lookup,
                                 //   requiring a small graph traversal.
-                                match oi_ident.definition::<object::Meta>(asg) {
+                                match oi_ident
+                                    .definition_narrow::<object::Meta>(asg)
+                                {
                                     Some(_) => TplOrder::Param,
                                     None => TplOrder::Body,
                                 }

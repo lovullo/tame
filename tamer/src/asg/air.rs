@@ -1105,7 +1105,7 @@ impl AirAggregateCtx {
         Ident: ObjectRelTo<O>,
     {
         self.env_scope_lookup::<Ident>(env, name)
-            .and_then(|oi| oi.definition(self.asg_ref()))
+            .and_then(|oi| oi.definition_narrow(self.asg_ref()))
     }
 
     /// Attempt to retrieve an identifier from the graph by name relative to

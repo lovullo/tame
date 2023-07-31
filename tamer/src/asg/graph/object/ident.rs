@@ -1282,8 +1282,35 @@ impl ObjectIndex<Ident> {
     /// Look up the definition that this identifier binds to,
     ///   if any.
     ///
-    /// See [`Self::bind_definition`].
-    pub fn definition<O: ObjectRelFrom<Ident> + ObjectRelatable>(
+    /// _It is assumed that an identifier has only a single definition_.
+    /// If this invariant is not upheld,
+    ///   then the definition that is returned is undefined.
+    ///
+    /// See also [`Self::bind_definition`] and [`Self::definition_narrow`].
+    pub fn definition(
+        &self,
+        asg: &Asg,
+    ) -> Option<<Ident as ObjectRelatable>::Rel> {
+        self.edges(asg).next()
+    }
+
+    /// Look up the definition that this identifier binds to,
+    ///   if any,
+    ///   and attempt to narrow its type.
+    ///
+    /// This can be read as "attempt to find a definition of this
+    ///   [`ObjectKind`]".
+    /// It cannot distinguish between the absence of a definition,
+    ///   and one that does not meet the provided criterion.
+    /// If this distinction is important,
+    ///   see [`Self::definition`].
+    ///
+    /// _It is assumed that an identifier has only a single definition_.
+    /// If this invariant is not upheld,
+    ///   then the definition that is returned is undefined.
+    ///
+    /// See also [`Self::bind_definition`].
+    pub fn definition_narrow<O: ObjectRelFrom<Ident> + ObjectRelatable>(
         &self,
         asg: &Asg,
     ) -> Option<ObjectIndex<O>> {

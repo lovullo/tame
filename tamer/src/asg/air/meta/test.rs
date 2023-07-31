@@ -298,7 +298,7 @@ fn assert_concat_list<'a, IT, IE: 'a>(
             .edges(asg)
             .filter_map(|rel| match rel {
                 MetaRel::Meta(oi) => Some(oi),
-                MetaRel::Ident(oi) => oi.definition::<Meta>(asg),
+                MetaRel::Ident(oi) => oi.definition_narrow::<Meta>(asg),
                 MetaRel::Doc(_) => None,
             })
             .map(ObjectIndex::cresolve(asg))
@@ -362,7 +362,7 @@ where
             "could not locate stub template (did you call \
             air_ctx_from_tpl_body_toks without parse_as_tpl_body?)",
         )
-        .definition(ctx.asg_ref())
+        .definition_narrow(ctx.asg_ref())
         .expect("missing stub template definition (test setup bug?)");
 
     (ctx, oi_tpl)
