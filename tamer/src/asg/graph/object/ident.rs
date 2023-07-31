@@ -1121,10 +1121,61 @@ object_rel! {
         //   metavariable reference.
         dyn Ident,
 
+        // Be sure to update `IdentDefinition` below if necessary
+        //   (the compiler will remind you if you try to use such an object
+        //      in a definition without doing so).
         tree Expr,
         tree Tpl,
         tree Meta,
     } can_recurse(ident) if matches!(ident.kind(), Some(IdentKind::Func(..)))
+}
+
+/// An [`ObjectKind`] that may serve as a definition of an [`Ident`].
+///
+/// This is a more refined [`IdentRel`],
+///   which is defined by the [`object_rel!`] macro.
+///
+/// See [`ObjectIndex<Ident>::definition`].
+#[derive(Debug, PartialEq, Eq)]
+pub enum IdentDefinition {
+    Expr(ObjectIndex<Expr>),
+    Tpl(ObjectIndex<Tpl>),
+    Meta(ObjectIndex<Meta>),
+}
+
+impl IdentDefinition {
+    /// Attempt to narrow the definition into the requested type `O`,
+    ///   returning [`None`] if the types do not match.
+    fn narrow<O: ObjectRelatable>(self) -> Option<ObjectIndex<O>>
+    where
+        O: ObjectRelFrom<Ident>,
+    {
+        use IdentDefinition::*;
+
+        match self {
+            Expr(oi) => oi.filter_rel(),
+            Tpl(oi) => oi.filter_rel(),
+            Meta(oi) => oi.filter_rel(),
+        }
+    }
+}
+
+impl From<ObjectIndex<Expr>> for IdentDefinition {
+    fn from(oi: ObjectIndex<Expr>) -> Self {
+        Self::Expr(oi)
+    }
+}
+
+impl From<ObjectIndex<Tpl>> for IdentDefinition {
+    fn from(oi: ObjectIndex<Tpl>) -> Self {
+        Self::Tpl(oi)
+    }
+}
+
+impl From<ObjectIndex<Meta>> for IdentDefinition {
+    fn from(oi: ObjectIndex<Meta>) -> Self {
+        Self::Meta(oi)
+    }
 }
 
 impl ObjectIndex<Ident> {
@@ -1207,6 +1258,7 @@ impl ObjectIndex<Ident> {
     ) -> Result<ObjectIndex<Ident>, AsgError>
     where
         Ident: ObjectRelTo<O>,
+        ObjectIndex<O>: Into<IdentDefinition>,
     {
         let my_span = self.into();
 
@@ -1287,13 +1339,21 @@ impl ObjectIndex<Ident> {
     ///   then the definition that is returned is undefined.
     ///
     /// See also [`Self::bind_definition`] and [`Self::definition_narrow`].
-    pub fn definition(
-        &self,
-        asg: &Asg,
-    ) -> Option<<Ident as ObjectRelatable>::Rel> {
-        // XXX: This could return an abstract binding metavar reference
-        //   depending on undefined edge ordering!
-        self.edges(asg).next()
+    pub fn definition(&self, asg: &Asg) -> Option<IdentDefinition> {
+        // `find_map` is still important because,
+        //   even though we should have only one definition,
+        //   we _may_ have multiple edges,
+        //     e.g. in the case of an abstract binding.
+        self.edges(asg).find_map(|rel| match rel {
+            IdentRel::Expr(oi) => Some(IdentDefinition::Expr(oi)),
+            IdentRel::Tpl(oi) => Some(IdentDefinition::Tpl(oi)),
+            IdentRel::Meta(oi) => Some(IdentDefinition::Meta(oi)),
+
+            // Could be an abstract binding or an opaque dependency.
+            // In either case,
+            //   it's no definition.
+            IdentRel::Ident(_) => None,
+        })
     }
 
     /// Look up the definition that this identifier binds to,
@@ -1316,7 +1376,7 @@ impl ObjectIndex<Ident> {
         &self,
         asg: &Asg,
     ) -> Option<ObjectIndex<O>> {
-        self.edges(asg).find_map(ObjectRel::narrow)
+        self.definition(asg).and_then(IdentDefinition::narrow)
     }
 
     /// Whether this identifier is bound to the object represented by `oi`.

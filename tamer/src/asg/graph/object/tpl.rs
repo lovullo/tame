@@ -21,13 +21,8 @@
 
 use std::fmt::Display;
 
-use super::{ident::IdentRel, prelude::*, Doc, Expr, Ident};
-use crate::{
-    asg::graph::ProposedRel,
-    f::Map,
-    parse::{prelude::Annotate, util::SPair},
-    span::Span,
-};
+use super::{ident::IdentDefinition, prelude::*, Doc, Expr, Ident};
+use crate::{asg::graph::ProposedRel, f::Map, parse::util::SPair, span::Span};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -285,7 +280,7 @@ object_rel! {
                     // TAME is referentally transparent,
                     //   so a reference to an Expr is no different than
                     //   inlining that Expr.
-                    (Some(ref_span), Some(IdentRel::Expr(_))) => {
+                    (Some(ref_span), Some(IdentDefinition::Expr(_))) => {
                         rel.from_oi.try_map_obj_inner(
                             asg,
                             try_adapt_to(TplShape::Expr(ref_span), tpl_name),
@@ -294,7 +289,7 @@ object_rel! {
 
                     // This is the same as the `Tpl` tree edge below,
                     //   but a named template instead of an anonymous one.
-                    (Some(ref_span), Some(IdentRel::Tpl(to_oi))) => {
+                    (Some(ref_span), Some(IdentDefinition::Tpl(to_oi))) => {
                         // TODO: Factor common logic between this and the
                         //   `Tpl->Tpl` edge below.
                         let tpl_name = to_oi.name(asg);
@@ -309,17 +304,9 @@ object_rel! {
                         )?;
                     }
 
-                    // TODO: Filter this out (Ident -> Ident)
-                    (Some(span), Some(IdentRel::Ident(_))) => {
-                        diagnostic_todo!(
-                            vec![span.internal_error("while parsing this reference")],
-                            "opaque identifier or abstract binding"
-                        )
-                    }
-
                     // The mere _existence_ of metavariables (template
                     //   params) do not influence the expansion shape.
-                    (Some(_), Some(IdentRel::Meta(_))) => (),
+                    (Some(_), Some(IdentDefinition::Meta(_))) => (),
 
                     // Lack of span means that this is not a cross edge,
                     //   and so not a reference;
