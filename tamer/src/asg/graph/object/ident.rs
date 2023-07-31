@@ -1291,6 +1291,8 @@ impl ObjectIndex<Ident> {
         &self,
         asg: &Asg,
     ) -> Option<<Ident as ObjectRelatable>::Rel> {
+        // XXX: This could return an abstract binding metavar reference
+        //   depending on undefined edge ordering!
         self.edges(asg).next()
     }
 

@@ -149,18 +149,18 @@ fn tpl_apply_nested_missing() {
 
           // Inner template application (Missing)
           TplStart(S3),
-            RefIdent(ref_tpl_inner_pre),
-          TplEndRef(S5),
-
-          // Define the template above
-          TplStart(S6),
-            BindIdent(id_tpl_inner),
-          TplEnd(S8),
-
-          // Apply again,
-          //   this time _after_ having been defined.
-          TplStart(S9),
-            RefIdent(ref_tpl_inner_post),
+            RefIdent(ref_tpl_inner_pre),               // -.
+          TplEndRef(S5),                               //  |
+                                                       //  |
+          // Define the template above                 //  |
+          TplStart(S6),                                //  |
+            BindIdent(id_tpl_inner),                   // <:
+          TplEnd(S8),                                  //  |
+                                                       //  |
+          // Apply again,                              //  |
+          //   this time _after_ having been defined.  //  |
+          TplStart(S9),                                //  |
+            RefIdent(ref_tpl_inner_post),              // -'
           TplEndRef(S11),
         TplEnd(S12),
     ];
@@ -171,11 +171,17 @@ fn tpl_apply_nested_missing() {
     let oi_tpl_outer = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl_outer);
     assert_eq!(S1.merge(S12).unwrap(), oi_tpl_outer.resolve(&asg).span());
 
-    // We apply two template,
-    //   both of which are empty,
-    //   and so the outer shape is still empty.
+    // TODO: It should be the case that we apply two templates,
+    //     both of which are empty,
+    //     and so the outer shape is still empty.
+    //   But until we notify templates of `Missing` ident resolution,
+    //     we don't know the shape of the template by the time we reach the
+    //     first reference.
+    //   Consequently,
+    //     `TplShape::Unknown` must take precedence to reflect this
+    //     uncertainty.
     let tpl_outer = oi_tpl_outer.resolve(&asg);
-    assert_eq!(TplShape::Empty, tpl_outer.shape());
+    assert_eq!(TplShape::Unknown(S3.merge(S5).unwrap()), tpl_outer.shape());
 
     // The inner template should be contained within the outer and so not
     //   globally resolvable.
@@ -376,5 +382,148 @@ fn tpl_inner_apply_expr_alongside_another_apply_expr() {
             .map(ObjectIndex::cresolve(&asg))
             .map(Tpl::span)
             .collect::<Vec<_>>()
+    );
+}
+
+// A simpler version of the above test that asserts against the explicit
+//   case of sibling expressions in a template body,
+//     with no wrapping or indirection.
+#[test]
+fn tpl_multi_expr() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl_", S2)),
+
+          // First one is okay.
+          ExprStart(ExprOp::Sum, S3),
+          ExprEnd(S4),
+
+          // But the second is in error and will be dropped.
+          ExprStart(ExprOp::Sum, S5),
+          ExprEnd(S6),
+        TplEnd(S7),
+    ];
+
+    let mut sut = Sut::parse(as_pkg_body(toks));
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Parsed::Incomplete), // PkgStart
+              Ok(Parsed::Incomplete), // TplStart
+                Ok(Parsed::Incomplete), // BindIdent
+
+                // This one's okay and changes the template's shape.
+                Ok(Parsed::Incomplete), // ExprStart
+                Ok(Parsed::Incomplete), // ExprEnd
+
+                // But this one runs afoul of that new shape.
+                Ok(Parsed::Incomplete), // ExprStart
+                Err(ParseError::StateError(
+                    AsgError::TplShapeExprMulti(
+                        Some(spair("_tpl_", S2)),
+                        S5.merge(S6).unwrap(),
+                        S3.merge(S4).unwrap(),
+                    )
+                )),
+                // RECOVERY: We ignore the expression by not adding its
+                //   edge.
+              Ok(Parsed::Incomplete), // TplEnd
+            Ok(Parsed::Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let ctx = sut.finalize().unwrap().into_private_context();
+    let asg = ctx.asg_ref();
+
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S8));
+
+    assert_eq!(
+        TplShape::Expr(S3.merge(S4).unwrap()),
+        oi_tpl.resolve(&asg).shape()
+    );
+
+    // The second Expr should have been omitted.
+    assert_eq!(
+        vec![S3.merge(S4).unwrap()],
+        oi_tpl
+            .edges_filtered::<Expr>(&asg)
+            .map(ObjectIndex::cresolve(&asg))
+            .map(Expr::span)
+            .collect::<Vec<_>>()
+    );
+}
+
+// Identifiers are a layer of indirection,
+//   but the object that they identify should influence the shape of the
+//   template all the same.
+#[test]
+fn tpl_ref_expr_shape() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl-pre_", S2)),
+
+          RefIdent(spair("expr", S3)),                // --,
+        TplEnd(S4),                                   //   |
+                                                      //   | U
+        ExprStart(ExprOp::Sum, S5),                   //   |
+          BindIdent(spair("expr", S6)),               // <=:
+        ExprEnd(S7),                                  //   |
+                                                      //   | E
+        TplStart(S8),                                 //   |
+          BindIdent(spair("_tpl-post_", S9)),         // <-+-.
+                                                      //   | |
+          RefIdent(spair("expr", S10)),               // --' |
+        TplEnd(S11),                                  //     |
+                                                      //     |
+        // Similarly,                                 //     |
+        //   if we have a template that references    //     |
+        //   one of the above templates,              //     |
+        //     it too should have the same            //     | E
+        //     Expr shape,                            //     |
+        //       since the reference represents       //     |
+        //       application.                         //     |
+        TplStart(S12),                                //     |
+          BindIdent(spair("_tpl-post-tpl-ref_", S13)),//     |
+                                                      //     |
+          RefIdent(spair("_tpl-post_", S14)),         // ----'
+        TplEnd(S14),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    let oi_tpl_pre = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl-pre_", S15));
+    let oi_tpl_post =
+        pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl-post_", S16));
+    let oi_tpl_post_tpl_ref =
+        pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl-post-tpl-ref_", S17));
+
+    // TODO: We haven't yet handled notification when an identifier has been
+    //   resolved,
+    //     so the shape will be unknown until then.
+    assert_eq!(TplShape::Unknown(S3), oi_tpl_pre.resolve(&asg).shape(),);
+
+    // But the template defined _after_ the expression will be immediately
+    //   resolved and its shape known.
+    assert_eq!(
+        // Note that the span is that of the _reference_,
+        //   since that is what appears within the template body and that
+        //   which we want to emphasize in diagnostics.
+        TplShape::Expr(S10),
+        oi_tpl_post.resolve(&asg).shape(),
+    );
+
+    // And the final template applies the preceding one,
+    //   and should inherit its shape since.
+    assert_eq!(
+        // Just as above,
+        //   the span is the topmost _reference_,
+        //     which is the application.
+        TplShape::Expr(S14),
+        oi_tpl_post_tpl_ref.resolve(&asg).shape(),
     );
 }

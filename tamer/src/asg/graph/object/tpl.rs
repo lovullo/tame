@@ -21,8 +21,13 @@
 
 use std::fmt::Display;
 
-use super::{prelude::*, Doc, Expr, Ident};
-use crate::{asg::graph::ProposedRel, f::Map, parse::util::SPair, span::Span};
+use super::{ident::IdentRel, prelude::*, Doc, Expr, Ident};
+use crate::{
+    asg::graph::ProposedRel,
+    f::Map,
+    parse::{prelude::Annotate, util::SPair},
+    span::Span,
+};
 
 /// Template with associated name.
 #[derive(Debug, PartialEq, Eq)]
@@ -123,7 +128,10 @@ pub enum TplShape {
     ///   completed.
     /// Note that a definition is not complete until all missing identifiers
     ///   have been defined.
-    Unknown,
+    ///
+    /// The associated span represents the location that resulted in
+    ///   uncertainty.
+    Unknown(Span),
 
     /// The template can be expanded inline into a single [`Expr`].
     ///
@@ -158,18 +166,35 @@ impl TplShape {
             )),
 
             // Higher levels of specificity take precedence.
-            (shape @ TplShape::Expr(_), TplShape::Empty)
-            | (TplShape::Empty, shape @ TplShape::Expr(_))
-            | (shape @ TplShape::Empty, TplShape::Empty) => Ok(shape),
-
-            // Unknown is not yet handled.
+            // This pattern is designed to be very clear in what shape takes
+            //   precedence over another.
+            // It should be clear enough that there is no value in writing
+            //   unit test against this method since those tests' examples
+            //   would simply reiterate this table
+            //     (but tests for AIR should still be written to test more
+            //        complex interactions).
+            #[rustfmt::skip]
             (
-                TplShape::Unknown,
-                TplShape::Empty | TplShape::Unknown | TplShape::Expr(_),
+                TplShape::Empty,
+                give_precedence_to @ (
+                    TplShape::Empty
+                    | TplShape::Unknown(_)
+                    | TplShape::Expr(_)
+                ),
             )
-            | (TplShape::Empty | TplShape::Expr(_), TplShape::Unknown) => {
-                todo!("TplShape::Unknown")
-            }
+            | (
+                TplShape::Unknown(_),
+                give_precedence_to @ TplShape::Expr(_),
+            )
+            | (
+                give_precedence_to @ TplShape::Unknown(_),
+                TplShape::Empty | TplShape::Unknown(_),
+            )
+            | (
+                give_precedence_to @ TplShape::Expr(_),
+                TplShape::Empty | TplShape::Unknown(_),
+            )
+            => Ok(give_precedence_to),
         }
     }
 
@@ -183,7 +208,8 @@ impl TplShape {
     ///   its own body.
     fn overwrite_span_if_any(self, span: Span) -> Self {
         match self {
-            TplShape::Empty | TplShape::Unknown => self,
+            TplShape::Empty => self,
+            TplShape::Unknown(_) => TplShape::Unknown(span),
             TplShape::Expr(_) => TplShape::Expr(span),
         }
     }
@@ -204,8 +230,8 @@ impl Display for TplShape {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         // phrase as "template with ..."
         match self {
-            TplShape::Unknown => write!(f, "unknown shape"),
             TplShape::Empty => write!(f, "empty shape"),
+            TplShape::Unknown(_) => write!(f, "unknown shape"),
             TplShape::Expr(_) => write!(f, "shape of a single expression"),
         }
     }
@@ -237,7 +263,78 @@ object_rel! {
 
         // Identifiers are used for both references and identifiers that
         //   will expand into an application site.
-        dyn Ident,
+        dyn Ident {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                rel: ProposedRel<Self, Ident>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                let tpl_name = rel.from_oi.name(asg);
+
+                match (rel.ctx_span, rel.to_oi.definition(asg)) {
+                    // Missing definition results in shape uncertainty that
+                    //   will have to be resolved when (if) a definition
+                    //   becomes available.
+                    (Some(ref_span), None) => {
+                        rel.from_oi.try_map_obj_inner(
+                            asg,
+                            try_adapt_to(TplShape::Unknown(ref_span), tpl_name),
+                        )?;
+                    }
+
+                    // TAME is referentally transparent,
+                    //   so a reference to an Expr is no different than
+                    //   inlining that Expr.
+                    (Some(ref_span), Some(IdentRel::Expr(_))) => {
+                        rel.from_oi.try_map_obj_inner(
+                            asg,
+                            try_adapt_to(TplShape::Expr(ref_span), tpl_name),
+                        )?;
+                    }
+
+                    // This is the same as the `Tpl` tree edge below,
+                    //   but a named template instead of an anonymous one.
+                    (Some(ref_span), Some(IdentRel::Tpl(to_oi))) => {
+                        // TODO: Factor common logic between this and the
+                        //   `Tpl->Tpl` edge below.
+                        let tpl_name = to_oi.name(asg);
+                        let apply = to_oi.resolve(asg);
+                        let apply_shape = apply
+                            .shape()
+                            .overwrite_span_if_any(ref_span);
+
+                        rel.from_oi.try_map_obj_inner(
+                            asg,
+                            try_adapt_to(apply_shape, tpl_name),
+                        )?;
+                    }
+
+                    // TODO: Filter this out (Ident -> Ident)
+                    (Some(span), Some(IdentRel::Ident(_))) => {
+                        diagnostic_todo!(
+                            vec![span.internal_error("while parsing this reference")],
+                            "opaque identifier or abstract binding"
+                        )
+                    }
+
+                    // The mere _existence_ of metavariables (template
+                    //   params) do not influence the expansion shape.
+                    (Some(_), Some(IdentRel::Meta(_))) => (),
+
+                    // Lack of span means that this is not a cross edge,
+                    //   and so not a reference;
+                    //     this means that the object is identified and will
+                    //     be hoisted into the rooting context of the
+                    //     application site,
+                    //       which does not impact template shape.
+                    // TODO: Let's make that span assumption explicit in the
+                    //   `ProposeRel` abstraction.
+                    (None, _) => (),
+                }
+
+                Ok(commit(asg))
+            }
+        },
 
         // Template application.
         tree Tpl {

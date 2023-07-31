@@ -533,7 +533,6 @@ impl<OA: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for OA {
         _rel: ProposedRel<Self, OB>,
         commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
-        let _ = _rel.ctx_span; // TODO: remove when used (dead_code)
         Ok(commit(asg))
     }
 }
