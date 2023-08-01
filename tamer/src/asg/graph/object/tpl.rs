@@ -232,6 +232,10 @@ impl Display for TplShape {
     }
 }
 
+// TODO: Inlining code into this otherwise-declarative abstraction has
+//     tainted it.
+//   This can be refactored into a better abstraction over time as
+//     requirements are explored though implementation.
 object_rel! {
     /// Templates may expand into nearly any context,
     ///   and must therefore be able to contain just about anything.
@@ -303,8 +307,6 @@ object_rel! {
                     //     be hoisted into the rooting context of the
                     //     application site,
                     //       which does not impact template shape.
-                    // TODO: Let's make that span assumption explicit in the
-                    //   `ProposeRel` abstraction.
                     (None, _) => Ok(()),
                 }?;
 
@@ -393,7 +395,7 @@ impl ObjectIndex<Tpl> {
         oi_apply: ObjectIndex<Ident>,
         ref_span: Span,
     ) -> Result<Self, AsgError> {
-        self.add_edge_to(asg, oi_apply, Some(ref_span))
+        self.add_cross_edge_to(asg, oi_apply, ref_span)
     }
 
     /// Directly reference this template from another object
@@ -406,12 +408,12 @@ impl ObjectIndex<Tpl> {
     ///   template.
     /// If this template is _not_ closed,
     ///   it will result in an error during evaluation.
-    pub fn expand_into<OP: ObjectIndexRelTo<Tpl>>(
+    pub fn expand_into<OP: ObjectIndexTreeRelTo<Tpl>>(
         self,
         asg: &mut Asg,
         oi_target_parent: OP,
     ) -> Result<Self, AsgError> {
-        self.add_edge_from(asg, oi_target_parent, None)
+        self.add_tree_edge_from(asg, oi_target_parent)
     }
 
     /// Arbitrary text serving as documentation in a literate style,
@@ -422,6 +424,6 @@ impl ObjectIndex<Tpl> {
         text: SPair,
     ) -> Result<Self, AsgError> {
         let oi_doc = asg.create(Doc::new_text(text));
-        self.add_edge_to(asg, oi_doc, None)
+        self.add_tree_edge_to(asg, oi_doc)
     }
 }

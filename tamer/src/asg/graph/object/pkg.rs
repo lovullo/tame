@@ -134,7 +134,7 @@ impl ObjectIndex<Pkg> {
         let parent = self.resolve(asg);
         let oi_import = asg.create(Pkg::new_imported(parent, namespec)?);
 
-        self.add_edge_to(asg, oi_import, Some(namespec.span()))
+        self.add_cross_edge_to(asg, oi_import, namespec.span())
     }
 
     /// Arbitrary text serving as documentation in a literate style.
@@ -144,6 +144,6 @@ impl ObjectIndex<Pkg> {
         text: SPair,
     ) -> Result<Self, AsgError> {
         let oi_doc = asg.create(Doc::new_text(text));
-        self.add_edge_to(asg, oi_doc, None)
+        self.add_tree_edge_to(asg, oi_doc)
     }
 }

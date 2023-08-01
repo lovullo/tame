@@ -243,7 +243,7 @@ impl ObjectIndex<Meta> {
 
         for rel_lexeme in rels {
             let oi = asg.create(Meta::Lexeme(rel_lexeme.span(), rel_lexeme));
-            self.add_edge_to(asg, oi, None)?;
+            self.add_tree_edge_to(asg, oi)?;
         }
 
         Ok(self)
@@ -297,12 +297,12 @@ impl ObjectIndex<Meta> {
         //   we must add the edge before appending the ref since
         //   concatenation will occur during expansion in edge order.
         if let Some(orig) = pre {
-            asg.create(orig).add_edge_from(asg, self, None)?;
+            asg.create(orig).add_tree_edge_from(asg, self)?;
         }
 
         // Having been guaranteed a `ConcatList` above,
         //   we now only need to append an edge that references what to
         //   concatenate.
-        self.add_edge_to(asg, oi_ref, Some(oi_ref.span()))
+        self.add_cross_edge_to(asg, oi_ref, oi_ref.span())
     }
 }

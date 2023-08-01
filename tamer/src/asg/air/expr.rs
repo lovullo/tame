@@ -30,7 +30,7 @@ use super::{
     AirAggregate, AirAggregateCtx,
 };
 use crate::{
-    asg::{graph::object::ObjectIndexTo, ObjectKind},
+    asg::{graph::object::ObjectIndexToTree, ObjectKind},
     f::Map,
     parse::prelude::*,
 };
@@ -204,7 +204,7 @@ impl AirExprAggregate {
     ///   then an [`AsgError::DanglingExpr`] will be returned.
     fn hold_dangling(
         asg: &mut Asg,
-        oi_root: Option<ObjectIndexTo<Expr>>,
+        oi_root: Option<ObjectIndexToTree<Expr>>,
         oi_expr: ObjectIndex<Expr>,
     ) -> Result<(), AsgError> {
         let oi_container = oi_root

@@ -67,6 +67,7 @@ impl ObjectIndex<Root> {
         asg: &mut Asg,
         oi: ObjectIndex<Ident>,
     ) -> Result<ObjectIndex<Ident>, AsgError> {
-        oi.add_edge_from(asg, *self, None)
+        // TODO: Is this a valid span?
+        oi.add_cross_edge_from(asg, *self, oi.span())
     }
 }

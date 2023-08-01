@@ -22,8 +22,8 @@
 //! ![Visualization of ASG ontology](../ontviz.svg)
 
 use self::object::{
-    DynObjectRel, ObjectIndexRelTo, ObjectRelFrom, ObjectRelTy,
-    ObjectRelatable, Root,
+    DynObjectRel, ObjectIndexCrossRelTo, ObjectIndexRelTo,
+    ObjectIndexTreeRelTo, ObjectRelFrom, ObjectRelTy, ObjectRelatable, Root,
 };
 
 use super::{AsgError, Object, ObjectIndex, ObjectKind};
@@ -190,32 +190,74 @@ impl Asg {
         ObjectIndex::new(node_id, span)
     }
 
-    /// Add an edge from the [`Object`] represented by the
+    /// Add a tree edge from the [`Object`] represented by the
     ///   [`ObjectIndex`] `from_oi` to the object represented by `to_oi`.
     ///
-    /// The edge may optionally contain a _contextual [`Span`]_,
-    ///   in cases where it is important to distinguish between the span
-    ///   associated with the target and the span associated with the
-    ///   _reference_ to the target.
+    /// A tree edge represents _ownership_ over the target object
+    ///   (`from_oi` owns `to_oi`),
+    ///     forming a tree parent/child relationships between objects.
+    /// To reference objects from other trees
+    ///   (crossing trees),
+    ///   see [`Self::add_cross_edge`].
     ///
     /// For more information on how the ASG's ontology is enforced statically,
-    ///   see [`ObjectRelTo`](object::ObjectRelTo).
+    ///   see [`object`].
     ///
     /// Callers external to this module should use [`ObjectIndex`] APIs to
     ///   manipulate the graph;
     ///     this allows those objects to uphold their own invariants
     ///     relative to the state of the graph.
-    fn add_edge<OA: ObjectIndexRelTo<OB>, OB: ObjectKind + ObjectRelatable>(
+    fn add_tree_edge<
+        OA: ObjectIndexTreeRelTo<OB>,
+        OB: ObjectKind + ObjectRelatable,
+    >(
         &mut self,
         from_oi: OA,
         to_oi: ObjectIndex<OB>,
-        ref_span: Option<Span>,
     ) -> Result<(), AsgError> {
-        from_oi.pre_add_edge(self, to_oi, ref_span, |asg| {
+        from_oi.pre_add_edge(self, to_oi, None, |asg| {
             asg.graph.add_edge(
                 from_oi.widen().into(),
                 to_oi.into(),
-                (from_oi.src_rel_ty(), OB::rel_ty(), ref_span),
+                (from_oi.src_rel_ty(), OB::rel_ty(), None),
+            );
+        })
+    }
+
+    /// Add a cross edge from the [`Object`] represented by the
+    ///   [`ObjectIndex`] `from_oi` to the object represented by `to_oi`.
+    ///
+    /// A cross edge represents a _reference_ to another object,
+    ///   crossing into another tree.
+    /// To indicate ownership,
+    ///   see [`Self::add_tree_edge`].
+    ///
+    /// The edge must contain a _reference [`Span`]_,
+    ///   which represents the location of the reference _to_ the
+    ///   object `to_oi`,
+    ///     rather than the object itself.
+    ///
+    /// For more information on how the ASG's ontology is enforced statically,
+    ///   see [`object`].
+    ///
+    /// Callers external to this module should use [`ObjectIndex`] APIs to
+    ///   manipulate the graph;
+    ///     this allows those objects to uphold their own invariants
+    ///     relative to the state of the graph.
+    fn add_cross_edge<
+        OA: ObjectIndexCrossRelTo<OB>,
+        OB: ObjectKind + ObjectRelatable,
+    >(
+        &mut self,
+        from_oi: OA,
+        to_oi: ObjectIndex<OB>,
+        ref_span: Span,
+    ) -> Result<(), AsgError> {
+        from_oi.pre_add_edge(self, to_oi, Some(ref_span), |asg| {
+            asg.graph.add_edge(
+                from_oi.widen().into(),
+                to_oi.into(),
+                (from_oi.src_rel_ty(), OB::rel_ty(), Some(ref_span)),
             );
         })
     }
@@ -409,9 +451,11 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
 ///
 /// How Does This Work With Trait Specialization?
 /// =============================================
-/// [`Asg::add_edge`] is provided a [`ObjectIndexRelTo`],
-///   which needs narrowing to an appropriate source [`ObjectKind`] so that
-///   we can invoke [`<O as AsgRelMut>::pre_add_edge`](AsgRelMut::pre_add_edge).
+/// [`Asg::add_tree_edge`]/[`Asg::add_cross_edge`] is provided a
+///   [`ObjectIndexRelTo`],
+///     which needs narrowing to an appropriate source [`ObjectKind`] so
+///     that we can invoke
+///     [`<O as AsgRelMut>::pre_add_edge`](AsgRelMut::pre_add_edge).
 ///
 /// At the time of writing,
 ///   there are two implementors of [`ObjectIndexRelTo`]:
@@ -469,9 +513,10 @@ fn diagnostic_node_missing_desc<O: ObjectKind>(
 ///   and uses the appropriate specialization.
 ///
 /// Because of other trait bounds leading up to this point,
-///   including those on [`Asg::add_edge`] and [`ObjectIndexRelTo`],
-///   this cannot be invoked for any `to_oi` that is not a valid target
-///     for `Self`.
+///   including those on [`Asg::add_tree_edge`]/[`Asg::add_cross_edge`] and
+///   [`ObjectIndexRelTo`],
+///     this cannot be invoked for any `to_oi` that is not a valid target
+///       for `Self`.
 /// But we cannot be too strict on that bound _here_,
 ///   because otherwise it's not general enough for
 ///   [`ObjectIndexTo::pre_add_edge`].
@@ -499,14 +544,15 @@ pub trait AsgRelMut<OB: ObjectRelatable>: ObjectRelatable {
     ///     since the [`ObjectIndex`] APIs may not be utilized
     ///       (e.g. in the case of [`ObjectIndexRelTo`].
     ///
-    /// This is invoked by [`Asg::add_edge`].
+    /// This is invoked by [`Asg::add_tree_edge`] and
+    ///   [`Asg::add_cross_edge`].
     /// The provided `commit` callback will complete the addition of the
     ///   edge if provided [`Ok`],
     ///     and the commit cannot fail.
     /// If [`Err`] is provided to `commit`,
-    ///   then [`Asg::add_edge`] will fail with that error.
+    ///   then the calling [`Asg`] method will fail with that error.
     ///
-    /// Unlike the type of [`Asg::add_edge`],
+    /// Unlike the type of [`Asg::add_tree_edge`]/[`Asg::add_cross_edge`],
     ///   the source [`ObjectIndex`] has been narrowed to the appropriate
     ///   type for you.
     fn pre_add_edge(
@@ -537,11 +583,19 @@ impl<OA: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for OA {
     }
 }
 
-/// The relationship proposed by [`Asg::add_edge`],
-///   requiring approval from [`AsgRelMut::pre_add_edge`].
+/// The relationship proposed by [`Asg::add_tree_edge`] or
+///   [`Asg::add_cross_edge`],
+///     requiring approval from [`AsgRelMut::pre_add_edge`].
 pub struct ProposedRel<OA: ObjectKind, OB: ObjectKind> {
     from_oi: ObjectIndex<OA>,
     to_oi: ObjectIndex<OB>,
+
+    /// Reference span.
+    ///
+    /// This will be [`Some`] by [`Asg::add_cross_edge`],
+    ///   but will always be [`None`] via [`Asg::add_tree_edge`].
+    /// This can therefore be used to determine whether an edge is a tree or
+    ///   a cross edge.
     ref_span: Option<Span>,
 }
 

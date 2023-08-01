@@ -152,9 +152,10 @@ pub use ident::Ident;
 pub use meta::Meta;
 pub use pkg::Pkg;
 pub use rel::{
-    DynObjectRel, ObjectIndexRelTo, ObjectIndexTo, ObjectIndexToTree,
-    ObjectIndexTreeRelTo, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
-    ObjectRelatable, ObjectTreeRelTo,
+    DynObjectRel, ObjectCrossRelTo, ObjectIndexCrossRelTo, ObjectIndexRelTo,
+    ObjectIndexTo, ObjectIndexToCross, ObjectIndexToTree, ObjectIndexTreeRelTo,
+    ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
+    ObjectTreeRelTo,
 };
 pub use root::Root;
 pub use tpl::Tpl;
@@ -163,9 +164,10 @@ pub use tpl::Tpl;
 pub mod prelude {
     pub use super::{
         super::{super::error::AsgError, Asg, AsgRelMut},
-        Object, ObjectIndex, ObjectIndexRelTo, ObjectKind, ObjectRel,
-        ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
-        ObjectTreeRelTo,
+        Object, ObjectCrossRelTo, ObjectIndex, ObjectIndexCrossRelTo,
+        ObjectIndexRelTo, ObjectIndexToCross, ObjectIndexToTree,
+        ObjectIndexTreeRelTo, ObjectKind, ObjectRel, ObjectRelFrom,
+        ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
     };
 }
 
@@ -593,52 +595,81 @@ impl<O: ObjectKind> ObjectIndex<O> {
         }
     }
 
-    /// Add an edge from `self` to `to_oi` on the provided [`Asg`].
+    /// Add a tree edge from `self` to `to_oi` on the provided [`Asg`].
     ///
-    /// Since the only invariant asserted by [`ObjectIndexRelTo`] is that
-    ///   it may be related to `OB`,
-    ///     this method will only permit edges to `OB`;
-    ///       nothing else about the inner object is statically known.
-    ///
-    /// See also [`Self::add_edge_from`].
+    /// See also [`Self::add_tree_edge_from`].
     ///
     /// _This method must remain private_,
     ///   forcing callers to go through APIs for specific operations that
     ///   allow objects to enforce their own invariants.
     /// This is also the reason why this method is defined here rather than
     ///   on [`ObjectIndexRelTo`].
-    fn add_edge_to<OB: ObjectRelatable>(
+    fn add_tree_edge_to<OB: ObjectRelatable>(
         self,
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
     ) -> Result<Self, AsgError>
     where
-        Self: ObjectIndexRelTo<OB>,
+        Self: ObjectIndexTreeRelTo<OB>,
     {
-        asg.add_edge(self, to_oi, ctx_span).map(|()| self)
+        asg.add_tree_edge(self, to_oi).map(|()| self)
     }
 
-    /// Add an edge from `from_oi` to `self` on the provided [`Asg`].
+    /// Add a tree edge from `from_oi` to `self` on the provided [`Asg`].
     ///
     /// An edge can only be added if ontologically valid;
     ///   see [`ObjectRelTo`] for more information.
     ///
-    /// See also [`Self::add_edge_to`].
+    /// See also [`Self::add_tree_edge_to`].
     ///
     /// _This method must remain private_,
     ///   forcing callers to go through APIs for specific operations that
     ///   allow objects to enforce their own invariants.
-    fn add_edge_from<OA: ObjectIndexRelTo<O>>(
+    fn add_tree_edge_from<OA: ObjectIndexTreeRelTo<O>>(
         self,
         asg: &mut Asg,
         from_oi: OA,
-        ctx_span: Option<Span>,
     ) -> Result<Self, AsgError>
     where
         O: ObjectRelatable,
     {
-        asg.add_edge(from_oi, self, ctx_span).map(|()| self)
+        asg.add_tree_edge(from_oi, self).map(|()| self)
+    }
+
+    /// Add a cross edge from `self` to `to_oi` on the provided [`Asg`].
+    ///
+    /// For more information,
+    ///   see [`Self::add_tree_edge_to`].
+    ///
+    /// See also [`Self::add_cross_edge_from`].
+    fn add_cross_edge_to<OB: ObjectRelatable>(
+        self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ref_span: Span,
+    ) -> Result<Self, AsgError>
+    where
+        Self: ObjectIndexCrossRelTo<OB>,
+    {
+        asg.add_cross_edge(self, to_oi, ref_span).map(|()| self)
+    }
+
+    /// Add a cross edge from `from_oi` to `self` on the provided [`Asg`].
+    ///
+    /// For more information,
+    ///   see [`Self::add_tree_edge_from`].
+    ///
+    /// See also [`Self::add_cross_edge_to`].
+    fn add_cross_edge_from<OA: ObjectIndexCrossRelTo<O>>(
+        self,
+        asg: &mut Asg,
+        from_oi: OA,
+        ref_span: Span,
+    ) -> Result<Self, AsgError>
+    where
+        O: ObjectRelatable,
+    {
+        asg.add_cross_edge(from_oi, self, ref_span).map(|()| self)
     }
 
     /// Create an iterator over the [`ObjectIndex`]es of the outgoing edges
@@ -813,7 +844,24 @@ impl<O: ObjectKind> ObjectIndex<O> {
             .filter(|_| O::rel_ty() == OB::rel_ty())
     }
 
-    /// Root this object in the ASG's [`Root`] object.
+    /// Root this object in the ASG's [`Root`] object,
+    ///   acting as an owner of the object.
+    ///
+    /// This is intended for rooting toplevel objects that otherwise have no
+    ///   owner for a given compilation unit,
+    ///     allowing them to be reachable from the graph root.
+    ///
+    /// See also [`Self::root_cross`].
+    pub fn root_tree(self, asg: &mut Asg) -> Result<Self, AsgError>
+    where
+        Root: ObjectTreeRelTo<O>,
+    {
+        asg.root(self.span())
+            .add_tree_edge_to(asg, self)
+            .map(|_| self)
+    }
+
+    /// Root a reference to this object in the ASG's [`Root`] object.
     ///
     /// A rooted object is forced to be reachable.
     /// This should only be utilized when necessary for toplevel objects;
@@ -821,18 +869,21 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///   objects.
     /// Forcing objects to be reachable can prevent them from being
     ///   optimized away if they are not used.
-    pub fn root(self, asg: &mut Asg) -> Result<Self, AsgError>
+    ///
+    /// See also [`Self::root_tree`].
+    pub fn root_cross(self, asg: &mut Asg) -> Result<Self, AsgError>
     where
-        Root: ObjectRelTo<O>,
+        Root: ObjectCrossRelTo<O>,
     {
         asg.root(self.span())
-            .add_edge_to(asg, self, None)
+            .add_cross_edge_to(asg, self, self.span())
             .map(|_| self)
     }
 
     /// Whether this object has been rooted in the ASG's [`Root`] object.
     ///
-    /// See [`Self::root`] for more information.
+    /// See [`Self::root_tree`] and [`Self::root_cross`] for more
+    ///   information.
     pub fn is_rooted(&self, asg: &Asg) -> bool
     where
         Root: ObjectRelTo<O>,
@@ -910,7 +961,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
         oi: ObjectIndex<Ident>,
     ) -> Result<Self, AsgError>
     where
-        Self: ObjectIndexRelTo<Ident>,
+        Self: ObjectIndexTreeRelTo<Ident>,
     {
         oi.defined_by(asg, self).map(|_| self)
     }
@@ -927,10 +978,10 @@ impl<O: ObjectKind> ObjectIndex<O> {
         clause: SPair,
     ) -> Result<Self, AsgError>
     where
-        O: ObjectRelTo<Doc>,
+        O: ObjectTreeRelTo<Doc>,
     {
         let oi_doc = asg.create(Doc::new_indep_clause(clause));
-        self.add_edge_to(asg, oi_doc, None)
+        self.add_tree_edge_to(asg, oi_doc)
     }
 
     /// Retrieve a description of this expression using a short independent

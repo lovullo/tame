@@ -1221,7 +1221,7 @@ impl ObjectIndex<Ident> {
         self.try_map_obj(asg, |obj| obj.resolve(name.span(), kind, src))
             .map_err(Into::into)
             .map(|ident| {
-                is_auto_root.then(|| self.root(asg));
+                is_auto_root.then(|| self.root_cross(asg));
                 ident
             })
     }
@@ -1257,7 +1257,7 @@ impl ObjectIndex<Ident> {
         definition: ObjectIndex<O>,
     ) -> Result<ObjectIndex<Ident>, AsgError>
     where
-        Ident: ObjectRelTo<O>,
+        Ident: ObjectTreeRelTo<O>,
         ObjectIndex<O>: Into<IdentDefinition>,
     {
         let my_span = self.into();
@@ -1314,7 +1314,7 @@ impl ObjectIndex<Ident> {
             //   and use the newly provided `id` and its span.
             Missing(_) => Ok(Transparent(id)),
         })
-        .and_then(|ident_oi| ident_oi.add_edge_to(asg, definition, None))
+        .and_then(|ident_oi| ident_oi.add_tree_edge_to(asg, definition))
     }
 
     /// Set the fragment associated with a concrete identifier.
@@ -1414,9 +1414,9 @@ impl ObjectIndex<Ident> {
     pub fn defined_by(
         &self,
         asg: &mut Asg,
-        oi_root: impl ObjectIndexRelTo<Ident>,
+        oi_root: impl ObjectIndexTreeRelTo<Ident>,
     ) -> Result<Self, AsgError> {
-        self.add_edge_from(asg, oi_root, None)
+        self.add_tree_edge_from(asg, oi_root)
     }
 
     /// Declare that `oi_dep` is an opaque dependency of `self`.
@@ -1425,7 +1425,7 @@ impl ObjectIndex<Ident> {
         asg: &mut Asg,
         oi_dep: ObjectIndex<Ident>,
     ) -> Result<Self, AsgError> {
-        self.add_edge_to(asg, oi_dep, None)
+        self.add_tree_edge_to(asg, oi_dep)
     }
 
     /// Retrieve either the concrete name of the identifier or the name of
@@ -1491,7 +1491,7 @@ impl ObjectIndex<Ident> {
         at: Span,
     ) -> Result<ObjectIndex<Ident>, AsgError> {
         asg.create(Ident::new_abstract(at))
-            .add_edge_to(asg, self, Some(at))
+            .add_cross_edge_to(asg, self, at)
     }
 }
 

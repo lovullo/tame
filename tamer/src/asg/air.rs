@@ -863,7 +863,7 @@ impl AirAggregateCtx {
             },
         )?;
 
-        oi_pkg.root(&mut self.asg)?;
+        oi_pkg.root_tree(&mut self.asg)?;
         self.ooi_pkg.replace(oi_pkg);
 
         Ok(oi_pkg)
@@ -921,7 +921,7 @@ impl AirAggregateCtx {
     /// A value of [`None`] indicates that expressions are not permitted to
     ///   dangle in the current context
     ///     (and so must be identified).
-    fn dangling_expr_oi(&self) -> Option<ObjectIndexTo<Expr>> {
+    fn dangling_expr_oi(&self) -> Option<ObjectIndexToTree<Expr>> {
         use AirAggregate::*;
 
         self.stack.iter().rev().find_map(|st| match st {
@@ -963,7 +963,7 @@ impl AirAggregateCtx {
     ///
     /// A value of [`None`] indicates that template expansion is not
     ///   permitted in this current context.
-    fn expansion_oi(&self) -> Option<ObjectIndexTo<Tpl>> {
+    fn expansion_oi(&self) -> Option<ObjectIndexToTree<Tpl>> {
         use AirAggregate::*;
 
         self.stack.iter().rev().find_map(|st| match st {

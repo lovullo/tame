@@ -203,14 +203,17 @@ macro_rules! object_rel {
     // Similar to above but providing _static_ information to the type
     //   system.
     // The above could be rolled into this at some point.
-    (@impl_rel_to $from:ident cross $kind:ident) => {};
+    (@impl_rel_to $from:ident cross $kind:ident) => {
+        impl ObjectCrossRelTo<$kind> for $from {}
+    };
     (@impl_rel_to $from:ident tree $kind:ident)  => {
         impl ObjectTreeRelTo<$kind> for $from {}
     };
     (@impl_rel_to $from:ident dyn $kind:ident)  => {
-        // It _could_ be a tree edge;
+        // It _could_ be either a tree or cross edge;
         //   we can't know statically.
         impl ObjectTreeRelTo<$kind> for $from {}
+        impl ObjectCrossRelTo<$kind> for $from {}
     };
 }
 
@@ -536,7 +539,27 @@ pub trait ObjectRelFrom<OA: ObjectKind + ObjectRelatable> =
 ///   see that trait for more information.
 /// This trait is intended to be used in contexts where the distinction
 ///   between reference and ownership is important.
+///
+/// For cross edges,
+///   see [`ObjectCrossRelTo`];
+///     dynamic edges will implement both this trait and that one.
 pub trait ObjectTreeRelTo<OB: ObjectKind + ObjectRelatable>:
+    ObjectRelTo<OB>
+{
+}
+
+/// Indicate that an [`ObjectKind`] `Self` _could possibly be a reference
+///   to_ an [`ObjectKind`] `OB`.
+///
+/// This is a stronger assertion than [`ObjectRelTo`];
+///   see that trait for more information.
+/// This trait is intended to be used in contexts where the distinction
+///   between reference and ownership is important.
+///
+/// For tree edges,
+///   see [`ObjectTreeRelTo`];
+///     dynamic edges will implement both this trait and that one.
+pub trait ObjectCrossRelTo<OB: ObjectKind + ObjectRelatable>:
     ObjectRelTo<OB>
 {
 }
@@ -1036,6 +1059,32 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
     }
 }
 
+impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToCross<OB> {
+    fn src_rel_ty(&self) -> ObjectRelTy {
+        match self {
+            Self(oito) => oito.src_rel_ty(),
+        }
+    }
+
+    fn widen(&self) -> ObjectIndex<Object> {
+        match self {
+            Self(oito) => oito.widen(),
+        }
+    }
+
+    fn pre_add_edge(
+        &self,
+        asg: &mut Asg,
+        to_oi: ObjectIndex<OB>,
+        ref_span: Option<Span>,
+        commit: impl FnOnce(&mut Asg),
+    ) -> Result<(), AsgError> {
+        match self {
+            Self(oito) => oito.pre_add_edge(asg, to_oi, ref_span, commit),
+        }
+    }
+}
+
 impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for ObjectIndex<Object> {
     fn from(oi_rel: ObjectIndexTo<OB>) -> Self {
         oi_rel.widen()
@@ -1072,7 +1121,29 @@ where
 {
 }
 
-pub use private::{ObjectIndexTo, ObjectIndexToTree};
+/// An [`ObjectIndex`]-like object that is able to create a _cross_ edge to
+///   [`ObjectKind`] `OB`.
+///
+/// This allows for generic graph operations that operate on ownership
+///   relationships without having to know the type of the source
+///   object (`Self`).
+///
+/// This is a specialization of [`ObjectIndexRelTo`].
+pub trait ObjectIndexCrossRelTo<OB: ObjectRelatable>:
+    ObjectIndexRelTo<OB> + Into<ObjectIndexToCross<OB>>
+{
+}
+
+impl<OB: ObjectRelatable> ObjectIndexCrossRelTo<OB> for ObjectIndexToCross<OB> {}
+
+impl<O: ObjectRelatable, OB: ObjectRelatable> ObjectIndexCrossRelTo<OB>
+    for ObjectIndex<O>
+where
+    O: ObjectCrossRelTo<OB>,
+{
+}
+
+pub use private::{ObjectIndexTo, ObjectIndexToCross, ObjectIndexToTree};
 
 /// Private inner module to ensure that nothing is able to bypass invariants
 ///   by constructing [`ObjectIndexTo`] manually.
@@ -1204,6 +1275,14 @@ mod private {
         }
     }
 
+    impl<OB: ObjectRelatable> From<ObjectIndexToCross<OB>> for ObjectIndexTo<OB> {
+        fn from(value: ObjectIndexToCross<OB>) -> Self {
+            match value {
+                ObjectIndexToCross(oit) => oit,
+            }
+        }
+    }
+
     /// Some [`ObjectIndex`] that can create a _tree_ edge to `OB`.
     ///
     /// This is a specialization of
@@ -1257,6 +1336,63 @@ mod private {
         fn from(oi: ObjectIndexToTree<OB>) -> Self {
             match oi {
                 ObjectIndexToTree(inner) => inner.span(),
+            }
+        }
+    }
+
+    /// Some [`ObjectIndex`] that can create a _cross_ edge to `OB`.
+    ///
+    /// This is a specialization of
+    ///   (and contains)
+    ///   [`ObjectIndexTo`];
+    ///     see that for more information.
+    ///
+    /// See also [`ObjectIndexTreeRelTo`].
+    #[derive(Debug)]
+    pub struct ObjectIndexToCross<OB: ObjectRelatable>(ObjectIndexTo<OB>);
+
+    impl<OB: ObjectRelatable, O: ObjectRelatable> From<ObjectIndex<O>>
+        for ObjectIndexToCross<OB>
+    where
+        O: ObjectCrossRelTo<OB>,
+    {
+        fn from(oi: ObjectIndex<O>) -> Self {
+            Self(oi.into())
+        }
+    }
+
+    // Deriving any of the below were introducing trait bounds on `OB`.
+
+    impl<OB: ObjectRelatable> PartialEq for ObjectIndexToCross<OB> {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self(oi), Self(oi_other)) => oi == oi_other,
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> Eq for ObjectIndexToCross<OB> {}
+
+    impl<OB: ObjectRelatable> Hash for ObjectIndexToCross<OB> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            match self {
+                Self(oi) => oi.hash(state),
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> Clone for ObjectIndexToCross<OB> {
+        fn clone(&self) -> Self {
+            Self(self.0)
+        }
+    }
+
+    impl<OB: ObjectRelatable> Copy for ObjectIndexToCross<OB> {}
+
+    impl<OB: ObjectRelatable> From<ObjectIndexToCross<OB>> for Span {
+        fn from(oi: ObjectIndexToCross<OB>) -> Self {
+            match oi {
+                ObjectIndexToCross(inner) => inner.span(),
             }
         }
     }

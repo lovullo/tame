@@ -19,7 +19,7 @@
 
 //! Expressions on the ASG.
 
-use super::{prelude::*, Doc, Ident, ObjectIndexTo, Tpl};
+use super::{prelude::*, Doc, Ident, ObjectIndexToTree, Tpl};
 use crate::{f::Map, num::Dim, span::Span};
 use std::fmt::Display;
 
@@ -235,7 +235,7 @@ impl ObjectIndex<Expr> {
         expr: Expr,
     ) -> Result<ObjectIndex<Expr>, AsgError> {
         let oi_subexpr = asg.create(expr);
-        oi_subexpr.add_edge_from(asg, self, None)
+        oi_subexpr.add_tree_edge_from(asg, self)
     }
 
     /// Reference the value of the expression identified by `oi_ident` as if
@@ -245,7 +245,7 @@ impl ObjectIndex<Expr> {
         asg: &mut Asg,
         oi_ident: ObjectIndex<Ident>,
     ) -> Result<Self, AsgError> {
-        self.add_edge_to(asg, oi_ident, Some(oi_ident.span()))
+        self.add_cross_edge_to(asg, oi_ident, oi_ident.span())
     }
 
     /// The expression is held by the container `oi_container`.
@@ -263,8 +263,8 @@ impl ObjectIndex<Expr> {
     pub fn held_by(
         &self,
         asg: &mut Asg,
-        oi_container: ObjectIndexTo<Expr>,
+        oi_container: ObjectIndexToTree<Expr>,
     ) -> Result<Self, AsgError> {
-        self.add_edge_from(asg, oi_container, None)
+        self.add_tree_edge_from(asg, oi_container)
     }
 }

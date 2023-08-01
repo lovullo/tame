@@ -88,7 +88,7 @@ impl ParseState for AirOpaqueAggregate {
 
             (Ready, IdentRoot(name)) => ctx
                 .lookup_lexical_or_missing(name)
-                .root(ctx.asg_mut())
+                .root_cross(ctx.asg_mut())
                 .map(|_| ())
                 .transition(Ready),
         }
