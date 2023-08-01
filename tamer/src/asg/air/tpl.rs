@@ -121,14 +121,18 @@ impl TplState {
     /// This updates the span of the template to encompass the entire
     ///   definition,
     ///     even if an error occurs.
-    fn close(self, asg: &mut Asg, close_span: Span) -> Result<(), AsgError> {
+    fn close(
+        self,
+        asg: &mut Asg,
+        close_span: Span,
+    ) -> Result<ObjectIndex<Tpl>, AsgError> {
         let oi = self.oi().close(asg, close_span);
 
         match self {
             Self::Dangling(_) => {
                 Err(AsgError::DanglingTpl(oi.resolve(asg).span()))
             }
-            Self::AnonymousReachable(..) | Self::Identified(..) => Ok(()),
+            Self::AnonymousReachable(..) | Self::Identified(..) => Ok(oi),
         }
     }
 }
@@ -218,25 +222,31 @@ impl ParseState for AirTplAggregate {
                 .transition(Toplevel(tpl)),
 
             (Toplevel(tpl), AirTpl(TplEnd(span))) => {
-                tpl.close(ctx.asg_mut(), span).transition(Done)
+                tpl.close(ctx.asg_mut(), span).map(|_| ()).transition(Done)
             }
 
             (Toplevel(tpl), AirTpl(TplEndRef(span))) => {
-                // Note that we utilize lookahead in either case,
-                //   but in the case of an error,
-                //   we are effectively discarding the ref and translating
-                //     into a `TplEnd`.
                 match ctx.expansion_oi() {
+                    // The template will be the equivalent of `TplEnd`'d
+                    //   before `IdentRef`'d,
+                    //     to ensure the definition has been completed.
                     Some(oi_target) => tpl
-                        .oi()
+                        .anonymous_reachable()
                         .close(ctx.asg_mut(), span)
-                        .expand_into(ctx.asg_mut(), oi_target)
+                        .and_then(|oi| oi.expand_into(ctx.asg_mut(), oi_target))
                         .map(|_| ())
-                        .transition(Toplevel(tpl.anonymous_reachable())),
-                    None => Transition(Toplevel(tpl))
-                        .err(AsgError::InvalidExpansionContext(span)),
+                        .transition(Done),
+
+                    // An invalid context will act as a `TplEnd`,
+                    //   effectively discarding the `Ref` part of the token.
+                    None => tpl
+                        .anonymous_reachable()
+                        .close(ctx.asg_mut(), span)
+                        .and(Err::<(), _>(AsgError::InvalidExpansionContext(
+                            span,
+                        )))
+                        .transition(Done),
                 }
-                .with_lookahead(AirTpl(TplEnd(span)))
             }
 
             // If we just finished a template then this end may represent

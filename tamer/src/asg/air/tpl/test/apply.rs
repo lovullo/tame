@@ -357,8 +357,7 @@ fn tpl_inner_apply_expr_alongside_another_apply_expr() {
                     )
                 )),
                 // RECOVERY: We ignore the template by not adding the edge.
-              Ok(Parsed::Incomplete), // TplEnd >LA
-              Ok(Parsed::Incomplete), // TplEnd <LA
+              Ok(Parsed::Incomplete), // TplEnd
             Ok(Parsed::Incomplete), // PkgEnd
         ],
         sut.by_ref().collect::<Vec<_>>(),
