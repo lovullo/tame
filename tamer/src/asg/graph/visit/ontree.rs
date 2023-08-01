@@ -313,10 +313,10 @@ impl Token for TreeWalkRel {
     ///     while concrete spans are stored on the objects that those
     ///     relationships reference.
     /// This will return a potentially-useful span only if the inner
-    ///   [`DynObjectRel::ctx_span`] does.
+    ///   [`DynObjectRel::ref_span`] does.
     fn span(&self) -> Span {
         match self {
-            Self(dyn_rel, _) => dyn_rel.ctx_span().unwrap_or(UNKNOWN_SPAN),
+            Self(dyn_rel, _) => dyn_rel.ref_span().unwrap_or(UNKNOWN_SPAN),
         }
     }
 }

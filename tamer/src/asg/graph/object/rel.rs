@@ -198,7 +198,7 @@ macro_rules! object_rel {
     //     on its own;
     //       an edge only needs supplemental span information if there is
     //       another context in which that object is referenced.
-    (@is_cross_edge dyn $rel:ident)  => { $rel.ctx_span().is_some() };
+    (@is_cross_edge dyn $rel:ident)  => { $rel.ref_span().is_some() };
 
     // Similar to above but providing _static_ information to the type
     //   system.
@@ -234,9 +234,9 @@ impl<S, T> DynObjectRel<S, T> {
         to_ty: ObjectRelTy,
         src: S,
         target: T,
-        ctx_span: Option<Span>,
+        ref_span: Option<Span>,
     ) -> Self {
-        Self((from_ty, to_ty), (src, target), ctx_span)
+        Self((from_ty, to_ty), (src, target), ref_span)
     }
 
     /// The type of the source edge.
@@ -270,12 +270,16 @@ impl<S, T> DynObjectRel<S, T> {
         }
     }
 
-    /// A [`Span`] associated with the _relationship_ between the source and
-    ///   target objects,
-    ///     if any.
-    pub fn ctx_span(&self) -> Option<Span> {
+    /// A [`Span`] representing the reference location of a relationship.
+    ///
+    /// This value indicates that the edge represents a cross edge.
+    /// In this case,
+    ///   a separate span is needed to provide information about the source
+    ///   location of the reference,
+    ///     rather than the object that has been referenced.
+    pub fn ref_span(&self) -> Option<Span> {
         match self {
-            Self(_, _, ctx_span) => *ctx_span,
+            Self(_, _, ref_span) => *ref_span,
         }
     }
 }
@@ -486,7 +490,7 @@ impl<S, T, U, V> Map<(S, T), (U, V)> for DynObjectRel<S, T> {
 
     fn map(self, f: impl FnOnce((S, T)) -> (U, V)) -> Self::Target {
         match self {
-            Self(tys, x, ctx_span) => DynObjectRel(tys, f(x), ctx_span),
+            Self(tys, x, ref_span) => DynObjectRel(tys, f(x), ref_span),
         }
     }
 }
@@ -863,7 +867,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         &self,
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
+        ref_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError>;
 
@@ -947,7 +951,7 @@ where
         &self,
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
+        ref_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         O::pre_add_edge(
@@ -955,7 +959,7 @@ where
             ProposedRel {
                 from_oi: self.widen().must_narrow_into::<O>(),
                 to_oi,
-                ctx_span,
+                ref_span,
             },
             commit,
         )
@@ -977,7 +981,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
         &self,
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
+        ref_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         macro_rules! pre_add_edge {
@@ -987,7 +991,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
                     ProposedRel {
                         from_oi: self.widen().must_narrow_into::<$ty>(),
                         to_oi,
-                        ctx_span,
+                        ref_span,
                     },
                     commit,
                 )
@@ -1023,11 +1027,11 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
         &self,
         asg: &mut Asg,
         to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
+        ref_span: Option<Span>,
         commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
         match self {
-            Self(oito) => oito.pre_add_edge(asg, to_oi, ctx_span, commit),
+            Self(oito) => oito.pre_add_edge(asg, to_oi, ref_span, commit),
         }
     }
 }

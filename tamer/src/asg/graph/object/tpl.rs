@@ -266,7 +266,7 @@ object_rel! {
             ) -> Result<(), AsgError> {
                 let tpl_name = rel.from_oi.name(asg);
 
-                match (rel.ctx_span, rel.to_oi.definition(asg)) {
+                match (rel.ref_span, rel.to_oi.definition(asg)) {
                     // Missing definition results in shape uncertainty that
                     //   will have to be resolved when (if) a definition
                     //   becomes available.

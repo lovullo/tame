@@ -209,13 +209,13 @@ impl Asg {
         &mut self,
         from_oi: OA,
         to_oi: ObjectIndex<OB>,
-        ctx_span: Option<Span>,
+        ref_span: Option<Span>,
     ) -> Result<(), AsgError> {
-        from_oi.pre_add_edge(self, to_oi, ctx_span, |asg| {
+        from_oi.pre_add_edge(self, to_oi, ref_span, |asg| {
             asg.graph.add_edge(
                 from_oi.widen().into(),
                 to_oi.into(),
-                (from_oi.src_rel_ty(), OB::rel_ty(), ctx_span),
+                (from_oi.src_rel_ty(), OB::rel_ty(), ref_span),
             );
         })
     }
@@ -333,14 +333,14 @@ impl Asg {
         oi: ObjectIndex<Object>,
     ) -> impl Iterator<Item = DynObjectRel> + 'a {
         self.graph.edges(oi.into()).map(move |edge| {
-            let (src_ty, target_ty, ctx_span) = edge.weight();
+            let (src_ty, target_ty, ref_span) = edge.weight();
 
             DynObjectRel::new(
                 *src_ty,
                 *target_ty,
                 oi,
                 ObjectIndex::<Object>::new(edge.target(), oi),
-                *ctx_span,
+                *ref_span,
             )
         })
     }
@@ -542,7 +542,7 @@ impl<OA: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for OA {
 pub struct ProposedRel<OA: ObjectKind, OB: ObjectKind> {
     from_oi: ObjectIndex<OA>,
     to_oi: ObjectIndex<OB>,
-    ctx_span: Option<Span>,
+    ref_span: Option<Span>,
 }
 
 #[cfg(test)]
