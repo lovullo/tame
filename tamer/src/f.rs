@@ -251,7 +251,43 @@ macro_rules! impl_mono_map {
                 }
             }
         )+
-    }
+    };
+
+    ($($t:ty => $tup:ident{ $field:ident, .. },)+) => {
+        $(
+            impl $crate::f::TryMap<$t> for $tup {
+                fn try_map<E>(
+                    self,
+                    f: impl FnOnce($t) -> Self::FnResult<E>,
+                ) -> Self::Result<E> {
+                    match self {
+                        Self{ $field: x, .. } => match f(x) {
+                            Ok(y) => Ok(Self{ $field: y, ..self }),
+                            Err((y, e)) => Err((
+                                Self { $field: y, ..self },
+                                e,
+                            )),
+                        },
+                    }
+                }
+            }
+
+            impl $crate::f::Map<$t> for $tup {
+                fn map(self, f: impl FnOnce($t) -> $t) -> Self::Target {
+                    use std::convert::Infallible;
+                    use $crate::f::TryMap;
+
+                    // `unwrap()` requires `E: Debug`,
+                    //   so this avoids that bound.
+                    match self.try_map::<Infallible>(|x| Ok(f(x))) {
+                        Ok(y) => y,
+                        // Verbosely emphasize unreachability
+                        Err::<_, (_, Infallible)>(_) => unreachable!(),
+                    }
+                }
+            }
+        )+
+    };
 }
 
 /// A nullary [`Fn`] delaying some computation.

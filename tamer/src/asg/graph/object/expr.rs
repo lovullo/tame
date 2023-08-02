@@ -28,7 +28,7 @@
 //!     program.
 
 use super::{prelude::*, Doc, Ident, ObjectIndexToTree, Tpl};
-use crate::{f::Map, num::Dim, span::Span};
+use crate::{num::Dim, span::Span};
 use std::fmt::Display;
 
 #[cfg(doc)]
@@ -68,15 +68,8 @@ impl Expr {
     }
 }
 
-impl Map<Span> for Expr {
-    fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
-        match self {
-            Self { span, .. } => Self {
-                span: f(span),
-                ..self
-            },
-        }
-    }
+impl_mono_map! {
+    Span => Expr { span, .. },
 }
 
 impl From<&Expr> for Span {
