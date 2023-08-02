@@ -18,6 +18,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Expressions on the ASG.
+//!
+//! An _expression_ in TAME is an object that yields a numeric value
+//!   (a mathematical expression).
+//! Expressions are referentially transparent,
+//!   and values are expressions,
+//!   so expressions both naturally compose and are able to be replaced with
+//!     the value that they represent without affecting the meaning of the
+//!     program.
 
 use super::{prelude::*, Doc, Ident, ObjectIndexToTree, Tpl};
 use crate::{f::Map, num::Dim, span::Span};
@@ -32,22 +40,30 @@ use super::ObjectKind;
 ///   all child expressions,
 ///     but also any applicable closing span.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Expr(pub ExprOp, ExprDim, Span);
+pub struct Expr {
+    op: ExprOp,
+    dim: ExprDim,
+    span: Span,
+}
 
 impl Expr {
     pub fn new(op: ExprOp, span: Span) -> Self {
-        Self(op, ExprDim::default(), span)
+        Self {
+            op,
+            dim: ExprDim::default(),
+            span,
+        }
     }
 
     pub fn span(&self) -> Span {
         match self {
-            Expr(_, _, span) => *span,
+            Expr { span, .. } => *span,
         }
     }
 
     pub fn op(&self) -> ExprOp {
         match self {
-            Expr(op, _, _) => *op,
+            Expr { op, .. } => *op,
         }
     }
 }
@@ -55,7 +71,10 @@ impl Expr {
 impl Map<Span> for Expr {
     fn map(self, f: impl FnOnce(Span) -> Span) -> Self {
         match self {
-            Self(op, dim, span) => Self(op, dim, f(span)),
+            Self { span, .. } => Self {
+                span: f(span),
+                ..self
+            },
         }
     }
 }
@@ -69,7 +88,13 @@ impl From<&Expr> for Span {
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self(op, dim, _) => write!(f, "{op} expression with {dim}"),
+            Self {
+                op,
+                dim,
+                // intentional: exhaustiveness check to bring attention to
+                //   this when fields change
+                span: _span,
+            } => write!(f, "{op} expression with {dim}"),
         }
     }
 }
