@@ -753,6 +753,16 @@ pub mod dummy {
     pub const S18: Span = S0.offset_add(18).unwrap();
     pub const S19: Span = S0.offset_add(19).unwrap();
     pub const S20: Span = S0.offset_add(20).unwrap();
+    pub const S21: Span = S0.offset_add(21).unwrap();
+    pub const S22: Span = S0.offset_add(22).unwrap();
+    pub const S23: Span = S0.offset_add(23).unwrap();
+    pub const S24: Span = S0.offset_add(24).unwrap();
+    pub const S25: Span = S0.offset_add(25).unwrap();
+    pub const S26: Span = S0.offset_add(26).unwrap();
+    pub const S27: Span = S0.offset_add(27).unwrap();
+    pub const S28: Span = S0.offset_add(28).unwrap();
+    pub const S29: Span = S0.offset_add(29).unwrap();
+    pub const S30: Span = S0.offset_add(30).unwrap();
 }
 
 #[cfg(test)]
