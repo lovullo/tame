@@ -20,7 +20,8 @@
 mod apply;
 
 use super::*;
-use crate::asg::air::test::{as_pkg_body, Sut};
+use crate::asg::air::test::{as_pkg_body, expect_ident_obj, Sut};
+use crate::convert::ExpectInto;
 use crate::span::dummy::*;
 use crate::{
     asg::{
@@ -33,7 +34,7 @@ use crate::{
             },
             Air::*,
         },
-        graph::object::{tpl::TplShape, Doc, Meta, ObjectRel},
+        graph::object::{expr::MetaState, tpl::TplShape, Doc, Meta, ObjectRel},
         Expr, ExprOp, Ident,
     },
     parse::util::spair,
@@ -779,11 +780,18 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
     assert_eq!(id_meta, oi_ident.name_or_meta(asg));
 
     // The identifier should be bound to the expression.
-    let oi_expr = oi_ident
+    let expr = oi_ident
         .definition_narrow::<Expr>(asg)
-        .expect("abstract identifier did not bind to Expr");
+        .expect("abstract identifier did not bind to Expr")
+        .resolve(asg);
 
-    assert_eq!(S3.merge(S5).unwrap(), oi_expr.resolve(asg).span());
+    assert_eq!(S3.merge(S5).unwrap(), expr.span());
+
+    // The abstract identifier references the expression,
+    //   but the expression does not contain it.
+    // Consequently,
+    //   the expression is still concrete.
+    assert_eq!(expr.meta_state(), MetaState::Concrete);
 
     // Finally,
     //   the expression should not be considered dangling and so we should
@@ -803,4 +811,159 @@ fn expr_abstract_bind_produces_cross_edge_from_ident_to_meta() {
     // This is the same result as if we had a concrete identifier;
     //   it all ends up expanding into the same thing in the end.
     assert_eq!(TplShape::Empty, oi_tpl.resolve(&asg).shape());
+}
+
+// Just because an expression is defined within a template does not mean
+//   that it abstract;
+//     expressions without metavariable references are concrete.
+#[test]
+fn expressions_within_tpls_without_metavars_are_concrete() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl_", S2)),
+
+          // This expression should be concrete,
+          //   since it references no metavariables.
+          ExprStart(ExprOp::Sum, S3),
+            BindIdent(spair("expr", S4)),
+          ExprEnd(S5),
+        TplEnd(S7),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S7));
+
+    let expr = expect_ident_obj::<Expr>(&ctx, oi_tpl, spair("expr", S8));
+    assert_eq!(expr.meta_state(), MetaState::Concrete);
+}
+
+#[test]
+fn expressions_referencing_metavars_are_abstract() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl_", S2)),
+
+          // TODO: At the time of writing,
+          //     we do not yet notify objects when a
+          //     missing Ident has received a definition.
+          //   Until that time,
+          //     this will remain unresolved.
+          ExprStart(ExprOp::Sum, S3),
+            BindIdent(spair("expr_pre", S4)),
+
+            // This has yet to be defined,
+            //   and so is `Missing`.
+            RefIdent(spair("@param@", S5)),               // --.
+          ExprEnd(S6),                                    //   |
+                                                          //   |
+          MetaStart(S7),                                  //   |
+            BindIdent(spair("@param@", S8)),              // <-:
+                                                          //   |
+            // We'll give this metavar a value just to    //   |
+            //   show that it doesn't matter that we      //   |
+            //   _could_ make the expression concrete;    //   |
+            //     expansion is never performed until     //   |
+            //     it is explicitly requested.            //   |
+            MetaLexeme(spair("value", S9)),               //   |
+          MetaEnd(S10),                                   //   |
+                                                          //   |
+          ExprStart(ExprOp::Sum, S11),                    //   |
+            BindIdent(spair("expr_post", S12)),           // <-+--.
+                                                          //   |  |
+            // This reference causes the parent           //   |  |
+            //   expression to become abstract since      //   |  |
+            //   it requires expansion.                   //   |  |
+            RefIdent(spair("@param@", S13)),              // --'  |
+          ExprEnd(S14),                                   //      |
+                                                          //      |
+          ExprStart(ExprOp::Sum, S15),                    //      |
+            BindIdent(spair("expr_conc", S16)),           //      |
+                                                          //      |
+            // Even though we reference an abstract       //      |
+            //   expression,                              //      |
+            //     that expression is not our child       //      |
+            //     and therefore does not affect          //      |
+            //     whether this expression is abstract.   //      |
+            RefIdent(spair("expr_post", S17)),            // -----'
+          ExprEnd(S18),
+        TplEnd(S19),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S20));
+
+    // Both `expr_pre` and `expr_post` expressions are abstract,
+    //   containing a reference to a metavariable.
+    // Intuitively,
+    //   we don't know what we're referencing until that metavariable is
+    //   replaced with a lexical value during template application.
+    let expr_post =
+        expect_ident_obj::<Expr>(&ctx, oi_tpl, spair("expr_post", S21));
+    assert_eq!(expr_post.meta_state(), MetaState::Abstract);
+
+    // ...but in the case of expr_pre,
+    //   we don't yet notify the object on Ident resolution and so we do not
+    //   yet know that it ought to be abstract.
+    let expr_pre =
+        expect_ident_obj::<Expr>(&ctx, oi_tpl, spair("expr_pre", S22));
+    assert_eq!(
+        expr_pre.meta_state(),
+        MetaState::MaybeConcrete(1_u16.unwrap_into())
+    );
+
+    // But an expression that _references_ that abstract expression does not
+    //   itself become abstract.
+    // That is:
+    //   we depend on `expr_post` having been computed before we can
+    //   reference it,
+    //     but that dependency is not affected by whether `expr_post` is concrete
+    //     or abstract.
+    // It is certainly required that `expr_post` be made concrete before it
+    //   can be lowered into the target,
+    //     but provided that occurs
+    //       (and there would be a compilation failure if it didn't),
+    //       we are unaffected.
+    let expr_conc =
+        expect_ident_obj::<Expr>(&ctx, oi_tpl, spair("expr_conc", S23));
+    assert_eq!(expr_conc.meta_state(), MetaState::Concrete);
+}
+
+// If we know of at least _one_ abstract reference,
+//   then it does not matter if we have missing references---​
+//     we are abstract.
+#[test]
+fn expression_referencing_abstract_with_missing_is_abstract() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl_", S2)),
+
+          MetaStart(S3),
+            BindIdent(spair("@param@", S4)),              // <-.
+          MetaEnd(S5),                                    //   |
+                                                          //   |
+          ExprStart(ExprOp::Sum, S7),                     //   |
+            BindIdent(spair("expr", S8)),                 //   |
+                                                          //   |
+            // This reference causes the parent           //   |
+            //   expression to become abstract since      //   |
+            //   it requires expansion.                   //   |
+            RefIdent(spair("@param@", S9)),               // --'
+
+            // This reference is unknown,
+            //   but we're still just abstract,
+            //   since it takes only a single abstract reference to make
+            //   that determination.
+            RefIdent(spair("missing", S10)),
+          ExprEnd(S11),
+        TplEnd(S12),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S20));
+
+    let expr = expect_ident_obj::<Expr>(&ctx, oi_tpl, spair("expr", S21));
+    assert_eq!(expr.meta_state(), MetaState::Abstract);
 }

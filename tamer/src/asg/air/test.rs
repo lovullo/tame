@@ -791,3 +791,15 @@ pub fn pkg_expect_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
 ) -> &O {
     pkg_expect_ident_oi(ctx, name).resolve(ctx.asg_ref())
 }
+
+pub fn expect_ident_obj<O: ObjectRelatable + ObjectRelFrom<Ident>>(
+    ctx: &<AirAggregate as ParseState>::Context,
+    env: impl ObjectIndexRelTo<Ident>,
+    name: SPair,
+) -> &O {
+    ctx.env_scope_lookup::<Ident>(env, name)
+        .expect("missing requested Ident `{name}`")
+        .definition_narrow::<O>(ctx.asg_ref())
+        .expect("missing `{name}` definition")
+        .resolve(ctx.asg_ref())
+}

@@ -27,9 +27,14 @@
 //!     the value that they represent without affecting the meaning of the
 //!     program.
 
-use super::{prelude::*, Doc, Ident, ObjectIndexToTree, Tpl};
-use crate::{num::Dim, span::Span};
-use std::fmt::Display;
+use super::{
+    ident::IdentDefinition, prelude::*, Doc, Ident, ObjectIndexToTree, Tpl,
+};
+use crate::{
+    asg::graph::ProposedRel, diagnose::panic::DiagnosticPanic, num::Dim,
+    parse::prelude::Annotate, span::Span,
+};
+use std::{fmt::Display, num::NonZeroU16};
 
 #[cfg(doc)]
 use super::ObjectKind;
@@ -43,6 +48,7 @@ use super::ObjectKind;
 pub struct Expr {
     op: ExprOp,
     dim: ExprDim,
+    meta: MetaState,
     span: Span,
 }
 
@@ -51,6 +57,7 @@ impl Expr {
         Self {
             op,
             dim: ExprDim::default(),
+            meta: MetaState::default(),
             span,
         }
     }
@@ -66,10 +73,28 @@ impl Expr {
             Expr { op, .. } => *op,
         }
     }
+
+    /// Whether an expression is concrete, abstract, or not yet known.
+    ///
+    /// Note that,
+    ///   since [`Ident`]s reference expressions,
+    ///   an abstract identifier is able to reference a concrete
+    ///   expression.
+    /// This may not be intuitive when looking at the source XML notation,
+    ///   or when looking at AIR,
+    ///   since both are structured to appear as though the expression
+    ///   parents the identifier;
+    ///     this is not the case.
+    pub fn meta_state(&self) -> MetaState {
+        match self {
+            Expr { meta, .. } => *meta,
+        }
+    }
 }
 
 impl_mono_map! {
     Span => Expr { span, .. },
+    MetaState => Expr { meta, .. },
 }
 
 impl From<&Expr> for Span {
@@ -84,10 +109,11 @@ impl Display for Expr {
             Self {
                 op,
                 dim,
+                meta,
                 // intentional: exhaustiveness check to bring attention to
                 //   this when fields change
                 span: _span,
-            } => write!(f, "{op} expression with {dim}"),
+            } => write!(f, "{meta} {op} expression with {dim}"),
         }
     }
 }
@@ -226,13 +252,158 @@ impl Display for DimState {
     }
 }
 
+/// The state of an [`Expr`] in a metalanguage context.
+///
+/// Intuitively,
+///   an expression is [`MetaState::Concrete`] if and only if template
+///   expansion would act as an identity function.
+///
+/// This does not cache edges that contributed to these decisions,
+///   since all such edges are direct children and can be quickly and easily
+///   discovered by iterating over those edges.
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub enum MetaState {
+    /// Neither the expression nor its children references any
+    ///   metavariables.
+    #[default]
+    Concrete,
+
+    /// Either the expression or one of its children references some
+    ///   metavariable.
+    ///
+    /// This does not store information about the location of those
+    ///   references;
+    ///     it is expected that they will be located during a walk of the
+    ///     graph during e.g. template expansion.
+    ///
+    /// Note that a metavariable reference is behind an [`Ident`].
+    Abstract,
+
+    /// There are a number of references to [`Ident`]s that are missing
+    ///   definitions,
+    ///     but no abstract references have yet been found.
+    ///
+    /// As soon as a single abstract reference is encountered,
+    ///   [`Self::Abstract`] is able to be inferred and this distinction no
+    ///   longer matters.
+    ///
+    /// The choice of [`u16`] for this count is a compromise:
+    ///   [`u8`] is too small for aggressive out-of-order code generation,
+    ///     and [`u32`] is a lot of space to waste for every [`Expr`] for
+    ///     something that is very unlikely to ever occur.
+    /// [`u16`] is plenty large enough to put the burden on a code
+    ///   generation tool to either break up expressions,
+    ///     or to order dependencies
+    ///       (the former is relatively trivial for any tool).
+    MaybeConcrete(NonZeroU16),
+}
+
+impl MetaState {
+    /// Cache the existence of an abstract identifier.
+    ///
+    /// This will always result in [`Self::Abstract`],
+    ///   no matter what the current state of `self`.
+    fn found_abstract(self) -> Self {
+        // At the time of writing,
+        //   abstract takes precedence over all other states.
+        // However,
+        //   please keep the exhaustive check here,
+        //   as it will draw our attention to this for new variants just in
+        //   case that assumption changes.
+        match self {
+            Self::Concrete | Self::Abstract | Self::MaybeConcrete(_) => {
+                Self::Abstract
+            }
+        }
+    }
+
+    /// Cache the existence of an identifier that is not known to be either
+    ///   concrete or abstract.
+    ///
+    /// The [`Span`] `at` is used only for diagnostics if storage limits are
+    ///   exceeded
+    ///     (see [`Self::MaybeConcrete`]).
+    /// The system does not cache information about edges;
+    ///   it maintains only a count that can be decremented as edges are
+    ///   resolved in the future.
+    fn found_missing(self, at: Span) -> Self {
+        match self {
+            Self::Concrete => Self::MaybeConcrete(NonZeroU16::MIN),
+            Self::Abstract => Self::Abstract,
+            Self::MaybeConcrete(x) => {
+                Self::MaybeConcrete(x.checked_add(1).diagnostic_unwrap(|| {
+                    vec![
+                        at.internal_error("missing identifier limit exceeded"),
+                        at.help(
+                            "either move this reference into another \
+                               expression or move dependencies before this \
+                               expression",
+                        ),
+                        at.help(
+                            "it is not expected that this limit be reached \
+                               except by code generation",
+                        ),
+                    ]
+                }))
+            }
+        }
+    }
+}
+
+impl Display for MetaState {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            MetaState::Concrete => write!(f, "concrete"),
+            MetaState::Abstract => write!(f, "abstract"),
+            MetaState::MaybeConcrete(n) => {
+                write!(f, "possibly-concrete ({n}-Missing)")
+            }
+        }
+    }
+}
+
 object_rel! {
     /// An expression is inherently a tree,
     ///   however it may contain references to other identifiers which
     ///   represent their own trees.
     /// Any [`Ident`] reference is a cross edge.
     Expr -> {
-        cross Ident,
+        cross Ident {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                rel: ProposedRel<Self, Ident>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                match rel.to_oi.definition(asg) {
+                    // Metavariable references mean that the source
+                    //   expression will require expansion.
+                    Some(IdentDefinition::Meta(_)) => {
+                        rel.from_oi.map_obj_inner(
+                            asg,
+                            |meta: MetaState| meta.found_abstract()
+                        );
+                    },
+
+                    // Non-meta identifiers are just references.
+                    // We don't care what they are as long as they're not
+                    //   metavariables.
+                    Some(IdentDefinition::Expr(_) | IdentDefinition::Tpl(_)) => (),
+
+                    None => {
+                        rel.from_oi.map_obj_inner(asg, |meta: MetaState| {
+                            // This is a cross edge and so this span must be
+                            //   available, but the types provided don't
+                            //   guarantee that.
+                            let span = rel.ref_span.unwrap_or(rel.to_oi.span());
+                            meta.found_missing(span)
+                        });
+                    }
+                };
+
+                Ok(commit(asg))
+            }
+        },
+
         tree  Expr,
         tree  Doc,
 
@@ -242,6 +413,12 @@ object_rel! {
 }
 
 impl ObjectIndex<Expr> {
+    /// Finalize an expression's definition by updating its span to
+    ///   encompass the entire (lexical) definition.
+    pub fn close(self, asg: &mut Asg, end: Span) -> Self {
+        self.map_obj_inner(asg, |span: Span| span.merge(end).unwrap_or(span))
+    }
+
     /// Create a new subexpression as the next child of this expression and
     ///   return the [`ObjectIndex`] of the new subexpression.
     ///

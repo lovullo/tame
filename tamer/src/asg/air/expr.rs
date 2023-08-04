@@ -31,7 +31,6 @@ use super::{
 };
 use crate::{
     asg::{graph::object::ObjectIndexToTree, ObjectKind},
-    f::Map,
     parse::prelude::*,
 };
 
@@ -102,9 +101,7 @@ impl ParseState for AirExprAggregate {
             }
 
             (BuildingExpr(es, oi), AirExpr(ExprEnd(end))) => {
-                let _ = oi.map_obj(ctx.asg_mut(), |expr| {
-                    expr.map(|span| span.merge(end).unwrap_or(span))
-                });
+                oi.close(ctx.asg_mut(), end);
 
                 let dangling = es.is_dangling();
                 let oi_root = ctx.dangling_expr_oi();

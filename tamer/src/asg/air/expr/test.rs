@@ -18,6 +18,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::convert::ExpectInto;
 use crate::span::dummy::*;
 use crate::{
     asg::{
@@ -30,7 +31,10 @@ use crate::{
             Air::*,
             AirAggregate,
         },
-        graph::object::{expr::ExprRel, Doc, ObjectRel},
+        graph::object::{
+            expr::{ExprRel, MetaState},
+            Doc, ObjectRel,
+        },
         ExprOp, Ident,
     },
     parse::util::spair,
@@ -191,6 +195,7 @@ fn expr_non_empty_ident_root() {
 
     let expr_a = pkg_expect_ident_obj::<Expr>(&ctx, id_a);
     assert_eq!(expr_a.span(), S1.merge(S6).unwrap());
+    assert_eq!(expr_a.meta_state(), MetaState::Concrete);
 
     // Identifiers should reference the same expression.
     let expr_b = pkg_expect_ident_obj::<Expr>(&ctx, id_b);
@@ -887,4 +892,70 @@ fn abstract_bind_without_dangling_container() {
     );
 
     let _ = sut.finalize().unwrap();
+}
+
+// We cannot be confident that something is concrete until we know what type
+//   of object is being referenced.
+// If there is any level of uncertainty,
+//   we defer that decision.
+#[test]
+fn expr_referencing_missing_without_abstract_is_unknown() {
+    #[rustfmt::skip]
+    let toks = [
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(spair("expr", S2)),
+
+          // This identifier does not exist,
+          //   and so we can't know whether it is a metavariable,
+          //   and so we can't know whether we are concrete.
+          RefIdent(spair("missing", S3)),
+
+          // We count the number of missing references,
+          //   so despite this being the same reference,
+          //   it counts.
+          RefIdent(spair("missing", S4)),
+
+          RefIdent(spair("another_missing", S5)),
+        ExprEnd(S6),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, spair("expr", S20));
+
+    // We have _three_ references above that are not defined.
+    assert_eq!(expr.meta_state(), MetaState::MaybeConcrete(3.unwrap_into()));
+}
+
+// Same as above,
+//   but throw in a known reference to show that it doesn't override the
+//   missing one.
+#[test]
+fn expr_referencing_missing_with_concrete_without_abstract_is_unknown() {
+    #[rustfmt::skip]
+    let toks = [
+        ExprStart(ExprOp::Sum, S1),
+          BindIdent(spair("known", S2)),          // <-.
+        ExprEnd(S3),                              //   |
+                                                  //   |
+        ExprStart(ExprOp::Sum, S4),               //   |
+          BindIdent(spair("expr", S5)),           //   |
+                                                  //   |
+          // For this reason we are missing.      //   |
+          RefIdent(spair("missing", S6)),         //   |
+                                                  //   |
+          // But this one is known;               //   |
+          //   let's make sure it does not        //   |
+          //   override the previous inference.   //   |
+          RefIdent(spair("known", S7)),           // --'
+        ExprEnd(S8),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+
+    let expr = pkg_expect_ident_obj::<Expr>(&ctx, spair("expr", S20));
+
+    // One is known,
+    //   so only one is missing.
+    assert_eq!(expr.meta_state(), MetaState::MaybeConcrete(1.unwrap_into()));
 }
