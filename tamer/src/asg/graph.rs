@@ -287,6 +287,14 @@ impl Asg {
     ///     see the [`object` module documentation](object) for more
     ///     information and rationale on this behavior.
     ///
+    /// This method is intentionally private:
+    ///   while it is possible for external systems to receive immutable
+    ///   references to objects,
+    ///     mutation of those objects is intended to remain encapsulated.
+    /// This is especially important given the use of the [`Map`] trait by
+    ///   objects,
+    ///     since traits yield public APIs.
+    ///
     /// Panics
     /// ======
     /// This method chooses to simplify the API by choosing panics for
@@ -302,7 +310,7 @@ impl Asg {
     ///        representing a type mismatch between what the caller thinks
     ///        this object represents and what the object actually is.
     #[must_use = "returned ObjectIndex has a possibly-updated and more relevant span"]
-    pub(super) fn try_map_obj<O: ObjectKind, E>(
+    fn try_map_obj<O: ObjectKind, E>(
         &mut self,
         index: ObjectIndex<O>,
         f: impl FnOnce(O) -> Result<O, (O, E)>,

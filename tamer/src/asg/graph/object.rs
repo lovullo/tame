@@ -758,7 +758,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///
     /// If this operation is [`Infallible`],
     ///   see [`Self::map_obj`].
-    pub fn try_map_obj<E>(
+    fn try_map_obj<E>(
         self,
         asg: &mut Asg,
         f: impl FnOnce(O) -> Result<O, (O, E)>,
@@ -775,7 +775,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///
     /// If this operation is [`Infallible`],
     ///   see [`Self::map_obj_inner`].
-    pub fn try_map_obj_inner<T, E>(
+    fn try_map_obj_inner<T, E>(
         self,
         asg: &mut Asg,
         f: impl FnOnce(T) -> <O as TryMap<T>>::FnResult<E>,
@@ -792,7 +792,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///
     /// If this operation is _not_ [`Infallible`],
     ///   see [`Self::try_map_obj`].
-    pub fn map_obj(self, asg: &mut Asg, f: impl FnOnce(O) -> O) -> Self {
+    fn map_obj(self, asg: &mut Asg, f: impl FnOnce(O) -> O) -> Self {
         // This verbose notation (in place of e.g. `unwrap`) is intentional
         //   to emphasize why it's unreachable and to verify our assumptions
         //   at every point.
@@ -811,7 +811,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     ///
     /// If this operation is _not_ [`Infallible`],
     ///   see [`Self::try_map_obj_inner`].
-    pub fn map_obj_inner<T>(self, asg: &mut Asg, f: impl FnOnce(T) -> T) -> Self
+    fn map_obj_inner<T>(self, asg: &mut Asg, f: impl FnOnce(T) -> T) -> Self
     where
         O: Map<T, Target = O>,
     {
