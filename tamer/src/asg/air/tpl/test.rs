@@ -161,7 +161,6 @@ fn tpl_within_expr() {
         collect_subexprs(&asg, oi_expr)
             .iter()
             .map(|(_, expr)| expr.span())
-            .rev()
             .collect::<Vec<_>>(),
     );
 }

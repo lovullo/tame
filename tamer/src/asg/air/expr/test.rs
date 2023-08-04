@@ -47,10 +47,15 @@ pub fn collect_subexprs(
     asg: &Asg,
     oi: ObjectIndex<Expr>,
 ) -> Vec<(ObjectIndex<Expr>, &Expr)> {
-    oi.edges(&asg)
+    let mut exprs = oi
+        .edges(&asg)
         .filter_map(|rel| rel.narrow::<Expr>())
         .map(|oi| (oi, oi.resolve(&asg)))
-        .collect::<Vec<_>>()
+        .collect::<Vec<_>>();
+
+    // Edge order is reversed.
+    exprs.reverse();
+    exprs
 }
 
 #[test]
@@ -931,7 +936,7 @@ fn expr_referencing_missing_without_abstract_is_unknown() {
 //   but throw in a known reference to show that it doesn't override the
 //   missing one.
 #[test]
-fn expr_referencing_missing_with_concrete_without_abstract_is_unknown() {
+fn expr_referencing_missing_with_concrete_without_abstract_is_maybe_concrete() {
     #[rustfmt::skip]
     let toks = [
         ExprStart(ExprOp::Sum, S1),
@@ -958,4 +963,74 @@ fn expr_referencing_missing_with_concrete_without_abstract_is_unknown() {
     // One is known,
     //   so only one is missing.
     assert_eq!(expr.meta_state(), MetaState::MaybeConcrete(1.unwrap_into()));
+}
+
+// If any child expression is not known to be concrete,
+//   then we cannot reasonably call the parent expression concrete either,
+//     because we must decend into the parent's tree in order to expand
+//     children.
+#[test]
+fn expr_is_maybe_concrete_if_any_child_is_maybe_concrete() {
+    #[rustfmt::skip]
+    let toks = [
+        ExprStart(ExprOp::Sum, S1),      // A = 2        // ----------------.
+          BindIdent(spair("expr", S2)),                  //                 |
+                                                         //                 |
+          // This should be MaybeConcrete because        //                 |
+          //   there is an inner missing reference.      //                 |
+          ExprStart(ExprOp::Sum, S3),    // B = 1        // ---------.    <-: A1
+            ExprStart(ExprOp::Sum, S4),  // C = 2        // --.    <-' B1   |
+              // A couple children deep to make sure     //   |             |
+              //   this property is inherited by all     //   |             |
+              //   ancestors (B, A).                     //   |             |
+              RefIdent(spair("missing", S5)),            // <-: C1          |
+                                                         //   |             |
+              // A second missing reference.             //   |             |
+              // Even though _this_ expression has two,  //   |             |
+              //   we want the parent B to see only a    //   |             |
+              //     single missing edge to C.           //   |             |
+              RefIdent(spair("missing", S6)),            // <-' C2          |
+            ExprEnd(S6),                                 //                 |
+          ExprEnd(S7),                                   //                 |
+                                                         //                 |
+          // Concrete,                                   //                 |
+          //   to make sure our count isn't affected.    //                 |
+          ExprStart(ExprOp::Sum, S8),                    //                 |
+          ExprEnd(S9),                                   //                 |
+                                                         //                 |
+          // A second abstract child for A.              //                 |
+          ExprStart(ExprOp::Sum, S10),   // D = 1        // --.    <--------' A2
+            RefIdent(spair("missing", S11)),             // <-' D1
+          ExprEnd(S12),
+        ExprEnd(S13),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    let oi_a = pkg_expect_ident_oi::<Expr>(&ctx, spair("expr", S20));
+    let a = oi_a.resolve(&asg);
+
+    let ae = collect_subexprs(asg, oi_a);
+    assert_eq!(ae.len(), 3); // abstract, concrete, abstract
+    let (oi_b, b) = ae[0];
+    let (_, d) = ae[2];
+
+    // Sanity check to make sure we have the exprs that we're expecting.
+    assert_eq!(S3.merge(S7).unwrap(), b.span());
+    assert_eq!(S10.merge(S12).unwrap(), d.span());
+
+    let be = collect_subexprs(asg, oi_b);
+    assert_eq!(be.len(), 1);
+    let (_, c) = be[0];
+
+    // We'll assert according to the visualization above,
+    //   from inside out.
+    // Asserting individually helps to guide debugging with a narrow focus,
+    //   and we want to fail on inner exprs first since effects compose
+    //   outward.
+    assert_eq!(d.meta_state(), MetaState::MaybeConcrete(1.unwrap_into()));
+    assert_eq!(c.meta_state(), MetaState::MaybeConcrete(2.unwrap_into()));
+    assert_eq!(b.meta_state(), MetaState::MaybeConcrete(1.unwrap_into()));
+    assert_eq!(a.meta_state(), MetaState::MaybeConcrete(2.unwrap_into()));
 }

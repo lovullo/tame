@@ -26,6 +26,50 @@
 //!   so expressions both naturally compose and are able to be replaced with
 //!     the value that they represent without affecting the meaning of the
 //!     program.
+//!
+//! An expression is [_concrete_](`MetaState::Concrete`) if it requires no
+//!   expansion by the template system.
+//! If an expression or any of its children reference any
+//!   [metavariables](super::Meta)
+//!     (template parameters),
+//!       then the expression will be [_abstract_](MetaState::Abstract).
+//! Expressions' static bindings together with their referential
+//!   transparency means that a concrete expression is able to be moved and
+//!   copied to any other point in the program without changing its
+//!   meaning;
+//!     this includes the act of copying via template expansion.
+//!
+//! A _reference_ to another expression does not have any influence over
+//!   whether an expression is abstract or not.
+//! In graph terms:
+//!   tree edges influence an expression's [`MetaState`],
+//!     but not cross edges.
+//! Consider the following expression in XML notation to help with intuition
+//!   on this.
+//! Assume that this is the body of some template with a single template
+//!   parameter identified as `@foo@`:
+//!
+//! ```xml
+//!   <!-- there are no metavariable references, so this is concrete -->
+//!   <c:sum id="conc">
+//!     <c:value-of name="#5" />
+//!   </c:sum>
+//!
+//!   <!-- this is abstract because it requires expansion -->
+//!   <c:sum id="abstract">
+//!     <c:value-of name="@foo@" />
+//!   </c:sum>
+//!
+//!   <!-- this is concrete... -->
+//!   <c:sum id="combine">
+//!     <c:value-of name="conc" />
+//!     <!-- ...even though `abstract` is abstract, because moving or
+//!          copying `combine` would have no effect on the meaning of the
+//!          the expression, and there is nothing to expand via the template
+//!          system -->
+//!     <c:value-of name="abstract" />
+//!   </c:sum>
+//! ```
 
 use super::{
     ident::IdentDefinition, prelude::*, Doc, Ident, ObjectIndexToTree, Tpl,
@@ -44,6 +88,8 @@ use super::ObjectKind;
 /// The [`Span`] of an expression should be expanded to encompass not only
 ///   all child expressions,
 ///     but also any applicable closing span.
+///
+/// See the [parent module](self) for more information.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Expr {
     op: ExprOp,
@@ -348,6 +394,20 @@ impl MetaState {
             }
         }
     }
+
+    /// Determine how a child expression should impact whether this
+    ///   expression is abstract.
+    fn observe_child(self, state: MetaState, span: Span) -> Self {
+        match state {
+            Self::Concrete => self,
+            Self::Abstract => self.found_abstract(),
+
+            // Since we track the number of missing edges to direct children,
+            //   we treat the child subgraph as if it were a single node on
+            //   the graph.
+            Self::MaybeConcrete(_) => self.found_missing(span),
+        }
+    }
 }
 
 impl Display for MetaState {
@@ -384,10 +444,27 @@ object_rel! {
                         );
                     },
 
-                    // Non-meta identifiers are just references.
-                    // We don't care what they are as long as they're not
-                    //   metavariables.
-                    Some(IdentDefinition::Expr(_) | IdentDefinition::Tpl(_)) => (),
+                    // This is a _reference_ to another expression tree.
+                    // Only tree edges influence our abstract status.
+                    Some(IdentDefinition::Expr(_)) => (),
+
+                    // Unlike the XSLT-based TAME,
+                    //   this reference can act as a template application,
+                    //   just as the `tree Tpl` edge below.
+                    // TODO: We can expand closed expr templates here,
+                    //   since it's no different than referencing the inner
+                    //   expression.
+                    Some(IdentDefinition::Tpl(_)) => diagnostic_todo!(
+                        vec![
+                            rel.to_oi.error("this references a template"),
+                            rel.to_oi.help(
+                                "only closed expression templates will be \
+                                   supported in this context"
+                            )
+                        ],
+                        "template references in an expression context are
+                           not yet supported"
+                    ),
 
                     None => {
                         rel.from_oi.map_obj_inner(asg, |meta: MetaState| {
@@ -404,10 +481,28 @@ object_rel! {
             }
         },
 
-        tree  Expr,
-        tree  Doc,
+        tree Expr {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                rel: ProposedRel<Self, Self>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                let to = rel.to_oi.resolve(asg);
 
-        // Template application
+                let child_state = to.meta_state();
+                let span = to.span();
+
+                rel.from_oi.map_obj_inner(asg, |state: MetaState| {
+                    state.observe_child(child_state, span)
+                });
+
+                Ok(commit(asg))
+            }
+        },
+
+        tree Doc,
+
+        // Deferred template application
         tree Tpl,
     }
 }
@@ -419,18 +514,20 @@ impl ObjectIndex<Expr> {
         self.map_obj_inner(asg, |span: Span| span.merge(end).unwrap_or(span))
     }
 
-    /// Create a new subexpression as the next child of this expression and
-    ///   return the [`ObjectIndex`] of the new subexpression.
+    /// Add a completed subexpression as a child of a parent expression.
+    ///
+    /// It is important that the subexpression has _completed parsing_ so
+    ///   that edge hooks are able to conduct inference on the entirety of
+    ///   the subexpression.
     ///
     /// Sub-expressions maintain relative order to accommodate
     ///   non-associative and non-commutative expressions.
-    pub fn create_subexpr(
+    pub fn add_completed_subexpr(
         self,
         asg: &mut Asg,
-        expr: Expr,
+        oi_sub: ObjectIndex<Expr>,
     ) -> Result<ObjectIndex<Expr>, AsgError> {
-        let oi_subexpr = asg.create(expr);
-        oi_subexpr.add_tree_edge_from(asg, self)
+        self.add_tree_edge_to(asg, oi_sub)
     }
 
     /// Reference the value of the expression identified by `oi_ident` as if
@@ -451,8 +548,8 @@ impl ObjectIndex<Expr> {
     /// If this is not true,
     ///   consider using:
     ///
-    ///  1. [`Self::create_subexpr`] to create and assign ownership of
-    ///       expressions contained within other expressions; or
+    ///  1. [`Self::add_completed_subexpr`] to create and assign ownership
+    ///       of expressions contained within other expressions; or
     ///  2. [`ObjectIndex<Ident>::bind_definition`] if this expression is to
     ///       be assigned to an identifier.
     pub fn held_by(

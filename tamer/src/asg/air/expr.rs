@@ -92,12 +92,8 @@ impl ParseState for AirExprAggregate {
             }
 
             (BuildingExpr(es, poi), AirExpr(ExprStart(op, span))) => {
-                match poi.create_subexpr(ctx.asg_mut(), Expr::new(op, span)) {
-                    Ok(oi) => {
-                        Transition(BuildingExpr(es.push(poi), oi)).incomplete()
-                    }
-                    Err(e) => Transition(BuildingExpr(es, poi)).err(e),
-                }
+                let oi_child = ctx.asg_mut().create(Expr::new(op, span));
+                Transition(BuildingExpr(es.push(poi), oi_child)).incomplete()
             }
 
             (BuildingExpr(es, oi), AirExpr(ExprEnd(end))) => {
@@ -107,13 +103,19 @@ impl ParseState for AirExprAggregate {
                 let oi_root = ctx.dangling_expr_oi();
 
                 match (es.pop(), dangling) {
-                    ((es, Some(poi)), _) => {
-                        Transition(BuildingExpr(es, poi)).incomplete()
-                    }
+                    // This was a child expression
+                    ((es, Some(poi)), _) => poi
+                        .add_completed_subexpr(ctx.asg_mut(), oi)
+                        .map(|_| ())
+                        .transition(BuildingExpr(es, poi)),
+
+                    // Topmost expression, dangling.
                     ((es, None), true) => {
                         Self::hold_dangling(ctx.asg_mut(), oi_root, oi)
                             .transition(Ready(es.done()))
                     }
+
+                    // Topmost expression, reachable.
                     ((es, None), false) => {
                         Transition(Ready(es.done())).incomplete()
                     }
