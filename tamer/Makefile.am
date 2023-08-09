@@ -62,6 +62,13 @@ check-am: check-lint check-fmt check-cargo check-docgen check-system
 check-cargo:
 	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --quiet @FEATURES@
 
+# This is its _own_ target distinct from `check-cargo` because `TEST` can
+# otherwise allow for filtering out failing tests and have a successful
+# build.
+check-cargo-partial:
+	@test -n "$(TEST)" || { echo 'usage: make check-partial TEST=name::of::test' >&2; exit 1; }
+	RUSTFLAGS="$(RUSTFLAGS)" @CARGO@ +@RUST_TC@ @CARGO_FLAGS@ test --quiet @FEATURES@ -- $(TEST)
+
 .PHONY: check-docgen
 check-docgen:
 	build-aux/asg-ontviz >/dev/null
