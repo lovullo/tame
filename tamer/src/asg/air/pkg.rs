@@ -23,10 +23,10 @@
 
 use super::{
     super::{graph::object::Pkg, AsgError, ObjectIndex},
-    ir::AirLiteratePkg,
+    ir::AirPkg,
     AirAggregate, AirAggregateCtx,
 };
-use crate::{diagnostic_todo, parse::prelude::*};
+use crate::parse::prelude::*;
 
 /// Package parsing with support for loaded identifiers.
 ///
@@ -59,7 +59,7 @@ impl Display for AirPkgAggregate {
 }
 
 impl ParseState for AirPkgAggregate {
-    type Token = AirLiteratePkg;
+    type Token = AirPkg;
     type Object = ();
     type Error = AsgError;
     type Context = AirAggregateCtx;
@@ -70,12 +70,11 @@ impl ParseState for AirPkgAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self::Super> {
-        use super::ir::{AirDoc::*, AirPkg::*};
-        use AirLiteratePkg::*;
+        use AirPkg::*;
         use AirPkgAggregate::*;
 
         match (self, tok) {
-            (st @ (Ready | Toplevel(..)), AirPkg(PkgStart(span, name))) => {
+            (st @ (Ready | Toplevel(..)), PkgStart(span, name)) => {
                 if let Some(first) =
                     ctx.pkg_oi().map(|oi| oi.resolve(ctx.asg_ref()))
                 {
@@ -94,45 +93,25 @@ impl ParseState for AirPkgAggregate {
                 }
             }
 
-            (Toplevel(oi_pkg), AirPkg(PkgEnd(span))) => {
+            (Toplevel(oi_pkg), PkgEnd(span)) => {
                 oi_pkg.close(ctx.asg_mut(), span);
                 ctx.pkg_clear();
                 Transition(Ready).incomplete()
             }
 
-            (Toplevel(oi_pkg), tok @ AirDoc(DocIndepClause(..))) => {
-                diagnostic_todo!(
-                    vec![
-                        oi_pkg.note("for this package"),
-                        tok.internal_error(
-                            "this package description is not yet supported"
-                        )
-                    ],
-                    "package-level short description is not yet supported by TAMER",
-                )
-            }
-
-            (Toplevel(oi_pkg), AirDoc(DocText(text))) => oi_pkg
-                .append_doc_text(ctx.asg_mut(), text)
-                .map(|_| ())
-                .transition(Toplevel(oi_pkg)),
-
             // Package import
-            (Toplevel(oi_pkg), AirPkg(PkgImport(namespec))) => oi_pkg
+            (Toplevel(oi_pkg), PkgImport(namespec)) => oi_pkg
                 .import(ctx.asg_mut(), namespec)
                 .map(|_| ())
                 .transition(Toplevel(oi_pkg)),
 
-            (Ready, AirPkg(PkgImport(namespec))) => {
+            (Ready, PkgImport(namespec)) => {
                 Transition(Ready).err(AsgError::InvalidPkgImport(namespec))
             }
 
-            (Ready, AirPkg(PkgEnd(span))) => {
+            (Ready, PkgEnd(span)) => {
                 Transition(Ready).err(AsgError::InvalidPkgEndContext(span))
             }
-
-            // Token may refer to a parent context.
-            (st @ Ready, tok @ AirDoc(..)) => Transition(st).dead(tok),
         }
     }
 

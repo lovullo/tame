@@ -141,16 +141,27 @@ pub enum AsgError {
     ///   expansion.
     InvalidExpansionContext(Span),
 
+    /// A short description cannot be applied to the active object.
+    ///
+    /// The error span is that of the description,
+    ///   and the context span is the active object that does not support
+    ///   that description,
+    ///     if any.
+    InvalidDocContext(ErrorOccurrenceSpan, Option<ErrorContextSpan>),
+
     /// Documentation text is not valid in an expression context.
     ///
     /// This historical limitation existed because the author was unsure how
     ///   to go about rendering an equation with literate documentation
     ///   interspersed.
     /// The plan is to lift this limitation in the future.
+    InvalidDocContextExpr(ErrorOccurrenceSpan, ErrorContextSpan),
+
+    /// Documentation text is not valid within a metavariable.
     ///
-    /// The spans represent the expression and the documentation text
-    ///   respectively.
-    InvalidDocContextExpr(Span, Span),
+    /// The equivalent lexical value is permitted,
+    ///   but it cannot be conveyed as documentation.
+    InvalidDocContextMeta(ErrorOccurrenceSpan, ErrorContextSpan),
 
     /// A circular dependency was found where it is not permitted.
     ///
@@ -186,6 +197,12 @@ type ErrorOccurrenceSpan = Span;
 ///
 /// This should be paired with [`ErrorOccurrenceSpan`].
 type FirstOccurrenceSpan = Span;
+
+/// The context in which an error occurred.
+///
+/// For example,
+///   this may refer to the container of the object that caused an error.
+type ErrorContextSpan = Span;
 
 impl Display for AsgError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -252,9 +269,22 @@ impl Display for AsgError {
             InvalidExpansionContext(_) => {
                 write!(f, "invalid template expansion context",)
             }
-            InvalidDocContextExpr(_, _) => {
-                write!(f, "document text is not permitted within expressions")
+
+            InvalidDocContext(_, _) => {
+                write!(f, "documentation is not supported in this context")
             }
+
+            InvalidDocContextExpr(_, _) => write!(
+                f,
+                "inline documentation is not permitted within expressions"
+            ),
+
+            InvalidDocContextMeta(_, _) => write!(
+                f,
+                "inline documentation is not permitted within metavariables \
+                   (template parameters)"
+            ),
+
             UnsupportedCycle(cycle) => {
                 write!(f, "circular dependency: {cycle}")
             }
@@ -427,14 +457,38 @@ impl Diagnostic for AsgError {
                 vec![span.error("cannot expand a template here")]
             }
 
-            InvalidDocContextExpr(expr_span, span) => vec![
+            InvalidDocContext(doc, octx) => vec![
+                match octx {
+                    Some(ctx) => {
+                        ctx.note("attempting to document this active object")
+                    }
+                    None => doc.note("there is no active object to document"),
+                },
+                doc.error(
+                    "this documentation cannot be applied to the active object",
+                ),
+            ],
+
+            InvalidDocContextExpr(span, expr_span) => vec![
                 expr_span.note("in this expression"),
-                span.error("documentation text is not permitted here"),
+                span.error("inline documentation is not permitted here"),
                 span.help(
                     "this is a historical limitation that will \
                         likely be lifted in the future",
                 ),
             ],
+
+            InvalidDocContextMeta(span, meta_span) => vec![
+                meta_span.note("in this metavariable"),
+                span.error("inline documentation is not permitted here"),
+                // TODO: This is assuming that the source language is an
+                //   XML NIR,
+                //     because we don't at the time of writing yet have the
+                //     ability to augment errors with additional information
+                //     from other pipeline components.
+                span.help("did you mean to enclose this in a `<text>` node?"),
+            ],
+
             UnsupportedCycle(cycle) => {
                 // The cycle description clearly describes the cycle,
                 //   but in neutral terms,

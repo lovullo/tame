@@ -217,7 +217,7 @@ impl Asg {
     ) -> Result<(), AsgError> {
         from_oi.pre_add_edge(self, to_oi, None, |asg| {
             asg.graph.add_edge(
-                from_oi.widen().into(),
+                from_oi.widen_src().into(),
                 to_oi.into(),
                 (from_oi.src_rel_ty(), OB::rel_ty(), None),
             );
@@ -255,7 +255,7 @@ impl Asg {
     ) -> Result<(), AsgError> {
         from_oi.pre_add_edge(self, to_oi, Some(ref_span), |asg| {
             asg.graph.add_edge(
-                from_oi.widen().into(),
+                from_oi.widen_src().into(),
                 to_oi.into(),
                 (from_oi.src_rel_ty(), OB::rel_ty(), Some(ref_span)),
             );
@@ -419,7 +419,7 @@ impl Asg {
         from: impl ObjectIndexRelTo<OB>,
         to: ObjectIndex<OB>,
     ) -> bool {
-        self.graph.contains_edge(from.widen().into(), to.into())
+        self.graph.contains_edge(from.widen_src().into(), to.into())
     }
 
     pub(super) fn expect_obj<O: ObjectKind>(&self, oi: ObjectIndex<O>) -> &O {

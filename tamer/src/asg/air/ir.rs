@@ -876,21 +876,17 @@ sum_ir! {
         }
     }
 
-    /// Package definitions interspersed with documentation in a
-    ///   literate style.
-    pub sum enum AirLiteratePkg = AirPkg | AirDoc;
-
     /// Expressions that are able to be bound to identifiers.
     ///
     /// This is the primary token set when parsing packages,
     ///   since most everything in TAMER is an expression.
-    pub sum enum AirBindableExpr = AirExpr | AirBind | AirDoc;
+    pub sum enum AirBindableExpr = AirExpr | AirBind;
 
     /// Tokens that may be used to define or apply templates.
-    pub sum enum AirBindableTpl = AirTpl | AirBind | AirDoc;
+    pub sum enum AirBindableTpl = AirTpl | AirBind;
 
     /// Tokens that may be used to define metavariables.
-    pub sum enum AirBindableMeta = AirMeta | AirBind | AirDoc;
+    pub sum enum AirBindableMeta = AirMeta | AirBind;
 }
 
 impl AirIdent {

@@ -31,6 +31,7 @@ use crate::{
         Asg, AsgError,
     },
     f::Map,
+    parse::util::SPair,
     span::Span,
 };
 use std::{fmt::Display, marker::PhantomData};
@@ -866,7 +867,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
     ///   [`ObjectKind`] information.
     ///
     /// See [`ObjectIndex::widen`] for more information.
-    fn widen(&self) -> ObjectIndex<Object>;
+    fn widen_src(&self) -> ObjectIndex<Object>;
 
     /// Request permission to add an edge from `self` to another object.
     ///
@@ -910,7 +911,7 @@ pub trait ObjectIndexRelTo<OB: ObjectRelatable>: Sized + Clone + Copy {
         &self,
         asg: &'a Asg,
     ) -> impl Iterator<Item = ObjectIndex<OB>> + 'a {
-        asg.edges_dyn(self.widen())
+        asg.edges_dyn(self.widen_src())
             .filter_map(|rel| rel.filter_into_target())
     }
 
@@ -966,7 +967,7 @@ where
         O::rel_ty()
     }
 
-    fn widen(&self) -> ObjectIndex<Object> {
+    fn widen_src(&self) -> ObjectIndex<Object> {
         ObjectIndex::<O>::widen(*self)
     }
 
@@ -996,7 +997,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
         }
     }
 
-    fn widen(&self) -> ObjectIndex<Object> {
+    fn widen_src(&self) -> ObjectIndex<Object> {
         *self.as_ref()
     }
 
@@ -1012,7 +1013,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
                 $ty::pre_add_edge(
                     asg,
                     ProposedRel {
-                        from_oi: self.widen().must_narrow_into::<$ty>(),
+                        from_oi: self.widen_src().must_narrow_into::<$ty>(),
                         to_oi,
                         ref_span,
                     },
@@ -1040,9 +1041,9 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
         }
     }
 
-    fn widen(&self) -> ObjectIndex<Object> {
+    fn widen_src(&self) -> ObjectIndex<Object> {
         match self {
-            Self(oito) => oito.widen(),
+            Self(oito) => oito.widen_src(),
         }
     }
 
@@ -1066,9 +1067,9 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToCross<OB> {
         }
     }
 
-    fn widen(&self) -> ObjectIndex<Object> {
+    fn widen_src(&self) -> ObjectIndex<Object> {
         match self {
-            Self(oito) => oito.widen(),
+            Self(oito) => oito.widen_src(),
         }
     }
 
@@ -1087,7 +1088,7 @@ impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToCross<OB> {
 
 impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for ObjectIndex<Object> {
     fn from(oi_rel: ObjectIndexTo<OB>) -> Self {
-        oi_rel.widen()
+        oi_rel.widen_src()
     }
 }
 
@@ -1110,6 +1111,39 @@ impl<OB: ObjectRelatable> AsRef<ObjectIndex<Object>> for ObjectIndexTo<OB> {
 pub trait ObjectIndexTreeRelTo<OB: ObjectRelatable>:
     ObjectIndexRelTo<OB> + Into<ObjectIndexToTree<OB>>
 {
+    /// Describe this expression using a short independent clause.
+    ///
+    /// This is intended to be a concise description for use either as a
+    ///   simple sentence or as part of a compound sentence.
+    /// There should only be one such clause for any given object,
+    ///   but that is not enforced here.
+    fn add_desc_short(
+        self,
+        asg: &mut Asg,
+        clause: SPair,
+    ) -> Result<Self, AsgError>
+    where
+        Self: ObjectIndexTreeRelTo<Doc>,
+    {
+        let oi_doc = asg.create(Doc::new_indep_clause(clause));
+        asg.add_tree_edge(self, oi_doc)?;
+        Ok(self)
+    }
+
+    /// Arbitrary text serving as documentation in a literate style,
+    ///   to be expanded into the application site.
+    fn append_doc_text(
+        self,
+        asg: &mut Asg,
+        text: SPair,
+    ) -> Result<Self, AsgError>
+    where
+        Self: ObjectIndexTreeRelTo<Doc>,
+    {
+        let oi_doc = asg.create(Doc::new_text(text));
+        asg.add_tree_edge(self, oi_doc)?;
+        Ok(self)
+    }
 }
 
 impl<OB: ObjectRelatable> ObjectIndexTreeRelTo<OB> for ObjectIndexToTree<OB> {}

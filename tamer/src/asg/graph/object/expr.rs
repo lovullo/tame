@@ -75,8 +75,11 @@ use super::{
     ident::IdentDefinition, prelude::*, Doc, Ident, ObjectIndexToTree, Tpl,
 };
 use crate::{
-    asg::graph::ProposedRel, diagnose::panic::DiagnosticPanic, num::Dim,
-    parse::prelude::Annotate, span::Span,
+    asg::graph::ProposedRel,
+    diagnose::panic::DiagnosticPanic,
+    num::Dim,
+    parse::{prelude::Annotate, Token},
+    span::Span,
 };
 use std::{fmt::Display, num::NonZeroU16};
 
@@ -500,7 +503,31 @@ object_rel! {
             }
         },
 
-        tree Doc,
+        tree Doc {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                rel: ProposedRel<Self, Doc>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                let doc = rel.to_oi.resolve(asg);
+
+                match doc {
+                    Doc::IndepClause(_) => Ok(commit(asg)),
+
+                    // This maintains compatibility with the XLST-based
+                    //   system.
+                    // TODO: Inline documentation was prohibited within
+                    //   expressions because of questions of how it would
+                    //   render within the Summary Page;
+                    //     this restriction should just be lifted and dealt
+                    //     with separately.
+                    Doc::Text(spair) => Err(AsgError::InvalidDocContextExpr(
+                        spair.span(),
+                        rel.from_oi.resolve(asg).span(),
+                    ))
+                }
+            }
+        },
 
         // Deferred template application
         tree Tpl,

@@ -163,7 +163,7 @@ impl ParseState for AirTplAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirDoc::*, AirTpl::*};
+        use super::ir::{AirBind::*, AirTpl::*};
         use AirBindableTpl::*;
         use AirTplAggregate::*;
 
@@ -209,18 +209,6 @@ impl ParseState for AirTplAggregate {
                     .transition(Toplevel(tpl))
             }
 
-            (Toplevel(tpl), AirDoc(DocIndepClause(clause))) => tpl
-                .oi()
-                .add_desc_short(ctx.asg_mut(), clause)
-                .map(|_| ())
-                .transition(Toplevel(tpl)),
-
-            (Toplevel(tpl), AirDoc(DocText(text))) => tpl
-                .oi()
-                .append_doc_text(ctx.asg_mut(), text)
-                .map(|_| ())
-                .transition(Toplevel(tpl)),
-
             (Toplevel(tpl), AirTpl(TplEnd(span))) => {
                 tpl.close(ctx.asg_mut(), span).map(|_| ()).transition(Done)
             }
@@ -260,7 +248,7 @@ impl ParseState for AirTplAggregate {
                 Transition(Ready).err(AsgError::UnbalancedTpl(span))
             }
 
-            (st @ (Ready | Done), tok @ (AirBind(..) | AirDoc(..))) => {
+            (st @ (Ready | Done), tok @ AirBind(..)) => {
                 Transition(st).dead(tok)
             }
         }

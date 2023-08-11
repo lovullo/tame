@@ -415,15 +415,4 @@ impl ObjectIndex<Tpl> {
     ) -> Result<Self, AsgError> {
         self.add_tree_edge_from(asg, oi_target_parent)
     }
-
-    /// Arbitrary text serving as documentation in a literate style,
-    ///   to be expanded into the application site.
-    pub fn append_doc_text(
-        &self,
-        asg: &mut Asg,
-        text: SPair,
-    ) -> Result<Self, AsgError> {
-        let oi_doc = asg.create(Doc::new_text(text));
-        self.add_tree_edge_to(asg, oi_doc)
-    }
 }

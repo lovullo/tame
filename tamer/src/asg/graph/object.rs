@@ -966,24 +966,6 @@ impl<O: ObjectKind> ObjectIndex<O> {
         oi.defined_by(asg, self).map(|_| self)
     }
 
-    /// Describe this expression using a short independent clause.
-    ///
-    /// This is intended to be a concise description for use either as a
-    ///   simple sentence or as part of a compound sentence.
-    /// There should only be one such clause for any given object,
-    ///   but that is not enforced here.
-    pub fn add_desc_short(
-        &self,
-        asg: &mut Asg,
-        clause: SPair,
-    ) -> Result<Self, AsgError>
-    where
-        O: ObjectTreeRelTo<Doc>,
-    {
-        let oi_doc = asg.create(Doc::new_indep_clause(clause));
-        self.add_tree_edge_to(asg, oi_doc)
-    }
-
     /// Retrieve a description of this expression using a short independent
     ///   clause,
     ///     if one has been set.

@@ -28,7 +28,7 @@
 
 use super::{
     graph::object::{
-        Object, ObjectIndexRelTo, ObjectIndexTo, ObjectIndexToTree,
+        Doc, Object, ObjectIndexRelTo, ObjectIndexTo, ObjectIndexToTree,
         ObjectRelTy, ObjectRelatable, Pkg, Root, Tpl,
     },
     Asg, AsgError, Expr, Ident, ObjectIndex,
@@ -54,11 +54,13 @@ mod ir;
 use fxhash::FxHashMap;
 pub use ir::Air;
 
+mod doc;
 mod expr;
 mod meta;
 mod opaque;
 mod pkg;
 mod tpl;
+use doc::AirDocAggregate;
 use expr::AirExprAggregate;
 use meta::AirMetaAggregate;
 use opaque::AirOpaqueAggregate;
@@ -107,6 +109,9 @@ pub enum AirAggregate {
     /// This parser is intended for loading declarations from object files
     ///   without loading their corresponding definitions.
     PkgOpaque(AirOpaqueAggregate),
+
+    /// Parsing documentation for active object.
+    PkgDoc(AirDocAggregate),
 }
 
 impl Display for AirAggregate {
@@ -130,6 +135,9 @@ impl Display for AirAggregate {
             }
             PkgOpaque(opaque) => {
                 write!(f, "loading opaque objects: {opaque}")
+            }
+            PkgDoc(doc) => {
+                write!(f, "parsing documentation: {doc}")
             }
         }
     }
@@ -162,6 +170,12 @@ impl From<AirMetaAggregate> for AirAggregate {
 impl From<AirOpaqueAggregate> for AirAggregate {
     fn from(st: AirOpaqueAggregate) -> Self {
         Self::PkgOpaque(st)
+    }
+}
+
+impl From<AirDocAggregate> for AirAggregate {
+    fn from(st: AirDocAggregate) -> Self {
+        Self::PkgDoc(st)
     }
 }
 
@@ -201,11 +215,10 @@ impl ParseState for AirAggregate {
             //     parent package frame.
             (
                 st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgMeta(..)
-                | PkgOpaque(..)),
+                | PkgOpaque(..) | PkgDoc(..)),
                 tok @ AirPkg(..),
             ) => ctx.ret_or_transfer(st, tok, AirPkgAggregate::new()),
             (Pkg(pkg), AirPkg(etok)) => ctx.proxy(pkg, etok),
-            (Pkg(pkg), AirDoc(etok)) => ctx.proxy(pkg, etok),
             (st @ Pkg(..), tok @ AirBind(_)) => {
                 ctx.try_ret_with_lookahead(st, tok)
             }
@@ -216,7 +229,6 @@ impl ParseState for AirAggregate {
             }
             (PkgExpr(expr), AirExpr(etok)) => ctx.proxy(expr, etok),
             (PkgExpr(expr), AirBind(etok)) => ctx.proxy(expr, etok),
-            (PkgExpr(expr), AirDoc(etok)) => ctx.proxy(expr, etok),
 
             // Template
             (st @ (Pkg(_) | PkgExpr(_)), tok @ AirTpl(..)) => {
@@ -224,7 +236,6 @@ impl ParseState for AirAggregate {
             }
             (PkgTpl(tplst), AirTpl(ttok)) => ctx.proxy(tplst, ttok),
             (PkgTpl(tplst), AirBind(ttok)) => ctx.proxy(tplst, ttok),
-            (PkgTpl(tplst), AirDoc(ttok)) => ctx.proxy(tplst, ttok),
 
             // Metavariables
             (st @ (PkgTpl(_) | PkgExpr(_)), tok @ AirMeta(..)) => {
@@ -232,10 +243,29 @@ impl ParseState for AirAggregate {
             }
             (PkgMeta(meta), AirMeta(mtok)) => ctx.proxy(meta, mtok),
             (PkgMeta(meta), AirBind(mtok)) => ctx.proxy(meta, mtok),
-            (PkgMeta(meta), AirDoc(mtok)) => ctx.proxy(meta, mtok),
             (PkgMeta(meta), tok @ (AirExpr(..) | AirTpl(..))) => {
                 ctx.try_ret_with_lookahead(meta, tok)
             }
+
+            // Documentation
+            //
+            // We let the child parser discover the active object rather
+            //   than trying to discover it here;
+            //     this ensures that child parses can be properly returned
+            //     from if they have completed their task,
+            //       otherwise documentation would be attached to the wrong
+            //       object.
+            (
+                st @ (Pkg(_) | PkgTpl(_) | PkgExpr(_) | PkgMeta(_)),
+                tok @ AirDoc(..),
+            ) => ctx.ret_or_transfer(st, tok, AirDocAggregate::new()),
+            (PkgDoc(doc), AirDoc(dtok)) => ctx.proxy(doc, dtok),
+            // Return from the doc parser for siblings;
+            //   documentation strings have no children.
+            (
+                PkgDoc(doc),
+                tok @ (AirBind(..) | AirExpr(..) | AirTpl(..) | AirMeta(..)),
+            ) => ctx.try_ret_with_lookahead(doc, tok),
 
             // Opaque
             //
@@ -281,7 +311,8 @@ impl ParseState for AirAggregate {
             }
 
             (
-                st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgMeta(..)),
+                st @ (Root(..) | PkgExpr(..) | PkgTpl(..) | PkgMeta(..)
+                | PkgDoc(..)),
                 AirIdent(tok),
             ) => {
                 Transition(st).err(AsgError::UnexpectedOpaqueIdent(tok.name()))
@@ -296,6 +327,29 @@ impl ParseState for AirAggregate {
 }
 
 impl AirAggregate {
+    fn active_object(&self) -> Option<ObjectIndex<Object>> {
+        use AirAggregate::*;
+
+        match self {
+            Uninit => None,
+            // The root is never an active object,
+            //   since it can't be directly operated on.
+            Root(_) => None,
+
+            Pkg(pkgst) => pkgst.active_pkg_oi().map(|oi| oi.widen()),
+            PkgExpr(exprst) => exprst.active_expr_oi().map(|oi| oi.widen()),
+            PkgTpl(tplst) => tplst.active_tpl_oi().map(|oi| oi.widen()),
+            PkgMeta(metast) => metast.active_meta_oi().map(|oi| oi.widen()),
+
+            // Opaque objects are not intended to be manipulated.
+            PkgOpaque(_) => None,
+
+            // Documentation objects are never active and are never intended
+            //   to be the target of any operation.
+            PkgDoc(_) => None,
+        }
+    }
+
     /// Whether the active parser is completed with active parsing.
     ///
     /// This method is used to determine whether control ought to be
@@ -318,6 +372,7 @@ impl AirAggregate {
             PkgTpl(st) => st.is_accepting(ctx),
             PkgMeta(st) => st.is_accepting(ctx),
             PkgOpaque(st) => st.is_accepting(ctx),
+            PkgDoc(st) => st.is_accepting(ctx),
         }
     }
 
@@ -337,6 +392,7 @@ impl AirAggregate {
             PkgTpl(st) => st.is_accepting(ctx),
             PkgMeta(st) => st.is_accepting(ctx),
             PkgOpaque(st) => st.is_accepting(ctx),
+            PkgDoc(st) => st.is_accepting(ctx),
         }
     }
 
@@ -383,6 +439,9 @@ impl AirAggregate {
             // At the time of writing,
             //   that is only a package.
             PkgOpaque(_) => None,
+
+            // Documentation strings are not containers.
+            PkgDoc(_) => None,
         }
     }
 
@@ -402,6 +461,26 @@ impl AirAggregate {
         }
     }
 
+    /// Active object that is able to be documented.
+    ///
+    /// Note that some objects only support certain types of documentation
+    ///   and may produce an error when attempting to add an edge.
+    fn active_doc_oi(&self) -> Option<ObjectIndexToTree<Doc>> {
+        use AirAggregate::*;
+
+        // We consider only the topmost stack item.
+        match self {
+            Uninit => None,
+            Root(_) => None,
+            Pkg(pkgst) => pkgst.active_pkg_oi().map(Into::into),
+            PkgExpr(exprst) => exprst.active_expr_oi().map(Into::into),
+            PkgTpl(tplst) => tplst.active_tpl_oi().map(Into::into),
+            PkgMeta(metast) => metast.active_meta_oi().map(Into::into),
+            PkgOpaque(_) => None,
+            PkgDoc(_) => None,
+        }
+    }
+
     /// The boundary associated with the active environment.
     ///
     /// If the active parser does not introduce its own scope
@@ -417,10 +496,11 @@ impl AirAggregate {
             Uninit => Transparent,
             PkgOpaque(_) => Transparent,
 
-            // Expressions and metadata are not containers,
+            // These are not containers,
             //   and do not introduce scope.
             PkgExpr(_) => Transparent,
             PkgMeta(_) => Transparent,
+            PkgDoc(_) => Transparent,
 
             // Packages and templates act as containers and so restrict
             //   identifier scope.
@@ -467,6 +547,9 @@ impl AirAggregate {
             // If an object is opaque to us then we cannot possibly look
             //   into it to see what needs expansion.
             PkgOpaque(_) => false,
+
+            // Documentation strings cannot own identifiers.
+            PkgDoc(_) => false,
         }
     }
 }
@@ -745,7 +828,7 @@ impl AirAggregateCtx {
         eoi: EnvScopeKind<ObjectIndex<O>>,
     ) -> Result<(), ObjectIndex<O>> {
         let sym = name.into();
-        let ient = index.entry((O::rel_ty(), sym, imm_env.widen()));
+        let ient = index.entry((O::rel_ty(), sym, imm_env.widen_src()));
 
         use Entry::*;
         use EnvScopeKind::*;
@@ -811,7 +894,7 @@ impl AirAggregateCtx {
             use crate::fmt::{DisplayWrapper, TtQuote};
             crate::debug_diagnostic_panic!(
                 vec![
-                    imm_env.widen().note("at this scope boundary"),
+                    imm_env.widen_src().note("at this scope boundary"),
                     prev_oi.note("previously indexed identifier was here"),
                     eoi.internal_error(
                         "this identifier has already been indexed at the above scope boundary"
@@ -956,7 +1039,29 @@ impl AirAggregateCtx {
             //   not opaque,
             //   and so not permitted in this context.
             PkgOpaque(_) => None,
+
+            // Documentation cannot contain expressions.
+            PkgDoc(_) => None,
         })
+    }
+
+    /// Require that the object atop of the stack be documentable,
+    ///   otherwise producing an error.
+    ///
+    /// See also [`AirAggregate::active_doc_oi`].
+    fn require_active_doc_oi(
+        &self,
+        at: Span,
+    ) -> Result<ObjectIndexToTree<Doc>, AsgError> {
+        // We consider only the topmost stack frame.
+        let ost = self.stack.iter().rev().next();
+
+        ost.and_then(|st| st.active_doc_oi()).ok_or(
+            AsgError::InvalidDocContext(
+                at,
+                ost.and_then(|st| st.active_object()).map(|oi| oi.span()),
+            ),
+        )
     }
 
     /// The active expansion target (splicing context) for [`Tpl`]s.
@@ -984,6 +1089,9 @@ impl AirAggregateCtx {
             //     and so it'd be best to leave this alone unless it's
             //     actually needed.
             PkgOpaque(_) => None,
+
+            // Documentation strings are not containers.
+            PkgDoc(_) => None,
         })
     }
 
@@ -1035,9 +1143,9 @@ impl AirAggregateCtx {
                 // If it's a problem,
                 //   we can have `instantiable_rooting_oi` retain
                 //   information.
-                let rooting_span = self
-                    .rooting_oi()
-                    .map(|(_, oi)| oi.widen().resolve(self.asg_ref()).span());
+                let rooting_span = self.rooting_oi().map(|(_, oi)| {
+                    oi.widen_src().resolve(self.asg_ref()).span()
+                });
 
                 // Note that we _discard_ the attempted bind token
                 //   and so remain in a dangling state.
@@ -1143,7 +1251,7 @@ impl AirAggregateCtx {
         // Maybe future Rust will have dependent types that allow for better
         //   static assurances.
         self.index
-            .get(&(O::rel_ty(), id.symbol(), imm_env.widen()))
+            .get(&(O::rel_ty(), id.symbol(), imm_env.widen_src()))
             .map(|&eoi| {
                 eoi.map(|oi| oi.overwrite(id.span()).must_narrow_into::<O>())
             })

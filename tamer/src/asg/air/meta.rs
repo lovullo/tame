@@ -61,7 +61,7 @@ impl ParseState for AirMetaAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use super::ir::{AirBind::*, AirDoc::*, AirMeta::*};
+        use super::ir::{AirBind::*, AirMeta::*};
         use AirBindableMeta::*;
         use AirMetaAggregate::*;
 
@@ -101,21 +101,6 @@ impl ParseState for AirMetaAggregate {
                 )
             }
 
-            (TplMeta(oi_meta), AirDoc(DocIndepClause(clause))) => oi_meta
-                .add_desc_short(ctx.asg_mut(), clause)
-                .map(|_| ())
-                .transition(TplMeta(oi_meta)),
-
-            // TODO: The user _probably_ meant to use `<text>` in XML NIR,
-            //   so maybe we should have an error to that effect.
-            (TplMeta(..), tok @ AirDoc(DocText(..))) => {
-                diagnostic_todo!(
-                    vec![tok.note("this token")],
-                    "AirDoc in metavar context \
-                        (is this something we want to support?)"
-                )
-            }
-
             // Reference to another metavariable,
             //   e.g. using `<param-value>` in XML NIR.
             (TplMeta(oi_meta), AirBind(RefIdent(name))) => {
@@ -149,9 +134,7 @@ impl ParseState for AirMetaAggregate {
             }
 
             // Maybe the token can be handled by the parent frame.
-            (Ready, tok @ (AirBind(..) | AirDoc(..))) => {
-                Transition(Ready).dead(tok)
-            }
+            (Ready, tok @ AirBind(..)) => Transition(Ready).dead(tok),
         }
     }
 
@@ -163,6 +146,13 @@ impl ParseState for AirMetaAggregate {
 impl AirMetaAggregate {
     pub(super) fn new() -> Self {
         Self::Ready
+    }
+
+    pub fn active_meta_oi(&self) -> Option<ObjectIndex<Meta>> {
+        match self {
+            AirMetaAggregate::Ready => None,
+            AirMetaAggregate::TplMeta(oi) => Some(*oi),
+        }
     }
 }
 

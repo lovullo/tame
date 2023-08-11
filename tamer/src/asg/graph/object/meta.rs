@@ -34,6 +34,7 @@ use arrayvec::ArrayVec;
 
 use super::{prelude::*, Doc, Ident};
 use crate::{
+    asg::graph::ProposedRel,
     diagnose::Annotate,
     diagnostic_todo,
     f::Map,
@@ -181,7 +182,34 @@ object_rel! {
         tree Meta,
 
         // e.g. template paramater description.
-        tree Doc,
+        tree Doc {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                rel: ProposedRel<Self, Doc>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                let doc = rel.to_oi.resolve(asg);
+
+                match doc {
+                    Doc::IndepClause(_) => Ok(commit(asg)),
+
+                    // It doesn't make sense to allow inline documentation
+                    //   here,
+                    //     even though an equivalent lexical value would
+                    //     make sense;
+                    //       it's the expected interpretation that's the
+                    //       problem,
+                    //         not the lexical content.
+                    // This isn't possible to hit at the time of writing
+                    //   when using XML->NIR because of the ambiguity of the
+                    //   `Nir::Text` token.
+                    Doc::Text(spair) => Err(AsgError::InvalidDocContextMeta(
+                        spair.span(),
+                        rel.from_oi.resolve(asg).span(),
+                    ))
+                }
+            }
+        },
     }
 }
 
