@@ -163,6 +163,14 @@ pub enum AsgError {
     ///   but it cannot be conveyed as documentation.
     InvalidDocContextMeta(ErrorOccurrenceSpan, ErrorContextSpan),
 
+    /// Abstract documentation references an identifier that is not bound to
+    ///   a metavariable.
+    ///
+    /// Documentation was expected to be derived from the lexical value of a
+    ///   metavariable during expansion,
+    ///     but the provided identifier does not reference a metavariable.
+    InvalidDocRef(ErrorOccurrenceSpan, ErrorTargetSpan),
+
     /// A circular dependency was found where it is not permitted.
     ///
     /// A cycle almost always means that computing the value of an object
@@ -203,6 +211,12 @@ type FirstOccurrenceSpan = Span;
 /// For example,
 ///   this may refer to the container of the object that caused an error.
 type ErrorContextSpan = Span;
+
+/// The span representing the target of a reference.
+///
+/// It is expected that a corresponding [`ErrorOccurrenceSpan`] reference
+///   the _source_ of the reference.
+type ErrorTargetSpan = Span;
 
 impl Display for AsgError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -283,6 +297,11 @@ impl Display for AsgError {
                 f,
                 "inline documentation is not permitted within metavariables \
                    (template parameters)"
+            ),
+
+            InvalidDocRef(_, _) => write!(
+                f,
+                "expected metavariable reference for abstract documentation",
             ),
 
             UnsupportedCycle(cycle) => {
@@ -487,6 +506,16 @@ impl Diagnostic for AsgError {
                 //     ability to augment errors with additional information
                 //     from other pipeline components.
                 span.help("did you mean to enclose this in a `<text>` node?"),
+            ],
+
+            InvalidDocRef(ref_span, target_span) => vec![
+                ref_span.error(
+                    "expected metavariable reference \
+                       (such as a template parameter)",
+                ),
+                target_span
+                    .note("documentation is referencing this identifier"),
+                target_span.help("this identifier is not a metavariable"),
             ],
 
             UnsupportedCycle(cycle) => {

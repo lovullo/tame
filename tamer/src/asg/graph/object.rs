@@ -977,7 +977,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
     {
         self.edges_filtered::<Doc>(asg)
             .map(ObjectIndex::cresolve(asg))
-            .find_map(Doc::indep_clause)
+            .find_map(Doc::concrete_indep_clause)
     }
 }
 

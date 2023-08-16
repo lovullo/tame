@@ -191,7 +191,8 @@ object_rel! {
                 let doc = rel.to_oi.resolve(asg);
 
                 match doc {
-                    Doc::IndepClause(_) => Ok(commit(asg)),
+                    Doc::IndepClause(_)
+                    | Doc::AbstractIndepClause(_) => Ok(commit(asg)),
 
                     // It doesn't make sense to allow inline documentation
                     //   here,

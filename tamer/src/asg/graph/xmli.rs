@@ -613,10 +613,32 @@ impl<'a> TreeContext<'a> {
                 Some(attr_desc(*desc))
             }
 
+            // @desc is still abstract and contains a metavariable reference;
+            //   just output the name of the metavariable
+            (
+                Object::Expr(..) | Object::Tpl(..),
+                Doc::AbstractIndepClause(_),
+            ) => {
+                let name = oi_doc
+                    .abstract_indep_clause_ref(self.asg)
+                    .and_then(|oi_ident| oi_ident.resolve(self.asg).name())
+                    .diagnostic_expect(
+                        || {
+                            vec![doc.span().internal_error(
+                                "missing name for metavariable reference",
+                            )]
+                        },
+                        "unable to resolve doc metavariable reference",
+                    );
+
+                Some(attr_desc(name))
+            }
+
             // template/param/@desc
-            (Object::Meta(_), Doc::IndepClause(_desc))
-                if self.tpl_apply.is_none() =>
-            {
+            (
+                Object::Meta(_),
+                Doc::IndepClause(_) | Doc::AbstractIndepClause(_),
+            ) if self.tpl_apply.is_none() => {
                 // This is already covered in `emit_tpl_param`
                 None
             }
@@ -630,12 +652,12 @@ impl<'a> TreeContext<'a> {
                 None
             }
 
-            _ => {
+            (_, doc) => {
                 diagnostic_todo!(
                     vec![oi_doc.internal_error(
                         "this documentation is not supported in XIRF output"
                     )],
-                    "unsupported documentation",
+                    "unsupported documentation: {doc:?}",
                 )
             }
         }

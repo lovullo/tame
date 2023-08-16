@@ -294,6 +294,9 @@ impl ParseState for NirToAir {
             (st @ (Ready | Meta(_)), Desc(clause)) => {
                 Transition(st).ok(Air::DocIndepClause(clause))
             }
+            (st @ (Ready | Meta(_)), DescRef(spair)) => {
+                Transition(st).ok(Air::DocIndepClauseRef(spair))
+            }
 
             (Ready, Import(namespec)) => {
                 Transition(Ready).ok(Air::PkgImport(namespec))

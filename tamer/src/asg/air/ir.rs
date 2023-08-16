@@ -859,6 +859,32 @@ sum_ir! {
                 ),
             },
 
+            /// Describe the active object using a reference to a
+            ///   metavariable that will be expected to contain an independent
+            ///   clause.
+            ///
+            /// This is identical to [`Self::DocIndepClause`] in behavior
+            ///   except for a level of indirection.
+            /// This reference allows for documentation generation via the
+            ///   template system.
+            ///
+            /// Implementation Note
+            /// -------------------
+            /// The system could be generalized by eliminating
+            ///   [`Self::DocIndepClause`] in favor of this and always
+            ///   requiring that a documentation literal be defined using a
+            ///   metavariable literal;
+            ///     that was not done because it would introduce a
+            ///     significant number of additional objects to the graph.
+            DocIndepClauseRef(text: SPair) => {
+                span: text,
+                display: |f| write!(
+                    f,
+                    "reference to a metavariable describing the active \
+                        object as a subject in a sentence",
+                ),
+            },
+
             /// Arbitrary documentation text.
             ///
             /// TAMER hopes to eventually provide structured documentation,

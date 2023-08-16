@@ -20,7 +20,9 @@
 mod apply;
 
 use super::*;
-use crate::asg::air::test::{as_pkg_body, expect_ident_obj, Sut};
+use crate::asg::air::test::{
+    as_pkg_body, expect_ident_obj, expect_ident_oi, Sut,
+};
 use crate::convert::ExpectInto;
 use crate::span::dummy::*;
 use crate::{
@@ -965,4 +967,133 @@ fn expression_referencing_abstract_with_missing_is_abstract() {
 
     let expr = expect_ident_obj::<Expr>(&ctx, oi_tpl, spair("expr", S21));
     assert_eq!(expr.meta_state(), MetaState::Abstract);
+}
+
+// Independent clauses representing descriptions can also reference
+//   metavariables,
+//     allowing for documentation generation.
+// Because such a clause requires expansion,
+//   and because it is owned by the object that it describes,
+//   it must cause the parent object to also be interpreted as abstract.
+#[test]
+fn abstract_doc_clause_binds_to_ref() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl_", S2)),
+
+          MetaStart(S3),
+            BindIdent(spair("@param@", S4)),              // <-.
+          MetaEnd(S5),                                    //   |
+                                                          //   |
+          ExprStart(ExprOp::Sum, S7),                     //   |
+            BindIdent(spair("expr", S8)),                 //   |
+                                                          //   |
+            // This reference causes the parent           //   |
+            //   expression to become abstract since      //   |
+            //   it requires expansion.                   //   |
+            DocIndepClauseRef(spair("@param@", S9)),      // --'
+          ExprEnd(S11),
+        TplEnd(S12),
+    ];
+
+    let ctx = air_ctx_from_pkg_body_toks(toks);
+    let asg = ctx.asg_ref();
+
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S20));
+
+    // Even though the _calculation_ portion is concrete,
+    //   the Doc object causes this expression to be abstract.
+    let oi_expr = expect_ident_oi::<Expr>(&ctx, oi_tpl, spair("expr", S21));
+    let expr = oi_expr.resolve(asg);
+    assert_eq!(expr.meta_state(), MetaState::Abstract);
+
+    let oi_doc = oi_expr
+        .edges_filtered::<Doc>(asg)
+        .next()
+        .expect("missing Doc object on Expr");
+    let doc = oi_doc.resolve(asg);
+
+    assert_eq!(&Doc::AbstractIndepClause(S9), doc);
+
+    let oi_ident = oi_doc
+        .edges_filtered::<Ident>(asg)
+        .next()
+        .expect("missing abstract doc ident");
+    assert_eq!(S4, oi_ident.resolve(asg).span());
+}
+
+// Independent clauses representing descriptions can also reference
+//   metavariables,
+//     allowing for documentation generation.
+// Because such a clause requires expansion,
+//   and because it is owned by the object that it describes,
+//   it must cause the parent object to also be interpreted as abstract.
+//
+// It is not expected that the user will encounter this error in practice
+//   when using the source XML language,
+//     because interpolation ensures that documentation is either a literal
+//     or a proper metavariable reference.
+// With that said,
+//   the intent is to have other IRs lower into AIR in the future.
+#[test]
+fn abstract_doc_clause_cannot_bind_to_non_meta_ref() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl_", S2)),
+
+          ExprStart(ExprOp::Sum, S3),
+            BindIdent(spair("notmeta", S4)),              // <-.
+          ExprEnd(S5),                                    //   |
+                                                          //   |
+          ExprStart(ExprOp::Sum, S7),                     //   |
+            BindIdent(spair("expr", S8)),                 //   |
+                                                          //   |
+            // This references another expression.        //   |
+            DocIndepClauseRef(spair("notmeta", S9)),      // --'
+          ExprEnd(S11),
+        TplEnd(S12),
+    ];
+
+    let mut sut = parse_as_pkg_body(toks);
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Ok(Parsed::Incomplete), // PkgStart
+              Ok(Parsed::Incomplete), // TplStart
+                Ok(Parsed::Incomplete), // BindIdent
+
+                Ok(Parsed::Incomplete), // ExprStart
+                  Ok(Parsed::Incomplete), // BindIdent
+                Ok(Parsed::Incomplete), // ExprEnd
+
+                Ok(Parsed::Incomplete), // ExprStart
+                  Ok(Parsed::Incomplete), // BindIdent
+
+                  Err(ParseError::StateError(
+                    AsgError::InvalidDocRef(S9, S4)
+                  )),
+
+                  // RECOVERY: We build the expression,
+                  //   omitting the documentation string.
+                Ok(Parsed::Incomplete), // ExprEnd
+              Ok(Parsed::Incomplete), // TplEnd
+            Ok(Parsed::Incomplete), // PkgEnd
+        ],
+        sut.by_ref().collect::<Vec<_>>(),
+    );
+
+    let ctx = sut.finalize().unwrap().into_private_context();
+    let asg = ctx.asg_ref();
+
+    // Let's make sure that the template created after recovery succeeded.
+    let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S20));
+
+    // We should have kept the expression despite the error.
+    assert!(oi_tpl
+        .edges_filtered::<Ident>(asg)
+        .filter_map(|oi_ident| oi_ident.definition_narrow::<Expr>(asg))
+        .any(|oi| oi.resolve(asg).span() == S7.merge(S11).unwrap()));
 }

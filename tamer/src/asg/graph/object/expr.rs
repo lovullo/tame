@@ -470,12 +470,12 @@ object_rel! {
                     ),
 
                     None => {
-                        rel.from_oi.map_obj_inner(asg, |meta: MetaState| {
+                        rel.from_oi.map_obj_inner(asg, |metast: MetaState| {
                             // This is a cross edge and so this span must be
                             //   available, but the types provided don't
                             //   guarantee that.
                             let span = rel.ref_span.unwrap_or(rel.to_oi.span());
-                            meta.found_missing(span)
+                            metast.found_missing(span)
                         });
                     }
                 };
@@ -513,6 +513,20 @@ object_rel! {
 
                 match doc {
                     Doc::IndepClause(_) => Ok(commit(asg)),
+
+                    // Even though this expression's  _calculation_ may not
+                    //   be abstract,
+                    //     it does own this documentation object and
+                    //     therefore the only route to its expansion is
+                    //     through this expression.
+                    Doc::AbstractIndepClause(_) => {
+                        rel.from_oi.map_obj_inner(
+                            asg,
+                            |metast: MetaState| metast.found_abstract(),
+                        );
+
+                        Ok(commit(asg))
+                    }
 
                     // This maintains compatibility with the XLST-based
                     //   system.

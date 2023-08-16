@@ -471,6 +471,13 @@ impl ParseState for InterpState {
                     //   since its name will not be known until expansion-time.
                     Nir::BindIdent(x) => Nir::BindIdentAbstract(x),
 
+                    // Descriptions must also be converted into an explicit
+                    //   reference,
+                    //     otherwise the new metavariable reference will be
+                    //     interpreted as the documentation string rather
+                    //     than a reference to one.
+                    Nir::Desc(x) => Nir::DescRef(x),
+
                     // All other tokens only have their symbols replaced by
                     //   the above.
                     x => x,

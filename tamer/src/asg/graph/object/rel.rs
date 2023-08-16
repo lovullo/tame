@@ -1117,6 +1117,8 @@ pub trait ObjectIndexTreeRelTo<OB: ObjectRelatable>:
     ///   simple sentence or as part of a compound sentence.
     /// There should only be one such clause for any given object,
     ///   but that is not enforced here.
+    ///
+    /// See also [`Self::add_desc_short`] for abstract descriptions.
     fn add_desc_short(
         self,
         asg: &mut Asg,
@@ -1126,6 +1128,25 @@ pub trait ObjectIndexTreeRelTo<OB: ObjectRelatable>:
         Self: ObjectIndexTreeRelTo<Doc>,
     {
         let oi_doc = asg.create(Doc::new_indep_clause(clause));
+        asg.add_tree_edge(self, oi_doc)?;
+        Ok(self)
+    }
+
+    /// Reference an identifier bound to a metavariable whose lexical value
+    ///   will represent a short independent clause.
+    ///
+    /// See also [`Self::add_desc_short`] for concrete descriptions.
+    fn add_desc_short_ref(
+        self,
+        asg: &mut Asg,
+        oi_ident: ObjectIndex<Ident>,
+        ref_span: Span,
+    ) -> Result<Self, AsgError>
+    where
+        Self: ObjectIndexTreeRelTo<Doc>,
+    {
+        let oi_doc = asg.create(Doc::new_indep_clause_ref(ref_span));
+        oi_doc.add_cross_edge_to(asg, oi_ident, ref_span)?;
         asg.add_tree_edge(self, oi_doc)?;
         Ok(self)
     }

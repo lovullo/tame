@@ -160,6 +160,12 @@ pub enum Nir {
     /// Describe the [`NirEntity`] atop of the stack.
     Desc(SPair),
 
+    /// Describe the [`NirEntity`] atop of the stack using a lexical
+    ///   reference to a metavariable.
+    ///
+    /// This allows for documentation generation.
+    DescRef(SPair),
+
     /// A string literal.
     ///
     /// The meaning of this string depends on context.
@@ -223,6 +229,10 @@ impl Nir {
             //     expansion.
             BindIdentAbstract(_) => None,
 
+            // Lexical references for descriptions do not become concrete
+            //   until expansion.
+            DescRef(_) => None,
+
             Noop(_) => None,
         }
     }
@@ -257,6 +267,7 @@ impl Map<SymbolId> for Nir {
             RefSubject(spair) => RefSubject(spair.map(f)),
             Ref(spair) => Ref(spair.map(f)),
             Desc(spair) => Desc(spair.map(f)),
+            DescRef(spair) => DescRef(spair.map(f)),
             Text(spair) => Text(spair.map(f)),
             Import(spair) => Import(spair.map(f)),
 
@@ -386,6 +397,7 @@ impl Token for Nir {
             | RefSubject(spair)
             | Ref(spair)
             | Desc(spair)
+            | DescRef(spair)
             | Text(spair)
             | Import(spair) => spair.span(),
 
@@ -438,6 +450,12 @@ impl Display for Nir {
 
             // TODO: TtQuote doesn't yet escape quotes at the time of writing!
             Desc(spair) => write!(f, "description {}", TtQuote::wrap(spair)),
+
+            DescRef(spair) => write!(
+                f,
+                "abstract description referencing identifier {}",
+                TtQuote::wrap(spair)
+            ),
 
             // TODO: Not yet safe to output arbitrary text;
             //   need to determine how to handle newlines and other types of

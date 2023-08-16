@@ -22,9 +22,10 @@
 //! TODO: Document TAME's stance on documentation and literate programming,
 //!   much of which hasn't been able to be realized over the years.
 
-use super::prelude::*;
+use super::{ident::IdentDefinition, prelude::*, Ident, Meta};
 use crate::{
-    parse::{util::SPair, Token},
+    asg::graph::ProposedRel,
+    parse::{prelude::Annotate, util::SPair, Token},
     span::Span,
 };
 use std::fmt::Display;
@@ -49,6 +50,17 @@ pub enum Doc {
     /// The intent is for this text to be mixed with sibling objects,
     ///   in a style similar to that of literate programming.
     Text(SPair),
+
+    /// An [`IndepClause`](Self::IndepClause)whose text will not be known
+    ///   until expansion.
+    ///
+    /// This object is expected to contain an edge to an identifier
+    ///   representing a metavariable whose lexical value will serve as the
+    ///   documentation text.
+    ///
+    /// The associated span is the location at which the documentation was
+    ///   defined.
+    AbstractIndepClause(Span),
 }
 
 impl Display for Doc {
@@ -64,30 +76,115 @@ impl Doc {
         Self::IndepClause(clause)
     }
 
+    /// Reference an identifier bound to a metavariable whose lexical value
+    ///   will represent an independent clause as in
+    ///   [`Self::new_indep_clause`].
+    pub fn new_indep_clause_ref(ref_span: Span) -> Self {
+        Self::AbstractIndepClause(ref_span)
+    }
+
     /// Arbitrary text serving as documentation for sibling objects in a
     ///   literate style.
     pub fn new_text(text: SPair) -> Self {
         Self::Text(text)
     }
 
-    pub fn indep_clause(&self) -> Option<SPair> {
+    pub fn concrete_indep_clause(&self) -> Option<SPair> {
         match self {
             Self::IndepClause(spair) => Some(*spair),
             Self::Text(_) => None,
+
+            // An independent clause _will_ be available at some point,
+            //   but is not yet.
+            Self::AbstractIndepClause(_) => None,
         }
     }
 
     pub fn span(&self) -> Span {
         match self {
             Self::IndepClause(spair) | Self::Text(spair) => spair.span(),
+            Self::AbstractIndepClause(span) => *span,
         }
     }
 }
 
 object_rel! {
-    /// Templates may expand into nearly any context,
-    ///   and must therefore be able to contain just about anything.
+    /// Documentation strings cannot contain children,
+    ///   but they can be abstract.
     Doc -> {
-        // empty
+        // References to identifiers representing metavariables are
+        //   permitted for documentation generation.
+        cross Ident {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                rel: ProposedRel<Self, Ident>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                match rel.to_oi.definition(asg) {
+                    // Missing; we'll have to check once we support
+                    //   notification on definition.
+                    None => Ok(commit(asg)),
+
+                    // Only metavariable references are permitted.
+                    Some(IdentDefinition::Meta(_)) => {
+                        Ok(commit(asg))
+                    },
+
+                    Some(
+                        IdentDefinition::Expr(_)
+                        | IdentDefinition::Tpl(_)
+                    ) => Err(AsgError::InvalidDocRef(
+                        // This is a cross edge and so should always be
+                        //   available
+                        rel.ref_span.unwrap_or(rel.from_oi.span()),
+                        rel.to_oi.resolve(asg).span(),
+                    ))
+                }
+            }
+        },
+
+        // TODO: This is not actually used.
+        //   There seems to be a bug in the `min_specialization` feature
+        //   that results in too narrow of a type inference on
+        //   `ObjectIndexRelTo<OB> for ObjectIndexTo<OB>`,
+        //     expecting `ProposedRel<Doc, Ident>` instead of
+        //     `<ProposedRel<Doc, OB>` when there is only one `AsgRelMut`
+        //     impl defined
+        //       (when there's only `Ident` above).
+        //  Remove this rel to see if it's still a problem,
+        //    noting that the nightly version of Rust must be manually
+        //    bumped.
+        cross Meta {
+            fn pre_add_edge(
+                _asg: &mut Asg,
+                rel: ProposedRel<Self, Meta>,
+                _commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                diagnostic_panic!(
+                    vec![
+                        rel.from_oi.span()
+                            .internal_error("cannot create edge from here..."),
+                        rel.to_oi.span()
+                            .internal_error("...to here")
+                    ],
+                    "unsupported edge (see object/doc.rs for more information)"
+                )
+            }
+        },
+    }
+}
+
+impl ObjectIndex<Doc> {
+    /// The identifier that is expected to resolve to a metavariable whose
+    ///   lexical value will become the documentation string.
+    ///
+    /// This is applicable to [`Doc::AbstractIndepClause`].
+    /// If no such reference exists,
+    ///   [`None`] will be returned.
+    pub fn abstract_indep_clause_ref(
+        &self,
+        asg: &Asg,
+    ) -> Option<ObjectIndex<Ident>> {
+        self.edges_filtered::<Ident>(asg).next()
     }
 }

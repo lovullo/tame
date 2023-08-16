@@ -195,6 +195,50 @@ fn concrete_bind_ident_desugars_into_abstract_bind_after_interpolation() {
     );
 }
 
+// Similar to the distinction of an abstract bind above,
+//   we must also make a distinction of a reference to a documentation
+//   string.
+// The reason for this is that the reference would otherwise be taken
+//   (lexically) to be the value of the documentation string;
+//     we require that it represent indirection,
+//       and must indicate to the system in some way that the lexeme is in
+//       fact an identifier and not a string.
+#[test]
+fn doc_desc_desugars_into_desc_ref_after_interpolation() {
+    let given_val = "{@iamref@}";
+    //               |[------]|
+    //               |1      8|
+    //               |   B    |
+    //               [--------]
+    //               0        9
+    //                   A
+
+    // Non-zero span offset ensures that derived spans properly consider
+    //   parent offset.
+    let a = DC.span(10, 10);
+    let b = DC.span(11, 8);
+
+    let given_sym = Nir::Desc(SPair(given_val.into(), a));
+    let toks = vec![given_sym];
+
+    let mut sut = Sut::parse(toks.into_iter());
+
+    let expect_name = expect_expanded_header(&mut sut, a);
+
+    assert_eq!(
+        Ok(vec![
+            // The interpolation occurs the same as above.
+            Object(Nir::Ref(SPair("@iamref@".into(), b))),
+            Object(Nir::Close(NirEntity::TplParam, a)),
+            // We translate the original `Desc` into a `DescRef`,
+            //   indicating that the lexical value is to be interpreted as
+            //   an identifier reference rather than a documentation string.
+            Object(Nir::DescRef(SPair(expect_name, a))),
+        ]),
+        sut.collect(),
+    );
+}
+
 // When ending with an interpolated variable,
 //   the parser should recognize that we've returned to the outer literal
 //   context and permit successful termination of the specification string.
