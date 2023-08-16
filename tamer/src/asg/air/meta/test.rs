@@ -34,6 +34,7 @@ use crate::{
             Air::{self, *},
         },
         graph::object::{meta::MetaRel, Meta, Tpl},
+        ExprOp,
     },
     parse::{util::spair, Parser},
     span::{dummy::*, Span},
@@ -263,14 +264,23 @@ fn assert_concat_list<'a, IT, IE: 'a>(
     IE: IntoIterator<Item = &'a Meta>,
     IE::IntoIter: Debug + DoubleEndedIterator,
 {
-    let (ctx, oi_tpl) = air_ctx_from_tpl_body_toks(toks);
+    let meta_sym = meta_name.into();
+
+    let (ctx, oi_tpl) = air_ctx_from_tpl_body_toks(
+        #[rustfmt::skip]
+        toks.into_iter().chain(vec![
+            // Reference the provided metavariable to avoid
+            // `AsgError::TplUnusedParams`.
+            ExprStart(ExprOp::Sum, S20),
+              RefIdent(spair(meta_sym, S21)),
+            ExprEnd(S22),
+        ]),
+    );
+
     let asg = ctx.asg_ref();
 
     let oi_meta = ctx
-        .env_scope_lookup_ident_dfn::<Meta>(
-            oi_tpl,
-            spair(meta_name.into(), DUMMY_SPAN),
-        )
+        .env_scope_lookup_ident_dfn::<Meta>(oi_tpl, spair(meta_sym, DUMMY_SPAN))
         .unwrap();
 
     // Meta references are only supported through lexical concatenation.

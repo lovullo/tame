@@ -126,7 +126,7 @@ impl TplState {
         asg: &mut Asg,
         close_span: Span,
     ) -> Result<ObjectIndex<Tpl>, AsgError> {
-        let oi = self.oi().close(asg, close_span);
+        let oi = self.oi().close(asg, close_span)?;
 
         match self {
             Self::Dangling(_) => {

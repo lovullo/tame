@@ -162,6 +162,40 @@ fn rejects_metavariable_without_naming_convention() {
     );
 }
 
+// Similar concept,
+//   but for `Desc`.
+// This is not an abstract bind,
+//   though,
+//   making this module a slight misnomer now.
+#[test]
+fn desc_with_only_metavar_naming_is_translated() {
+    // This is named as a metavariable.
+    let name = "@param@".into();
+
+    assert_tok_translate(
+        // This documentation string uses a metavariable naming
+        //   convention...
+        Desc(SPair(name, S2)),
+        // ...and so is translated,
+        //   so that it is interpreted as a reference rather than a
+        //   documentation string.
+        DescRef(SPair(name, S2)),
+    );
+}
+
+#[test]
+fn desc_without_metavar_naming_is_echoed() {
+    // This is named as a metavariable.
+    let s = "some string".into();
+
+    assert_tok_translate(
+        // This does _not_ follow a metavariable naming convention...
+        Desc(SPair(s, S2)),
+        // ...and so is echoed back verbatim.
+        Desc(SPair(s, S2)),
+    );
+}
+
 fn assert_tok_translate(tok: Nir, expect: Nir) {
     #[rustfmt::skip]
     assert_eq!(

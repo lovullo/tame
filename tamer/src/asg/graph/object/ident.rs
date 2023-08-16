@@ -1493,6 +1493,13 @@ impl ObjectIndex<Ident> {
         asg.create(Ident::new_abstract(at))
             .add_cross_edge_to(asg, self, at)
     }
+
+    /// Whether there exists at least one object that holds a reference to
+    ///   this identifier.
+    pub fn is_referenced(&self, asg: &Asg) -> bool {
+        asg.incoming_edges_dyn(ObjectIndex::widen(*self))
+            .any(|edge| edge.is_cross_edge())
+    }
 }
 
 #[cfg(test)]

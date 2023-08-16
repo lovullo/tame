@@ -512,7 +512,14 @@ fn tpl_with_param() {
             BindIdent(id_param2),
             DocIndepClause(param_desc),
           MetaEnd(S10),
-        TplEnd(S11),
+
+          // Metavariables must be used by something,
+          //   otherwise we'll receive an error.
+          ExprStart(ExprOp::Sum, S11),
+            RefIdent(id_param1),
+            RefIdent(id_param2),
+          ExprEnd(S14),
+        TplEnd(S15),
     ];
 
     let ctx = air_ctx_from_pkg_body_toks(toks);
@@ -521,9 +528,7 @@ fn tpl_with_param() {
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, id_tpl);
     let tpl = oi_tpl.resolve(&asg);
 
-    // The template contains no body
-    //   (only metavariables / params).
-    assert_eq!(TplShape::Empty, tpl.shape());
+    assert_eq!(TplShape::Expr(S11.merge(S14).unwrap()), tpl.shape());
 
     // The template should have an edge to each identifier for each
     //   metavariable.
@@ -677,6 +682,8 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
             MetaStart(S4),
               BindIdent(id_param_outer),
             MetaEnd(S6),
+
+            RefIdent(id_param_outer),
           ExprEnd(S7),
 
           // Nested template
@@ -688,6 +695,8 @@ fn metavars_within_exprs_hoisted_to_parent_tpl() {
               MetaStart(S11),
                 BindIdent(id_param_inner),
               MetaEnd(S13),
+
+              RefIdent(id_param_inner),
             ExprEnd(S14),
           TplEnd(S15),
         TplEnd(S16),
@@ -932,7 +941,7 @@ fn expressions_referencing_metavars_are_abstract() {
 }
 
 // If we know of at least _one_ abstract reference,
-//   then it does not matter if we have missing references---​
+//   then it does not matter if we have missing references---
 //     we are abstract.
 #[test]
 fn expression_referencing_abstract_with_missing_is_abstract() {
@@ -1096,4 +1105,60 @@ fn abstract_doc_clause_cannot_bind_to_non_meta_ref() {
         .edges_filtered::<Ident>(asg)
         .filter_map(|oi_ident| oi_ident.definition_narrow::<Expr>(asg))
         .any(|oi| oi.resolve(asg).span() == S7.merge(S11).unwrap()));
+}
+
+/// All template metavariables (params) must hold at least one reference.
+/// For rationale,
+///   see the parent module's documentation.
+#[test]
+fn unused_metavars_at_definition_tpl_close_produce_error() {
+    #[rustfmt::skip]
+    let toks = [
+        TplStart(S1),
+          BindIdent(spair("_tpl", S2)),
+
+          MetaStart(S3),
+            BindIdent(spair("@used@", S4)),      // <-.
+          MetaEnd(S5),                           //   |
+                                                 //   |
+          MetaStart(S6),                         //   |
+            BindIdent(spair("@unused_a@", S7)),  //   |
+          MetaEnd(S8),                           //   |
+                                                 //   |
+          MetaStart(S9),                         //   |
+            BindIdent(spair("@unused_b@", S10)), //   |
+          MetaEnd(S11),                          //   |
+                                                 //   |
+          ExprStart(ExprOp::Sum, S12),           //   |
+            RefIdent(spair("@used@", S13)),      // --'
+          ExprEnd(S14),
+        TplEnd(S15),
+    ];
+
+    let mut sut = parse_as_pkg_body(toks);
+
+    assert_eq!(
+        #[rustfmt::skip]
+        vec![
+            Err(ParseError::StateError(AsgError::TplUnusedParams(
+                Some(spair("_tpl", S2)),
+                vec![
+                    spair("@unused_a@", S7),
+                    spair("@unused_b@", S10),
+                ],
+            ))),
+        ],
+        sut.by_ref().filter(Result::is_err).collect::<Vec<_>>(),
+    );
+
+    let ctx = sut.finalize().unwrap().into_private_context();
+
+    // The template should not have been defined.
+    // This is admittedly driven by implementation details:
+    //   no other part of AIR's parsing continues with an operation despite
+    //   an error at the time of writing.
+    // TODO: Should we allow the template to be defined,
+    //   so that the user doesn't get errors saying the template doesn't
+    //   exist?
+    assert_eq!(None, pkg_lookup(&ctx, spair("_tpl_", S20)));
 }

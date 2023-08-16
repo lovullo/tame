@@ -21,7 +21,7 @@
 
 use std::fmt::Display;
 
-use super::{ident::IdentDefinition, prelude::*, Doc, Expr, Ident};
+use super::{ident::IdentDefinition, prelude::*, Doc, Expr, Ident, Meta};
 use crate::{asg::graph::ProposedRel, f::Map, parse::util::SPair, span::Span};
 
 /// Template with associated name.
@@ -376,12 +376,43 @@ impl ObjectIndex<Tpl> {
     ///
     /// This updates the span of the template to encompass the entire
     ///   definition.
-    pub fn close(self, asg: &mut Asg, close_span: Span) -> Self {
+    pub fn close(
+        self,
+        asg: &mut Asg,
+        close_span: Span,
+    ) -> Result<Self, AsgError> {
         self.map_obj(asg, |tpl| {
             tpl.map(|open_span: Span| {
                 open_span.merge(close_span).unwrap_or(open_span)
             })
-        })
+        });
+
+        // TODO: Quick-and-dirty ignore of anonymous templates until
+        //   following commits;
+        //     those represent application and we'll need to present errors
+        //     differently.
+        //   This is temporary and will be formalized.
+        if self.name(asg).is_none() {
+            return Ok(self);
+        }
+
+        let mut unused = self
+            .edges_filtered::<Ident>(asg)
+            .filter(|oi| oi.is_bound_to_kind::<Meta>(asg))
+            .filter(|oi| !oi.is_referenced(asg))
+            .filter_map(|oi| oi.resolve(asg).name()) // filters out abstract
+            .collect::<Vec<_>>();
+
+        // Iterator above is not reversable and provides edge in the
+        //   opposite order in which they were added
+        //     (which would be the opposite order in which they were
+        //       lexically defined in the source).
+        unused.reverse();
+
+        match unused.len() {
+            0 => Ok(self),
+            _ => Err(AsgError::TplUnusedParams(self.name(asg), unused)),
+        }
     }
 
     /// Apply a named template `id` to the context of `self`.

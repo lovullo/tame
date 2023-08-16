@@ -186,6 +186,11 @@
   <template name="_tpl-param_" desc="Template with a param">
     <param name="@foo@" desc="A parameter" />
     <param name="@bar@" desc="Another parameter" />
+
+    <any>
+      <match on="@foo@" value="TRUE" />
+      <match on="@bar@" value="TRUE" />
+    </any>
   </template>
 
 
@@ -204,6 +209,11 @@
       <param-value name="@text@" />
       <text> bar</text>
     </param>
+
+    <any>
+      <match on="@ref@" value="TRUE" />
+      <match on="@both@" value="TRUE" />
+    </any>
   </template>
 </package>
 

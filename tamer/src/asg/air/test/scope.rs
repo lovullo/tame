@@ -193,6 +193,7 @@ test_scopes! {
                                                //      |  :
                 ExprStart(ExprOp::Sum, S7),    //      |  :
                   BindIdent(expr_outer),       //    vd|s :
+                  RefIdent(meta_outer),        //      |  :
                 ExprEnd(S9),                   //      |  :
                                                //      |  :
                 TplStart(S10),                 //---.  |  :
@@ -205,6 +206,7 @@ test_scopes! {
                                                //  3| 2| 1: 0
                   ExprStart(ExprOp::Sum, S15), //   |  |  :
                     BindIdent(expr_inner),     // vd|s |s :
+                    RefIdent(meta_inner),      //   |  |  :
                   ExprEnd(S17),                //   |  |  :
                 TplEnd(S18),                   //---'  |  :   v,s = EnvScopeKind
               TplEnd(S19),                     //–-----'  :   |
@@ -359,15 +361,23 @@ test_scopes! {
                 MetaStart(S4),                 //    |  :
                   BindIdent(meta_same_a),      //  vl|s :   <--.
                 MetaEnd(S6),                   //    |  :      |
-              TplEnd(S7),                      //----'  :      |
-                                               //       :      |s
-              TplStart(S8),                    //----.  :      |a
-                // ENV: 3 tpl                  //    |  :      |m
-                BindIdent(tpl_inner),          //    |~ :      |e
+                                               //    |  :      |
+                ExprStart(ExprOp::Sum, S6),    //    |  :      |
+                  RefIdent(meta_same_a),       //    |  :      |
+                ExprEnd(S6),                   //    |  :      |s
+              TplEnd(S7),                      //----'  :      |a
+                                               //       :      |m
+              TplStart(S8),                    //----.  :      |e
+                // ENV: 3 tpl                  //    |  :      |
+                BindIdent(tpl_inner),          //    |~ :      |
                                                //    |  :      |
                 MetaStart(S10),                //    |  :      |
                   BindIdent(meta_same_b),      //  vl|s :   <--'
                 MetaEnd(S12),                  //    |  :
+                                               //    |  :
+                ExprStart(ExprOp::Sum, S12),   //    |  :
+                  RefIdent(meta_same_b),       //    |  :
+                ExprEnd(S12),                  //    |  :
               TplEnd(S13),                     //----'  :    ~ = ignored for
             PkgEnd(S14),                       //- - - -'        these tests
         ]

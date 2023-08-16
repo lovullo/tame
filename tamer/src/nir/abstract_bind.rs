@@ -119,6 +119,26 @@
 //!   [`Nir::BindIdentMeta`] be padded with a single `@` on each side,
 //!     as shown in the examples above.
 //!
+//! Documentation Strings
+//! =====================
+//! This also handles translation of metavariable references in description
+//!   position.
+//! For example:
+//!
+//! ```xml
+//! <classify as="foo" desc="@bar@" />
+//! <!--                     ^^^^^ -->
+//! ```
+//!
+//! In this case,
+//!   to support the same convention as described above,
+//!   we want the lexeme `@bar@` to be interpreted as a _reference_
+//!     (to a metavariable `@bar@`),
+//!     not a documentation string `"@bar@"`.
+//! Instead,
+//!   the documentation ought to be derived at expansion-time from the
+//!   lexical value of the metavariable identified by `@bar@`.
+//!
 //! Lowering Pipeline Ordering
 //! ==========================
 //! This module is an _optional_ syntactic feature of TAME.
@@ -165,14 +185,21 @@ impl ParseState for AbstractBindTranslate {
         _: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         match tok {
+            // Abstract bindings (inferred)
             BindIdent(name) if needs_translation(name) => {
                 Transition(self).ok(BindIdentAbstract(name))
             }
 
+            // Forced-abstract bindings (explicit)
             BindIdentMeta(name) => validate_meta_name(name)
                 .map(BindIdentMeta)
                 .map(ParseStatus::Object)
                 .transition(self),
+
+            // Abstract documentation (inferred)
+            Desc(clause) if needs_translation(clause) => {
+                Transition(self).ok(DescRef(clause))
+            }
 
             _ => Transition(self).ok(tok),
         }

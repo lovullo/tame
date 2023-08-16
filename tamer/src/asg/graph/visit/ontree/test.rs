@@ -196,32 +196,28 @@ fn traverses_ontological_tree_tpl_with_sibling_at_increasing_depth() {
 //   unexpected way.
 #[test]
 fn traverses_ontological_tree_tpl_apply() {
-    let name_tpl = "_tpl-to-apply_".into();
-    let id_tpl = SPair(name_tpl, S3);
-    let ref_tpl = SPair(name_tpl, S6);
-    let id_param = SPair("@param@".into(), S8);
-    let value_param = SPair("value".into(), S9);
+    let name_tpl = "_tpl-to-apply_";
 
     #[rustfmt::skip]
     let toks = vec![
         PkgStart(S1, SPair("/pkg".into(), S1)),
           // The template that will be applied.
           TplStart(S2),
-            BindIdent(id_tpl),                          // <-,
+            BindIdent(spair(name_tpl, S3)),             // <-.
                                                         //   |
             // This test is light for now,              //   |
             //   until we develop the ASG further.      //   |
           TplEnd(S4),                                   //   |
                                                         //   |
-          // Apply the above template.                  //   |
-          TplStart(S5),                                 //   |
-            RefIdent(ref_tpl),                          //   |
-                                                        //   |
-            MetaStart(S7),                              //   |
-              BindIdent(id_param),                      //   |
-              MetaLexeme(value_param),                  //   |
-            MetaEnd(S10),                               //   |
-          TplEndRef(S11),  // notice the `Ref` at the end  --'
+          // Apply the above template.                  //   |   a
+          TplStart(S5),                                 // <-+--.n
+            RefIdent(spair(name_tpl, S6)),              // --'  |o
+                                                        //      |n
+            MetaStart(S7),                              //      |y
+              BindIdent(spair("@param@", S8)),          //      |m
+              MetaLexeme(spair("value", S9)),           //      |o
+            MetaEnd(S10),                               //      |u
+          TplEndRef(S11),  // notice the `Ref` at the end  -----'s
         PkgEnd(S12),
     ];
 
@@ -355,21 +351,28 @@ fn traverses_ontological_tree_complex_tpl_meta() {
             // -- Above this line was setup -- //
 
             MetaStart(S4),
-              BindIdent(spair("@param@", S5)),
-
-              // It will be important to observe that ordering
-              //   is respected during traversal,
-              //     otherwise concatenation order will be wrong.
-              MetaLexeme(spair("foo", S6)),
-              RefIdent(spair("@other@", S7)),    // --.
-              MetaLexeme(spair("bar", S8)),      //   |
-            MetaEnd(S9),                         //   |
-                                                 //   |
-            MetaStart(S10),                      //   |
-              BindIdent(spair("@other@", S11)),  // <-'
-            MetaEnd(S12),
-          TplEnd(S13),
-       PkgEnd(S14),
+              BindIdent(spair("@param@", S5)),                    // <-.
+                                                                  //   |
+              // It will be important to observe that ordering    //   |
+              //   is respected during traversal,                 //   |
+              //     otherwise concatenation order will be wrong. //   |
+              MetaLexeme(spair("foo", S6)),                       //   |
+              RefIdent(spair("@other@", S7)),    // --.           //   |
+              MetaLexeme(spair("bar", S8)),      //   |           //   |
+            MetaEnd(S9),                         //   |           //   |
+                                                 //   |           //   |
+            MetaStart(S10),                      //   |           //   |
+              BindIdent(spair("@other@", S11)),  // <-'           //   |
+            MetaEnd(S12),                                         //   |
+                                                                  //   |
+            // Metavariables must all be referenced.              //   |
+            // `@other@` is already referenced above,             //   |
+            //   so only `@param@` is needed.                     //   |
+            ExprStart(ExprOp::Sum, S13),                          //   |
+              RefIdent(spair("@param@", S14)),                    // --'
+            ExprEnd(S15),
+          TplEnd(S16),
+       PkgEnd(S17),
     ];
 
     // We need more concise expressions for the below table of values.
@@ -378,18 +381,20 @@ fn traverses_ontological_tree_complex_tpl_meta() {
 
     #[rustfmt::skip]
     assert_eq!(
-        //      A  -|-> B   |  A span  -|->  B span  | espan  |  depth
-        vec![//-----|-------|-----------|------------|--------|-----------------
-            (d(Root,  Pkg,   SU,         m(S1, S14),  None    ), Depth(1)),
-            (d(Pkg,   Ident, m(S1, S14), S3,          None    ),   Depth(2)),
-            (d(Ident, Tpl,   S3,         m(S2, S13),  None    ),     Depth(3)),
-            (d(Tpl,   Ident, m(S2, S13), S5,          None    ),       Depth(4)),
-            (d(Ident, Meta,  S5,         m(S4, S9),   None    ),         Depth(5)),
-            (d(Meta,  Meta,  m(S4, S9),  S6,          None    ),           Depth(6)),
-  /*cross*/ (d(Meta,  Ident, m(S4, S9),  S11,         Some(S7)),           Depth(6)),
-            (d(Meta,  Meta,  m(S4, S9),  S8,          None,   ),           Depth(6)),
-            (d(Tpl,   Ident, m(S2, S13), S11,         None    ),       Depth(4)),
-            (d(Ident, Meta,  S11,        m(S10, S12), None    ),         Depth(5)),
+        //      A  -|-> B   |  A span  -|->  B span  |  espan  |  depth
+        vec![//-----|-------|-----------|------------|---------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S17),  None     ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S17), S3,          None     ),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S16),  None     ),     Depth(3)),
+            (d(Tpl,   Ident, m(S2, S16), S5,          None     ),       Depth(4)),
+            (d(Ident, Meta,  S5,         m(S4, S9),   None     ),         Depth(5)),
+            (d(Meta,  Meta,  m(S4, S9),  S6,          None     ),           Depth(6)),
+  /*cross*/ (d(Meta,  Ident, m(S4, S9),  S11,         Some(S7) ),           Depth(6)),
+            (d(Meta,  Meta,  m(S4, S9),  S8,          None,    ),           Depth(6)),
+            (d(Tpl,   Ident, m(S2, S16), S11,         None     ),       Depth(4)),
+            (d(Ident, Meta,  S11,        m(S10, S12), None     ),         Depth(5)),
+            (d(Tpl,   Expr,  m(S2, S16), m(S13, S15), None     ),       Depth(4)),
+  /*cross*/ (d(Expr,  Ident, m(S13, S15),S5,          Some(S14)),         Depth(5)),
         ],
         tree_reconstruction_report(toks),
     );
@@ -439,9 +444,14 @@ fn tpl_header_source_order() {
             //      definitions).
             ExprStart(ExprOp::Sum, S15),
               BindIdent(spair("sum", S16)),
-            ExprEnd(S17),
-          TplEnd(S18),
-       PkgEnd(S19),
+
+              // Metavariables must be referenced.
+              RefIdent(spair("@param_before@", S17)),
+              RefIdent(spair("@param_after_a@", S18)),
+              RefIdent(spair("@param_after_b@", S19)),
+            ExprEnd(S20),
+          TplEnd(S21),
+       PkgEnd(S22),
     ];
 
     // We need more concise expressions for the below table of values.
@@ -450,22 +460,25 @@ fn tpl_header_source_order() {
 
     #[rustfmt::skip]
     assert_eq!(
-        //      A  -|-> B   |  A span  -|->  B span  | espan  |  depth
-        vec![//-----|-------|-----------|------------|--------|-----------------
-            (d(Root,  Pkg,   SU,         m(S1, S19),  None    ), Depth(1)),
-            (d(Pkg,   Ident, m(S1, S19), S3,          None    ),   Depth(2)),
-            (d(Ident, Tpl,   S3,         m(S2, S18),  None    ),     Depth(3)),
-            (d(Tpl,   Ident, m(S2, S18), S5,          None    ),       Depth(4)),
-            (d(Ident, Meta,  S5,         m(S4, S6),   None    ),         Depth(5)),
-        // ,-----------------------------------------------------------------------,
-            (d(Tpl,   Ident, m(S2, S18), S10,         None    ),       Depth(4)),
-            (d(Ident, Meta,  S10,        m(S9, S11),  None    ),         Depth(5)),
-            (d(Tpl,   Ident, m(S2, S18), S13,         None    ),       Depth(4)),
-            (d(Ident, Meta,  S13,        m(S12, S14), None    ),         Depth(5)),
-        // '-----------------------------------------------------------------------'
-            (d(Tpl,   Expr,  m(S2, S18), m(S7, S8),   None    ),       Depth(4)),
-            (d(Tpl,   Ident, m(S2, S18), S16,         None    ),       Depth(4)),
-            (d(Ident, Expr,  S16,        m(S15, S17), None    ),         Depth(5)),
+        //      A  -|-> B   |  A span  -|->  B span  |  espan  |  depth
+        vec![//-----|-------|-----------|------------|---------|-----------------
+            (d(Root,  Pkg,   SU,         m(S1, S22),  None     ), Depth(1)),
+            (d(Pkg,   Ident, m(S1, S22), S3,          None     ),   Depth(2)),
+            (d(Ident, Tpl,   S3,         m(S2, S21),  None     ),     Depth(3)),
+            (d(Tpl,   Ident, m(S2, S21), S5,          None     ),       Depth(4)),
+            (d(Ident, Meta,  S5,         m(S4, S6),   None     ),         Depth(5)),
+        // ,-------------------------------------------------- ---------------------,
+            (d(Tpl,   Ident, m(S2, S21), S10,         None     ),       Depth(4)),
+            (d(Ident, Meta,  S10,        m(S9, S11),  None     ),         Depth(5)),
+            (d(Tpl,   Ident, m(S2, S21), S13,         None     ),       Depth(4)),
+            (d(Ident, Meta,  S13,        m(S12, S14), None     ),         Depth(5)),
+        // '-------------------------------------------------- ---------------------'
+            (d(Tpl,   Expr,  m(S2, S21), m(S7, S8),   None     ),       Depth(4)),
+            (d(Tpl,   Ident, m(S2, S21), S16,         None     ),       Depth(4)),
+            (d(Ident, Expr,  S16,        m(S15, S20), None     ),         Depth(5)),
+  /*cross*/ (d(Expr,  Ident, m(S15, S20),S5,          Some(S17)),           Depth(6)),
+  /*cross*/ (d(Expr,  Ident, m(S15, S20),S10,         Some(S18)),           Depth(6)),
+  /*cross*/ (d(Expr,  Ident, m(S15, S20),S13,         Some(S19)),           Depth(6)),
         ],
         // ^ The enclosed Ident->Meta pairs above have been hoisted out of
         //     the body and into the header of `Tpl`.

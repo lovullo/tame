@@ -412,6 +412,33 @@ impl Asg {
             .map(move |edge| ObjectIndex::<OI>::new(edge.source(), oi))
     }
 
+    /// Incoming edges to `oi`.
+    ///
+    /// This is intended to be utilized when
+    ///   [`Self::incoming_edges_filtered`] cannot be used.
+    /// In particular,
+    ///   this is useful when traversing the graph in reverse,
+    ///   but does not offer the same type benefits;
+    ///     (you must deal with a generic [`Object`] kind).
+    fn incoming_edges_dyn<'a>(
+        &'a self,
+        oi: ObjectIndex<Object>,
+    ) -> impl Iterator<Item = DynObjectRel> + 'a {
+        self.graph
+            .edges_directed(oi.into(), Direction::Incoming)
+            .map(move |edge| {
+                let (src_ty, target_ty, ref_span) = edge.weight();
+
+                DynObjectRel::new(
+                    *src_ty,
+                    *target_ty,
+                    oi,
+                    ObjectIndex::<Object>::new(edge.target(), oi),
+                    *ref_span,
+                )
+            })
+    }
+
     /// Check whether an edge exists from `from` to `to.
     #[inline]
     pub fn has_edge<OB: ObjectRelatable>(

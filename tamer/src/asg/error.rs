@@ -26,7 +26,7 @@ use std::{
 
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
-    fmt::{DisplayWrapper, TtQuote},
+    fmt::{AndQualConjList, DisplayWrapper, ListDisplayWrapper, TtQuote},
     parse::util::SPair,
     span::Span,
 };
@@ -195,6 +195,13 @@ pub enum AsgError {
     /// The template name is provided if it is known at the time of the
     ///   error.
     TplShapeExprMulti(Option<SPair>, ErrorOccurrenceSpan, FirstOccurrenceSpan),
+
+    /// A template has one or more concrete params that are not referred to
+    ///   by any other object.
+    ///
+    /// A param is a metavariable identifier;
+    ///   the provided [`SPair`] is the name and span of the identifier.
+    TplUnusedParams(Option<SPair>, Vec<SPair>),
 }
 
 /// A [`Span`] representing the subject of this error.
@@ -328,6 +335,19 @@ impl Display for AsgError {
                 f,
                 "template definition would produce multiple inline \
                    expressions when expanded"
+            ),
+
+            TplUnusedParams(oname, params) => write!(
+                f,
+                "{tpl} has {n} unused {plist}",
+                tpl = match oname {
+                    Some(name) => format!("template {}", TtQuote::wrap(name)),
+                    None => "anonymous template".into(),
+                },
+                n = params.len(),
+                plist = AndQualConjList::<"param:", "params:", TtQuote>::wrap(
+                    params
+                ),
             ),
         }
     }
@@ -593,6 +613,17 @@ impl Diagnostic for AsgError {
                            TAME prior to TAMER",
                     ),
                 ])
+                .collect(),
+
+            TplUnusedParams(oname, params) => oname
+                .map(|name| name.note("for this template"))
+                .into_iter()
+                .chain(params.iter().map(|name| {
+                    name.error(format!(
+                        "param {} is not referenced",
+                        TtQuote::wrap(name)
+                    ))
+                }))
                 .collect(),
         }
     }
