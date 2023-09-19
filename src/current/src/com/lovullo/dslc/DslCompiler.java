@@ -31,6 +31,7 @@ package com.lovullo.dslc;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import javax.xml.transform.Source;
@@ -163,6 +164,10 @@ public class DslCompiler
                 new QName( "__rseed" ),
                 XdmValue.makeValue( (int)( Math.random() * 10e6 ) )
             );
+            t.setParameter(
+                new QName( "__pkguniq" ),
+                XdmValue.makeValue( _createPkgUniq( srcpkg ) )
+            );
 
             _setTemplateParams( t, params );
 
@@ -170,6 +175,51 @@ public class DslCompiler
             t.setDestination( dest );
 
             t.transform();
+        }
+
+
+        // Generate an identifier that is expected to be unique given a
+        // canonical package name.
+        //
+        // This produces a string that is expected to
+        //   - Be usable as a non-leading component of a C-style identifier;
+        //   - Provide enough entropy so as to be unlikely to cause
+        //     conflicts between thousands of packages; and
+        //   - Is reasonably short so as not to bloat generated identifier
+        //     sizes too greatly.
+        private String _createPkgUniq(String srcpkg) throws Exception {
+            // This is used only for uniqueness, not security.  The choice
+            // of hash function is not particularly important so long as it
+            // provides a good distribution.  If collisions are encountered
+            // between packages with a good algorithm, increase the
+            // truncation length.
+            MessageDigest md = MessageDigest.getInstance( "SHA-256" );
+            byte[] digest = md.digest( srcpkg.getBytes( "UTF-8" ) );
+
+            // Ensure we received a string of the expected length, otherwise
+            // we risk sending a non-unique id off to the XSLT-based
+            // compiler.
+            int len_expected = 32; // 256 bits
+            int len = digest.length;
+            if ( len != len_expected ) {
+                throw new Exception(
+                    String.format(
+                        "Unexpected pkguniq length (expected %d): %d",
+                        len_expected,
+                        len
+                    )
+                );
+            }
+
+            // 32 bits = 4 bytes = 8 hex chars.
+            // Birthday attack: sqrt(2^32) = 65536 packages
+            StringBuilder hex = new StringBuilder();
+            int use_len = 4;
+            for ( int i = 0; i < use_len; i++ ) {
+                hex.append( String.format( "%02x", digest[i] ) );
+            }
+
+            return hex.toString();
         }
 
 

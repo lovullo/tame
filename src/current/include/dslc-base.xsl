@@ -26,7 +26,9 @@
   template that is intended for use with dslc should include this.
 -->
 <stylesheet version="2.0"
-            xmlns="http://www.w3.org/1999/XSL/Transform">
+            xmlns="http://www.w3.org/1999/XSL/Transform"
+            xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:preproc="http://www.lovullo.com/rater/preproc">
 
 <!--
   Absolute path to root of TAME
@@ -80,6 +82,26 @@
 -->
 <param name="__rseed" />
 
+<!--
+  A package-unique string
+
+  You should use `preproc:pkg-generate-id` instead of this value directly.
+
+  This value is deterministic, derived from `__srcpkg`, and so will not
+  change between runs; it can be used to generate identifier names that are
+  unique across packages, which is not something that we can rely on
+  `generate-id()` for on its own.
+
+  In practice, this can be concatenated with other generated strings,
+  including `generate-id()`-derived strings.
+
+  _There is no guarantee that this string will begin with a letter_, so you
+  should generate your identifiers accordingly.
+
+  See `DslCompiler.java` for implementation.
+-->
+<param name="__pkguniq" as="xs:string" />
+
 
 <!--
   Root node of template on which stylesheet was invoked
@@ -113,5 +135,13 @@
     </otherwise>
   </choose>
 </template>
+
+<function name="preproc:pkg-generate-id" as="xs:string">
+  <param name="refnode" as="node()" />
+
+  <sequence select="concat(
+                      '_pu', $__pkguniq, '_',
+                      generate-id( $refnode ) )" />
+</function>
 
 </stylesheet>

@@ -166,7 +166,7 @@
 <template match="c:let[ not( @name ) ]" mode="preproc:expand" priority="5">
   <copy>
     <sequence select="@*" />
-    <attribute name="name" select="generate-id(.)" />
+    <attribute name="name" select="preproc:pkg-generate-id(.)" />
 
     <apply-templates select="*" mode="preproc:expand" />
   </copy>

@@ -411,7 +411,7 @@
   with an optional looping construct
 -->
 <template match="lv:inline-template" mode="preproc:macros" priority="5">
-  <variable name="name" select="concat( '___i', generate-id(.), '___' )" />
+  <variable name="name" select="concat( '___i', preproc:pkg-generate-id(.), '___' )" />
   <variable name="inline" select="." />
 
   <!-- generate template -->
@@ -1155,7 +1155,7 @@
              tunnel="yes" />
 
   <value-of select="." />
-  <value-of select="generate-id( $apply )" />
+  <value-of select="preproc:pkg-generate-id( $apply )" />
 </template>
 
 

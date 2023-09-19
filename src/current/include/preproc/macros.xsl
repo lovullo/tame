@@ -415,11 +415,7 @@
 <template match="lv:any|lv:all" mode="preproc:class-groupgen" priority="5">
   <param name="legacy-classify" as="xs:boolean" tunnel="yes" />
 
-  <!-- this needs to be unique enough that there is unlikely to be a conflict
-       between generated ids in various packages; generate-id is not enough for
-       cross-package guarantees (indeed, I did witness conflicts), so there is
-       a random seed passed into the stylesheet externally -->
-  <variable name="id" select="concat( $__rseed, generate-id(.) )" />
+  <variable name="id" select="preproc:pkg-generate-id(.)" />
 
   <variable name="parent-name" select="ancestor::lv:classify/@as" />
   <variable name="yields" select="concat( 'is', $id )" />
