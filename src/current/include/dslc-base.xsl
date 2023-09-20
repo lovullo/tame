@@ -73,15 +73,6 @@
 -->
 <param name="__relroot" />
 
-
-<!--
-  Random value that may be used to seed random values
-
-  XSLT is deterministic and does not offer support for generating random values;
-  its generate-id() function is not sufficient for cross-package generation.
--->
-<param name="__rseed" />
-
 <!--
   A package-unique string
 

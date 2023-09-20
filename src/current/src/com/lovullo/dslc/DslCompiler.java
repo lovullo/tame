@@ -161,10 +161,6 @@ public class DslCompiler
                 XdmValue.makeValue( relroot )
             );
             t.setParameter(
-                new QName( "__rseed" ),
-                XdmValue.makeValue( (int)( Math.random() * 10e6 ) )
-            );
-            t.setParameter(
                 new QName( "__pkguniq" ),
                 XdmValue.makeValue( _createPkgUniq( srcpkg ) )
             );

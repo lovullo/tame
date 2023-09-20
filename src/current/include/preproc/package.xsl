@@ -55,13 +55,6 @@
 
   <param name="stopshort" />
 
-  <!-- should be provided externally -->
-  <if test="not( $__rseed ) or ( $__rseed = '' )">
-    <message terminate="yes">
-      <text>[preproc] error: missing random seed `__rseed'</text>
-    </message>
-  </if>
-
   <message>
     <text>[preproc] *beginning macro expansion...</text>
   </message>
