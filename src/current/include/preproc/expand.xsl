@@ -85,10 +85,14 @@
 <!--
   Domain data are extracted from typedefs
 
-  Eventually, the typedefs will be converted into templates and removed entirely.
+  We must be sure that we (a) have not yet processed this typedef and (b)
+  that we do not handle nested typedefs (within unions), since that is done
+  for us by `preproc:mkdomain`.
 -->
-<template match="lv:typedef"
-  mode="preproc:expand" priority="5">
+<template match="lv:typedef[
+                   not( preceding-sibling::lv:domain/@name = @name )
+                   and not( ancestor::lv:union ) ]"
+          mode="preproc:expand" priority="5">
 
   <apply-templates select="." mode="preproc:mkdomain" />
 

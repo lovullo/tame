@@ -54,7 +54,6 @@
   "
   mode="preproc:mkdomain" priority="5">
 
-  <!-- generate all contained domains -->
   <variable name="subdomains">
     <variable name="union-types" select="
       lv:union/lv:typedef" />
@@ -70,7 +69,7 @@
     </if>
 
     <apply-templates mode="preproc:mkdomain"
-      select="$union-types" />
+                     select="$union-types" />
   </variable>
 
   <!-- provide a denormalized domain for performance and to reduce
@@ -80,7 +79,7 @@
     <with-param name="subdomains" select="$subdomains" />
   </call-template>
 
-  <copy-of select="$subdomains" />
+  <sequence select="$subdomains" />
 </template>
 
 
