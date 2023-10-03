@@ -145,7 +145,7 @@ spawn-runner()
       # available); let's act on its behalf so that the client sees that we
       # failed (which we'll represent with error code 2).
       declare -i busy=$(< "$base/busy")
-      if runner-is-busy "$base"; then
+      if runner-is-busy "$base" && ! runner-is-reloading; then
         inject-runner-unexpected-exit "$base" "$id"
       fi
 
@@ -154,10 +154,7 @@ spawn-runner()
       date +%s > "$base/created-ts"
 
       "$mypath/dslc" < "$base/0" &> "$base/1" & job=$!
-
-      # this flag is set by the `tame` client so that it knows when the
-      # runner becomes available
-      rm -f "$base/reloading"
+      runner-done-reloading
 
       declare -i status=0
       wait "$job" 2>/dev/null || status=$?
@@ -185,6 +182,27 @@ runner-is-busy() {
 
   declare -i busy=$(< "$base/busy")
   test "$busy" -eq 1
+}
+
+
+# Whether the runner at the provided base is flagged as having a reload
+# request
+runner-is-reloading() {
+  local -r base="$root/$id"
+
+  test -f "$base/reloading"
+}
+
+
+# Clear the runner's `reloading` flag, if any.
+#
+# This flag is set by the `tame` client before requesting a
+# reload.  Clearing this flag allows the client to observe that reloading
+# the runner is complete and requests may be issued.
+runner-done-reloading() {
+  local -r base="$root/$id"
+
+  rm -f "$base/reloading"
 }
 
 
