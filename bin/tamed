@@ -140,6 +140,15 @@ spawn-runner()
     }
 
     while true; do
+      # if this runner is busy, then it must have terminated while
+      # processing (otherwise the client `tame` would have marked it as
+      # available); let's act on its behalf so that the client sees that we
+      # failed (which we'll represent with error code 2).
+      declare -i busy=$(< "$base/busy")
+      if runner-is-busy "$base"; then
+        inject-runner-unexpected-exit "$base" "$id"
+      fi
+
       # store the time that the runner was started so that we can later
       # determine if it should be restarted to forcefully reclaim memory
       date +%s > "$base/created-ts"
@@ -153,7 +162,11 @@ spawn-runner()
       declare -i status=0
       wait "$job" 2>/dev/null || status=$?
 
-      echo "warning: runner $id exited with code $status (pid $job); restarting" >&2
+      # 129 = signal (128) + HUP (1), which is an explicit reload request
+      # that we need not report
+      if [ "$status" -ne 129 ]; then
+        echo "warning: runner $id exited with code $status (pid $job); restarting" >&2
+      fi
     done
   ) &
 
@@ -163,6 +176,43 @@ spawn-runner()
   echo "$id" > "$root/maxid"
 
   log "runner $id ($!): $base"
+}
+
+
+# Whether the runner at the provided base is busy
+runner-is-busy() {
+  local -r base="$root/$id"
+
+  declare -i busy=$(< "$base/busy")
+  test "$busy" -eq 1
+}
+
+
+# Inject an exit code into the runner's output stream indicating an
+# unexpected exit
+#
+# The string `DONE n` is normally output at the end of a runner's
+# compilation (via `dslc`), where `n` is the exit code.  But if the runner
+# terminates before compilation completes (e.g. is OOM-killed), then it will
+# never have the chance to do so, leaving the client waiting for a
+# response.  If the client is not checking for stalls (due to
+# configuration), it may hang indefinitely.
+#
+# This function will inject a message into the output stream of the runner
+# as if `dslc` itself replied so that the `tame` client can observe a
+# failure and react accordingly.  This uses the `tame` `EX_UNEXPECTED` exit
+# code.
+#
+# This also outputs a warning to stderr.
+inject-runner-unexpected-exit() {
+  local -r base="${1?Missing base}"
+  local -ri id="${2?Missing id}"
+
+  echo "warning: runner $id exited unexpectedly" >&2
+
+  # TODO: Worth a shared file with `tame`?
+  local -ri EX_UNEXPECTED=7
+  echo "DONE $EX_UNEXPECTED" > "$base/1"
 }
 
 

@@ -22,13 +22,14 @@ set -euo pipefail
 declare mypath; mypath=$( dirname "$( readlink -f "$0" )" )
 readonly mypath
 
-declare -ri EX_NOTAMED=1  # tried to start tamed or runner but failed
-declare -ri EX_STALLED=2  # runner stalled and could not recover
-declare -ri EX_NORUN=3    # no available runners
-declare -ri EX_DLOCK=4    # failed to get a lock to start tamed
-declare -ri EX_BLOCK=5    # failed to get a lock for busy runner check
-declare -ri EX_NODONE=6   # tamed did not provide a DONE with exit code
-declare -ri EX_USAGE=64   # incorrect usage; sysexits.h
+declare -ri EX_NOTAMED=1    # tried to start tamed or runner but failed
+declare -ri EX_STALLED=2    # runner stalled and could not recover
+declare -ri EX_NORUN=3      # no available runners
+declare -ri EX_DLOCK=4      # failed to get a lock to start tamed
+declare -ri EX_BLOCK=5      # failed to get a lock for busy runner check
+declare -ri EX_NODONE=6     # tamed did not provide a DONE with exit code
+declare -ri EX_UNEXPECTED=7 # runner terminated unexpectedly (see `tamed`)
+declare -ri EX_USAGE=64     # incorrect usage; sysexits.h
 
 # maximum amount of time in seconds to wait for runner to ack
 # before forcibly restarting it
