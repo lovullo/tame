@@ -93,7 +93,7 @@ command-runner()
   # if not, then it may have stalled for some reason
   verify-runner-ack "$*" < "$base/1" || {
     echo "warning: failed runner $id ack; requesting reload" >&2
-    kill -HUP "$pid"
+    reload-runner-and-wait "$base" "$id" "$pid"
 
     # give some extra time in case the host is under high load
     sleep "$TAME_CMD_WAITTIME"
@@ -213,7 +213,7 @@ spawn-runner-and-wait()
 
   # wait on the expected id
   local -ri nextid=$(( maxid + 1 ))
-  wait-for-runner "$root" "$nextid"
+  wait-for-runner "$root/$nextid" "$nextid"
 
   echo "$nextid"
 }
@@ -314,6 +314,33 @@ verify-runner()
 }
 
 
+# Request a runner reload and wait for the reload to complete.
+#
+# Before requesting the reload, a `reloading` flag will be set on the
+# runner.  This flag is expected to be cleared by tamed once the runner has
+# been restarted in response to SIGHUP.
+#
+# See `wait-for-runner` for more information on waiting for the flag.
+reload-runner-and-wait() {
+  local -r base="${1?Missing base}"
+  local -ri id="${2?Missing id}"
+  local -ri pid="${3?Missing pid}"
+
+  # mark the runner as unavailable
+  touch "$base/reloading"
+
+  # issue a reload request to the runner
+  kill -HUP "$pid"
+
+  # we must not continue before the runner has been reloaded, otherwise we
+  # may issue new requests to a process that is being killed
+  wait-for-runner "$base" "$id" || {
+    echo "error: failed to reload runner $id" >&2
+    exit "$EX_STALLED"
+  }
+}
+
+
 # Wait for command acknowledgment from runner
 #
 # The runner must respond within TAME_CMD_WAITTIME seconds
@@ -336,9 +363,12 @@ verify-runner-ack()
 # Assumes that the runner is ready once the pidfile becomes
 # available.  Polls for a maximum of six seconds before giving up
 # and exiting with a non-zero status.
+#
+# This will also wait for the clearing of the `reloading` flag set by
+# `reload-runner-and-wait`, as part of that same time.
 wait-for-runner()
 {
-  local -r root=${1?Missing root}
+  local -r base=${1?Missing base}
   local -r id=${2?Missing runner id}
 
   # we could use inotify, but that is not installed by default
@@ -346,7 +376,10 @@ wait-for-runner()
   # another dependency (give up after 6 seconds)
   local -i i=12
   while test $((i--)); do
-    test ! -f "$root/$id/pid" || return 0
+    if [ -f "$base/pid" -a ! -f "$base/reloading" ]; then
+      return 0
+    fi
+
     sleep 0.5
   done
 
@@ -416,7 +449,7 @@ _start-tamed()
   # wait for tamed even if it was already started (just in
   # case this script was executed right after tamed started
   # but before it is done initializing)
-  wait-for-runner "$root" 0
+  wait-for-runner "$root/0" 0
 }
 
 

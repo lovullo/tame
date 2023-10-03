@@ -129,16 +129,33 @@ spawn-runner()
   # monitor runner usage and kill when inactive
   stall-monitor "$base" &
 
-  # loop to restart runner in case of crash
-  while true; do
-    declare -i job=0
-    trap 'kill -INT $job' HUP
-    "$mypath/dslc" < "$base/0" &> "$base/1" & job=$!
 
-    declare -i status=0
-    wait -n 2>/dev/null || status=$?
-    echo "warning: runner $id exited with code $status; restarting" >&2
-  done &
+  # loop to restart runner in case of crash
+  (
+    declare -i job=0
+    trap force-job-reload HUP
+
+    force-job-reload() {
+      kill -9 $job
+    }
+
+    while true; do
+      # store the time that the runner was started so that we can later
+      # determine if it should be restarted to forcefully reclaim memory
+      date +%s > "$base/created-ts"
+
+      "$mypath/dslc" < "$base/0" &> "$base/1" & job=$!
+
+      # this flag is set by the `tame` client so that it knows when the
+      # runner becomes available
+      rm -f "$base/reloading"
+
+      declare -i status=0
+      wait "$job" 2>/dev/null || status=$?
+
+      echo "warning: runner $id exited with code $status (pid $job); restarting" >&2
+    done
+  ) &
 
   echo "$!" > "$base/pid"
 
