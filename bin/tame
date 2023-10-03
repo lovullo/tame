@@ -351,6 +351,13 @@ verify-runner-ack()
 {
   local -r cmd="${1?Missing command}"
 
+  if [ -n "${TAME_DEBUG_RANDOM_NOACK:-}" ]; then
+    if [ $((RANDOM % ${TAME_DEBUG_RANDOM_NOACK:-1})) -eq 0 ]; then
+      echo "debug: TAME_DEBUG_RANDOM_NOACK triggered" >&2
+      return 2
+    fi
+  fi
+
   read -t"$TAME_CMD_WAITTIME" -r ack || return
   test "COMMAND $cmd" == "$ack" || {
     # TODO check for ack mismatch once output race condition is fixed
@@ -533,6 +540,11 @@ Environment Variables:
                        (see also --verbose)
   TAME_CMD_WAITTIME  number of seconds to wait for ack from
                        runner (default 3)
+
+Debug Environment Variables:
+  TAME_DEBUG_RANDOM_NOACK  randomly (1-in-N, where N is the value)
+                             simulate a failed runner ACK to test
+                             the runner restart system
 EOF
 
   exit $EX_USAGE
