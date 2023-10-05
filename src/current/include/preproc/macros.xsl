@@ -288,11 +288,7 @@
                    ( lv:any | lv:all )
                      and not( eseq:is-expandable(.) ) ]">
   <variable name="result">
-    <apply-templates select="." mode="preproc:class-groupgen">
-      <with-param name="legacy-classify"
-                  select="compiler:use-legacy-classify()"
-                  tunnel="yes" />
-    </apply-templates>
+    <apply-templates select="." mode="preproc:class-groupgen" />
   </variable>
 
   <apply-templates select="$result/lv:classify" mode="preproc:class-extract" />
@@ -413,8 +409,6 @@
 
 
 <template match="lv:any|lv:all" mode="preproc:class-groupgen" priority="5">
-  <param name="legacy-classify" as="xs:boolean" tunnel="yes" />
-
   <variable name="id" select="preproc:pkg-generate-id(.)" />
 
   <variable name="parent-name" select="ancestor::lv:classify/@as" />
@@ -430,19 +424,14 @@
       <attribute name="any" select="'true'" />
     </if>
 
-    <if test="not( $legacy-classify )">
-      <attribute name="preproc:inline" select="'true'" />
-    </if>
-
+    <attribute name="preproc:inline" select="'true'" />
     <apply-templates mode="preproc:class-groupgen" />
   </lv:classify>
 
   <!-- this will remain in its place -->
   <lv:match on="{$yields}" value="TRUE"
             preproc:generated="true">
-    <if test="not( $legacy-classify )">
-      <attribute name="preproc:inline" select="'true'" />
-    </if>
+    <attribute name="preproc:inline" select="'true'" />
   </lv:match>
 </template>
 

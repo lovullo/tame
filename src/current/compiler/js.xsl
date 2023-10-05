@@ -41,8 +41,6 @@
 
 <!-- legacy classification system -->
 <include href="js-legacy.xsl" />
-<!-- and whether to enable it (set to non-empty string) -->
-<param name="legacy-classify" select="''" />
 
 <!-- calculation compiler -->
 <include href="js-calc.xsl" />
@@ -641,20 +639,6 @@
 </function>
 
 
-<template mode="compile" priority="6"
-          match="lv:classify[ compiler:use-legacy-classify() ]">
-  <param name="symtable-map" as="map(*)" tunnel="yes" />
-
-  <sequence select="concat(
-                      $compiler:nl,
-                      '/*!lc*/',
-                      string-join(
-                        compiler:compile-classify-legacy( $symtable-map, . ),
-                        '' ),
-                      '/*lc!*/' )" />
-</template>
-
-
 <template match="lv:classify" mode="compile" priority="5">
   <param name="symtable-map" as="map(*)" tunnel="yes" />
 
@@ -664,8 +648,7 @@
 
 <template mode="compile" priority="8"
           match="lv:classify[
-                   @preproc:inline='true'
-                   and not( compiler:use-legacy-classify() ) ]">
+                   @preproc:inline='true' ]">
   <!-- emit nothing; it'll be inlined at the match site -->
 </template>
 
@@ -705,14 +688,6 @@
                       else
                         concat( $from, $to, $ue, '(',
                                 $outer, ',', $inner, ')' )" />
-</function>
-
-
-<function name="compiler:use-legacy-classify" as="xs:boolean">
-  <variable name="flagname" as="xs:string"
-            select="'___feature-newclassify'" />
-
-  <sequence select="$legacy-classify != ''" />
 </function>
 
 
@@ -2476,39 +2451,19 @@
 ]]>
 </text>
 
-<choose>
-  <when test="compiler:use-legacy-classify()">
-    <text>
-    function div(x, y)
-    {
-        return x / y;
-    }
+<text>
+function div(x, y)
+{
+    if (y === 0) return 0;
+    return x / y;
+}
 
-    function pow(x, p)
-    {
-        return Math.pow(x, p);
-    }
-    </text>
-  </when>
-
-  <!-- x/0=0 introduced with new classification system; see commit message
-       for more detailed information -->
-  <otherwise>
-    <text>
-    function div(x, y)
-    {
-        if (y === 0) return 0;
-        return x / y;
-    }
-
-    function pow(x, p)
-    {
-        if (x === 0) return 0;
-        return Math.pow(x, p);
-    }
-    </text>
-  </otherwise>
-</choose>
+function pow(x, p)
+{
+    if (x === 0) return 0;
+    return Math.pow(x, p);
+}
+</text>
 
 <sequence select="unparsed-text(
                     concat( $__path-root, '/src/js/sha256.js' ) )" />
