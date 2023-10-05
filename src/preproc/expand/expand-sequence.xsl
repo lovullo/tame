@@ -172,17 +172,30 @@
 -->
 
 <!--
+  We must continue to expand expandable nodes; otherwise, nested
+  expansions would never take place.
+
   When we encounter a head that is not expandable, it will be
   immediately hoisted, as there is no work to be done.
 
   The result of this operation will be a sequence of nodes, one of
   them being the hoisted node, and the last being the remaining
   expansion sequence.  @xref{Node Hoisting}.
+
+  Once expansion is complete, by the definition of
+  @ttref{eseq:is-expandable#1}, expansion will halt.
 -->
 <template mode="_eseq:expand" as="node()+"
-          match="*[ node()[1][
-                      not( eseq:is-expandable( . ) ) ] ]">
-  <sequence select="_eseq:hoist( . )" />
+          match="*[ node() ]">
+  <choose>
+    <when test="node()[1][ eseq:is-expandable( . ) ]">
+      <sequence select="_eseq:expand-head( . )" />
+    </when>
+
+    <otherwise>
+      <sequence select="_eseq:hoist( . )" />
+    </otherwise>
+  </choose>
 </template>
 
 
@@ -195,20 +208,6 @@
   processing will already take care of hoisting for us when necessary,
   so we need only continue to expand nodes as necessary.
 -->
-
-<!--
-  We must continue to expand expandable nodes; otherwise, nested
-  expansions would never take place.
-
-  Once expansion is complete, by the definition of
-  @ttref{eseq:is-expandable#1}, expansion will halt.
--->
-<template mode="_eseq:expand" as="element()"
-          match="*[ node()[1][
-                      eseq:is-expandable( . ) ] ]">
-  <sequence select="_eseq:expand-head( . )" />
-</template>
-
 
 <!--
   Up until this point, we have been assuming that there is an actual
