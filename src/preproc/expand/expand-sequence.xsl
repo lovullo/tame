@@ -412,6 +412,9 @@
 
   If no head node exists, the result is the single expansion sequence
   node unchanged.
+
+  Hositing behavior may be configured via the @code{eseq:hoist}
+  template mode.
 -->
 <function name="_eseq:hoist" as="node()+">
   <param name="eseq-node" as="element()" />
@@ -419,7 +422,7 @@
   <variable name="head" as="node()?"
             select="$eseq-node/node()[1]" />
 
-  <sequence select="$head" />
+  <apply-templates mode="eseq:hoist" select="$head" />
 
   <!-- This @code{for-each} is purely to set the context for
        @code{copy}, since we do not know the sequence element
@@ -431,5 +434,15 @@
     </copy>
   </for-each>
 </function>
+
+<!--
+  Hoist a node out of a sequence.
+
+  The caller may provide templates that alter the behavior of hositing.
+-->
+<template mode="eseq:hoist" priority="1"
+          match="node()">
+  <sequence select="." />
+</template>
 
 </stylesheet>

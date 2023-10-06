@@ -1523,8 +1523,21 @@
 -->
 <template mode="preproc:macros" priority="5"
               match="lv:expand-group">
-  <!-- strip expand-group -->
-  <apply-templates mode="preproc:macros" />
+  <!-- the expand-group node will be stripped during hoisting -->
+  <copy>
+    <apply-templates mode="preproc:macros" />
+  </copy>
+</template>
+
+
+<!--
+  expand-group must be unwrapped when hositing out of an expand-sequence.
+-->
+<template mode="eseq:hoist" priority="5"
+          match="lv:expand-group">
+  <!-- unwrap children -->
+  <sequence select="node()" />
+  <preproc:repass need-sym="(lv:expand-group hoist)" />
 </template>
 
 
@@ -1562,7 +1575,6 @@
   <apply-templates mode="preproc:macros"
                        select="$node" />
 </function>
-
 
 
 <template mode="preproc:macros" priority="9"
