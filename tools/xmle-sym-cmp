@@ -1,0 +1,67 @@
+#!/bin/bash
+# Compare dependency graph and map sybols from xmle files.
+#
+#  Copyright (C) 2014-2023 Ryan Specialty, LLC.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# <l:dep> and <l:map-from> are extracted, genearted symbols are removed, the
+# resulting symbol sets are sorted, and the result is diff'd between the
+# two files.
+#
+# The intent of this tool is to verify that a set of symbols has not changed
+# after having made changes to the compiler or linker (or anything else,
+# really).  Note that this does not testing the _ordering_ of the symbols,
+# because there are many valid topological orderings.
+#
+
+
+set -euo pipefail
+
+# xmllint has a size limit that it hits on larger programs, so remove parts
+# we do not care about
+truncate-exec() {
+  local path="${1?}"
+
+  # Note that this also removes newlines, so it's easy to parse with sed
+  # without having to use the hold space.  Replaces everything after the
+  # first exec block until the end of the package.
+  tr '\n' ' ' < "$path" | sed 's|<l:[a-z-]*exec>.*</package>|</package>|'
+}
+
+fmt-symbols() {
+  local path="${1?}"
+
+  truncate-exec "$path" \
+    | xmllint --format - \
+    | awk '
+        /<l:dep>$/,/<\/l:dep>$/
+        /<l:map-from>$/,/<\/l:map-from>$/
+      ' \
+    | sed '
+        # replace generated identifier names, while leaving all other attributes
+        s/\(name\|yields\|parent\)="[^"]\+_pu[0-9a-f]\+_[^"]\+"/\1="(generated)"/g
+      ' \
+    | sort
+}
+
+main() {
+  local a="${1?}"
+  local b="${2?}"
+
+  diff <( fmt-symbols "$a" ) <( fmt-symbols "$b" )
+}
+
+main "$@"
+
