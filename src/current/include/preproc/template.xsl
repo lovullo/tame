@@ -23,6 +23,7 @@
 <stylesheet version="2.0"
             xmlns="http://www.w3.org/1999/XSL/Transform"
             xmlns:xs="http://www.w3.org/2001/XMLSchema"
+            xmlns:map="http://www.w3.org/2005/xpath-functions/map"
             xmlns:preproc="http://www.lovullo.com/rater/preproc"
             xmlns:lv="http://www.lovullo.com/rater"
             xmlns:t="http://www.lovullo.com/rater/apply-template"
@@ -105,6 +106,8 @@
   TODO: This causes an extra pass; we'd like to avoid having to do that.
 -->
 <template match="t:*" mode="preproc:macros" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <!-- TODO: debug flag
   <message>
     <text>[preproc] expanding template shorthand for </text>
@@ -137,7 +140,7 @@
 
   <!-- XXX: a large chunk of this is duplicate code; factor out -->
   <variable name="tpl" as="element( lv:template )?"
-                select="preproc:locate-template( $name, root( . ) )" />
+                select="preproc:locate-template( $symtable-map, $name, root( . ) )" />
 
   <variable name="src-root" as="element( lv:package )"
                 select="if ( root(.)/lv:package ) then
@@ -161,12 +164,12 @@
 
 <function name="preproc:locate-template"
               as="element( lv:template )?">
+  <param name="symtable-map" as="map(*)" />
   <param name="name" as="xs:string" />
   <param name="root" as="element( lv:package )" />
 
   <variable name="sym" as="element( preproc:sym )?"
-                select="$root/preproc:symtable/preproc:sym[
-                          @name = $name ]" />
+                select="$symtable-map( $name )" />
 
   <variable name="package" as="element( lv:package )?"
                 select="if ( $sym/@src ) then
@@ -202,29 +205,23 @@
   Note that if the attribute shorthand is used for params, one extra expansion
   will have to occur, which is an additional performance hit.
 -->
-<template match="lv:apply-template[
-                       @name=root(.)/preproc:symtable/preproc:sym/@name ]
-                     |lv:apply-template[ @name=root(.)//lv:template/@name ]"
-              mode="preproc:macros" priority="6">
+<template mode="preproc:macros" priority="6"
+          match="lv:apply-template">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
 
   <variable name="name" select="@name" />
   <variable name="attrparams" select="@*[ not( local-name() = 'name' ) ]" />
 
   <!-- used for type checking -->
-  <variable name="root" as="element( lv:package )"
+  <variable name="src-root" as="element( lv:package )"
                 select="if ( root( . ) instance of document-node() ) then
                           root( . )/lv:package
                         else
                           root( . )" />
 
-  <variable name="src-root" as="element( lv:package )"
-                select="if ( $root/lv:package ) then
-                          $root/lv:package
-                        else
-                          $root" />
-
   <variable name="tpl" as="element( lv:template )?"
-                select="preproc:locate-template( $name, $root )" />
+                select="preproc:locate-template(
+                          $symtable-map, $name, $src-root )" />
 
   <choose>
     <when test="exists( $tpl ) and $attrparams">
@@ -254,7 +251,16 @@
     </when>
 
     <otherwise>
-      <preproc:error>Undefined template <value-of select="$name" /></preproc:error>
+      <!-- keep this application around for later -->
+      <sequence select="." />
+
+      <!-- nothing we can do yet -->
+      <message>
+        <text>[preproc] deferring application of unknown template </text>
+        <value-of select="@name" />
+      </message>
+
+      <preproc:repass need-sym="{@name}" />
     </otherwise>
   </choose>
 </template>
@@ -543,24 +549,6 @@
       <lv:with-param name="@sym_parent@"   value="{@parent}" />
     </lv:apply-template>
   </for-each>
-</template>
-
-
-<!--
-  This block is used when we attempt to apply a template that has not been
-  defined
--->
-<template match="lv:apply-template" mode="preproc:macros" priority="5">
-  <!-- keep this application around for later -->
-  <sequence select="." />
-
-  <!-- nothing we can do yet -->
-  <message>
-    <text>[preproc] deferring application of unknown template </text>
-    <value-of select="@name" />
-  </message>
-
-  <preproc:repass need-sym="{@name}" />
 </template>
 
 
@@ -1512,7 +1500,11 @@
 -->
 <template mode="preproc:macros" priority="5"
               match="lv:expand-sequence">
-  <sequence select="eseq:expand-step( . )" />
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
+  <!-- tunnels do not continue through functions, so store the symtable-map
+       as a context that will be passed back to us by eseq:expand-node -->
+  <sequence select="eseq:expand-step( $symtable-map, . )" />
 </template>
 
 
@@ -1570,10 +1562,16 @@
 
 
 <function name="eseq:expand-node" as="node()*">
+  <!-- this is the symtable-map, as passed in via eseq:expand-step -->
+  <param name="context" as="map(*)" />
+
   <param name="node" as="node()" />
 
   <apply-templates mode="preproc:macros"
-                       select="$node" />
+                       select="$node">
+    <with-param name="symtable-map" tunnel="yes"
+                select="$context" />
+  </apply-templates>
 </function>
 
 

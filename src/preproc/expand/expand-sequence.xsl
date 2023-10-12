@@ -38,7 +38,7 @@
   generally unnecessary.
 
   Expansion sequences are initiated by invoking
-  @ttref{eseq:expand-step#1} on any arbitrary node containing any number
+  @ttref{eseq:expand-step#2} on any arbitrary node containing any number
   of children to be expanded in order.  Each call will proceed one
   step (detailed herein), eventually resulting in each node expanded
   and the expansion sequence node eliminated.
@@ -58,6 +58,7 @@
   return an empty sequence in such a case.
 -->
 <function name="eseq:expand-step" as="node()*">
+  <param name="context" />
   <param name="eseq" as="node()*" />
 
   <variable name="count" as="xs:integer"
@@ -73,7 +74,9 @@
   <sequence select="$eseq[ position() lt $count ]" />
 
   <apply-templates mode="_eseq:expand"
-                   select="$target" />
+                   select="$target">
+    <with-param name="context" select="$context" />
+  </apply-templates>
 </function>
 
 
@@ -187,9 +190,11 @@
 -->
 <template mode="_eseq:expand" as="node()+"
           match="*[ node() ]">
+  <param name="context" />
+
   <choose>
     <when test="node()[1][ eseq:is-expandable( . ) ]">
-      <sequence select="_eseq:expand-head( . )" />
+      <sequence select="_eseq:expand-head( $context, . )" />
     </when>
 
     <otherwise>
@@ -250,7 +255,7 @@
   after all expansions are complete and the expansion sequence node
   itself is eliminated (per the final match above), then the node that
   was last expanded and hoisted will be considered to be the expansion
-  sequence by @ttref{eseq:expand-step#1}.  This is true, but should not
+  sequence by @ttref{eseq:expand-step#2}.  This is true, but should not
   be a problem in practice: hoisting is intended to place nodes into
   context for the caller; it is expected that the caller will
   recognize when to invoke sequence expansion (likely on a pre-defined
@@ -286,9 +291,10 @@
   function.
 
   Actual expansion is left to
-  @ref{eseq:expand-node#1,,@code{eseq:expand-node#1}}.
+  @ref{eseq:expand-node#2,,@code{eseq:expand-node#2}}.
 -->
 <function name="_eseq:expand-head" as="element()">
+  <param name="context" />
   <param name="eseq" as="element()" />
 
   <variable name="head" as="node()"
@@ -300,7 +306,7 @@
   <for-each select="$eseq">
     <copy>
       <sequence select="$eseq/@*,
-                        eseq:expand-node( $head ),
+                        eseq:expand-node( $context, $head ),
                         $head/following-sibling::node()" />
     </copy>
   </for-each>
@@ -314,7 +320,7 @@
 
   Its default behavior is an important consideration: what if
   @ttref{eseq:is-expandable#1} is overridden but the implementation
-  forgets to override @ttref{eseq:expand-node#1}?  If the default
+  forgets to override @ttref{eseq:expand-node#2}?  If the default
   behavior were to simply echo back the node, it seems likely that we
   would never finish processing, since the very node that matched the
   predicate to begin with would remain unchanged.
@@ -341,6 +347,7 @@
   prevent infinite recursion/iteration.
 -->
 <function name="eseq:expand-node" as="node()*">
+  <param name="context" />
   <param name="node" as="node()" />
 
   <eseq:expand-error>
@@ -352,7 +359,7 @@
 
 
 <!--
-  The return type of @ttref{eseq:expand-node#1} produces an interesting
+  The return type of @ttref{eseq:expand-node#2} produces an interesting
   concept.  Consider what may happen after an expansion:
 
   @enumerate
@@ -383,7 +390,7 @@
   continue processing; the expansion may have yielded additional
   symbols that must be added to the symbol table, for example.  The
   process will be continued on the next call to
-  @ttref{eseq:expand-step#1}.
+  @ttref{eseq:expand-step#2}.
 -->
 
 

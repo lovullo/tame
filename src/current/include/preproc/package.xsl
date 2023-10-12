@@ -46,6 +46,25 @@
 
 <include href="../../compiler/fragments.xsl" />
 
+<!--
+  Generate a symbol table map from the provided package.
+
+  This uses XSLT maps, which are backed by a hash table in Saxon.  Note
+  that, while this does provide constant-time lookup (vs. a linear scan of
+  the entire symbol table), there is a cost associated with its
+  construction, so you must be sure that the savings afforded by the lookups
+  makes up for that cost.
+-->
+<function name="preproc:mk-symtable-map"
+          as="map( xs:string, element( preproc:sym ) )">
+  <!-- in practice this is lv:package or lv:rater -->
+  <param name="pkg" as="element()" />
+
+  <sequence select="map:merge(
+                      for $sym in $pkg/preproc:symtable/preproc:sym
+                        return map{ string( $sym/@name ) : $sym } )" />
+</function>
+
 
 <!-- begin preprocessing from an arbitrary node -->
 <template name="preproc:pkg-compile" as="element( lv:package )"
@@ -63,7 +82,10 @@
 
   <!-- macro expansion -->
   <variable name="stage1" as="element()+">
-    <apply-templates select="." mode="preproc:macropass" />
+    <apply-templates select="." mode="preproc:macropass">
+      <with-param name="symtable-map" tunnel="yes"
+                  select="preproc:mk-symtable-map( . )" />
+    </apply-templates>
 
     <message>
       <text>[preproc] *macro pass complete; expanding...</text>
