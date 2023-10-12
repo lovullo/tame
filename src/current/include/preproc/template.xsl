@@ -152,7 +152,7 @@
     <when test="$tpl">
       <!-- avoid a costly repass; apply immediately -->
       <sequence select="preproc:expand-template(
-                            $tpl, $src-root, $params, . )" />
+                            $symtable-map, $tpl, $src-root, $params, . )" />
     </when>
 
     <otherwise>
@@ -242,12 +242,12 @@
 
       <!-- immediately apply without a wasteful repass -->
       <sequence select="preproc:expand-template(
-                              $tpl, $src-root, $params, . )" />
+                              $symtable-map, $tpl, $src-root, $params, . )" />
     </when>
 
     <when test="$tpl">
       <sequence select="preproc:expand-template(
-                              $tpl, $src-root, lv:with-param, . )" />
+                              $symtable-map, $tpl, $src-root, lv:with-param, . )" />
     </when>
 
     <otherwise>
@@ -267,6 +267,8 @@
 
 
 <function name="preproc:expand-template">
+  <param name="symtable-map" as="map(*)" />
+
   <param name="tpl"     as="element( lv:template )" />
   <param name="src-root" />
   <param name="params"  as="element( lv:with-param )*" />
@@ -327,6 +329,8 @@
         <with-param name="first-child" select="true()" />
         <with-param name="src-root" select="$src-root"
                         tunnel="yes" />
+        <with-param name="symtable-map" tunnel="yes"
+                    select="$symtable-map" />
       </apply-templates>
     </preproc:tpl-barrier>
   </variable>
@@ -335,6 +339,8 @@
                        select="$apply-result">
     <with-param name="tpl-name" select="$name"
                     tunnel="yes" />
+    <with-param name="symtable-map" tunnel="yes"
+                select="$symtable-map" />
   </apply-templates>
 
   <!-- since templates can include anything, we should perform another pass
@@ -1301,6 +1307,7 @@
 -->
 <template mode="preproc:gen-param-value" priority="5"
               match="lv:param-class-to-yields">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="params" as="element( lv:with-param )*"
              tunnel="yes" />
 
@@ -1313,11 +1320,8 @@
   <variable name="as" select="$params[ @name=$pname ]/@value" />
 
   <!-- get @yields from class -->
-  <variable name="yields" select="
-      $src-root/preproc:symtable/preproc:sym[
-        @name=concat( ':class:', $as )
-      ]/@yields
-    " />
+  <variable name="yields"
+            select="$symtable-map( concat( ':class:', $as ) )/@yields" />
 
   <choose>
     <when test="not( $yields ) or $yields=''">
@@ -1340,6 +1344,7 @@
 -->
 <template mode="preproc:gen-param-value" priority="5"
               match="lv:param-sym-value">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="params" as="element( lv:with-param )*"
              tunnel="yes" />
 
@@ -1358,9 +1363,7 @@
 
   <!-- get @yields from class -->
   <variable name="sym-value" as="xs:string?" select="
-      $src-root/preproc:symtable/preproc:sym[
-        @name = $sym-name ]
-          /@*[ local-name() = $value ]" />
+      $symtable-map( $sym-name )/@*[ local-name() = $value ]" />
 
   <choose>
     <when test="not( $sym-value ) or $sym-value = ''">
@@ -1403,6 +1406,7 @@
 -->
 <template mode="preproc:gen-param-value" priority="5"
           match="lv:param-typedef-lookup">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="params" as="element( lv:with-param )*"
              tunnel="yes" />
 
@@ -1422,9 +1426,7 @@
                 select="$params[ @name = $value ]/@value" />
 
   <variable name="typedef-sym" as="element( preproc:sym )"
-            select="$src-root/preproc:symtable/preproc:sym[
-                      @name = $typedef-name
-                      and @type = 'type' ]" />
+            select="$symtable-map( $typedef-name )[ @type = 'type' ]" />
 
   <variable name="typedef-pkg" as="element( lv:package )"
             select="if ( $typedef-sym/@src ) then
