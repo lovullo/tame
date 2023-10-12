@@ -502,193 +502,123 @@
 
 
 <!--
-  Generate JS representing the value of a function argument
+  Generate code for a `c:value-of`.
 
-  This will match whenever value-of is used on a name that matches any function
-  parameter.
-
-  XXX: We want to remain decoupled from lv if possible.
-
-  @return generated JS representing argument value or 0
+  This combines what was previously a number of individual templates into a
+  large `choose`; this is important to avoid duplicate symbol table lookups
+  and expensive XPaths as Saxon attempts to determine which template
+  matches.
 -->
 <template mode="compile-calc-value"
-  match="c:*[@name=ancestor::lv:function/lv:param/@name]">
+          match="*" priority="9">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
 
-  <!-- use the argument passed to the function -->
-  <apply-templates select="." mode="compile-calc-index">
-    <with-param name="value" select="@name" />
-  </apply-templates>
-</template>
+  <variable name="value-sym" as="element( preproc:sym )?"
+            select="$symtable-map( @name )" />
 
+  <variable name="name" as="xs:string" select="@name" />
 
-<!--
-  Using value from let expressions
--->
-<template mode="compile-calc-value"
-  match="c:*[ @name=ancestor::c:let/c:values/c:value/@name ]">
-
-  <!-- compile the value with the index (if any) -->
-  <apply-templates select="." mode="compile-calc-index">
-    <with-param name="value" select="@name" />
-  </apply-templates>
-</template>
-
-
-<!--
-  Generate JS representing the value of a global constant
-
-  Since constants are intended only to prevent magic values during development
-  (and are not required at runtime), the value of the constant will be placed
-  directly into the compiled code. However, we will *not* do this if the
-  constant is a set, since its index may be determined at runtime.
-
-  Note that "magic" constants' values are not inlined.
-
-  @return quoted constant value
--->
-<template mode="compile-calc-value"
-  match="
-    c:*[
-      @name=root(.)/preproc:symtable/preproc:sym[
-        @type='const'
-        and @dim='0'
-      ]/@name
-    ]
-  ">
-
-  <variable name="name" select="@name" />
-  <variable name="sym"
-    select="root(.)/preproc:symtable/preproc:sym[ @name=$name ]" />
-
-  <!-- it is expected that validations prior to compiling will prevent JS
-       injection here -->
   <choose>
-    <!-- "magic" constants should not have their values inlined -->
-    <when test="$sym/@magic='true'">
-      <text>C['</text>
-        <value-of select="@name" />
-      <text>']</text>
+    <!-- global scalar constant (@value is only defined when @dim is 0) -->
+    <when test="$value-sym[ @type = 'const' and @dim = '0' ]">
+      <variable name="value" as="xs:string"
+                select="$value-sym/@value" />
+
+      <!-- note: this used to check for @magic, which has long since been
+           removed -->
+      <sequence select="$value" />
     </when>
 
-    <!-- @value should be defined when @dim=0 -->
+    <!-- non-scalar constants are large and are stored statically for
+         reference rather than being inlined  -->
+    <when test="$value-sym[ @type = 'const' and not( @dim = '0' ) ]">
+      <variable name="value">
+        <text>C['</text>
+          <value-of select="$name" />
+        <text>']</text>
+      </variable>
+
+      <apply-templates select="." mode="compile-calc-index">
+        <with-param name="value" select="$value" />
+      </apply-templates>
+    </when>
+
+    <!-- TODO: is this worth a tunnel instead of `ancestor::`? -->
+    <!-- generator index -->
+    <when test="$name = ancestor::c:*[ @of ]/@index">
+      <!-- TODO: This shouldn't be true anymore; is this cast still needed? -->
+      <!-- depending on how the index is generated, it could be a string, so
+           we must cast it -->
+      <text>+</text>
+      <value-of select="$name" />
+    </when>
+
+    <!-- function argument -->
+    <when test="$name = ancestor::lv:function/lv:param/@name">
+      <!-- use the argument passed to the function -->
+      <apply-templates select="." mode="compile-calc-index">
+          <with-param name="value" select="$name" />
+      </apply-templates>
+    </when>
+
+    <!-- let expression value -->
+    <when test="$name = ancestor::c:let/c:values/c:value/@name">
+      <!-- compile the value with the index (if any) -->
+      <apply-templates select="." mode="compile-calc-index">
+        <with-param name="value" select="$name" />
+      </apply-templates>
+    </when>
+
     <otherwise>
-      <value-of select="$sym/@value" />
+      <variable name="dim" as="xs:string"
+                select="$value-sym/@dim" />
+
+      <variable name="value">
+        <text>A['</text>
+          <value-of select="@name" />
+        <text>']</text>
+      </variable>
+
+      <!-- the awkward double-negatives are intentional, since @index may not
+           exist; here's what we're doing:
+
+          - If it's not a set, then indexes are irrelevant; always cast scalars
+          - Otherwise
+            - If an index was provided and it is not a matrix, cast
+            - Otherwise
+              - If two indexes were provided and it is a matrix, cast
+      -->
+      <!-- N.B. it is important to do this outside the value variable, otherwise the
+           cast may be done at the incorrect time -->
+      <if test="
+          (
+            $dim='0'
+            or (
+              (
+                ( @index and not( @index = '' ) )
+                or ( ./c:index )
+              )
+              and not( $dim='2' )
+            )
+            or (
+              ( $dim='2' )
+              and ./c:index[2]
+            )
+          )
+          and not(
+            parent::c:arg
+            and not( @index )
+          )
+        ">
+
+        <text>+</text>
+      </if>
+
+      <apply-templates select="." mode="compile-calc-index">
+        <with-param name="value" select="$value" />
+      </apply-templates>
     </otherwise>
   </choose>
-</template>
-
-
-<!--
-  Generates JS representing the value of a constant as part of a set
-
-  Since the index of constant sets can be determined at runtime, we need to
-  store all possible values. As such, we shouldn't repeat ourselves by inlining
-  all possible values; instead, we'll reference a pre-generated set of values
-  for the particular constant.
-
-  @return generated code representing value of a variable, or 0 if undefined
--->
-<template mode="compile-calc-value"
-  match="
-    c:*[
-      @name=root(.)/preproc:symtable/preproc:sym[
-        @type='const'
-        and not( @dim='0' )
-      ]/@name
-    ]
-  ">
-
-  <variable name="value">
-    <text>C['</text>
-      <value-of select="@name" />
-    <text>']</text>
-  </variable>
-
-  <apply-templates select="." mode="compile-calc-index">
-    <with-param name="value" select="$value" />
-  </apply-templates>
-</template>
-
-
-<!--
-  Generate JS representing the value of a generated index
-
-  @return generated code associated with the value of the generated index
--->
-<template mode="compile-calc-value"
-  match="c:*[ @name = ancestor::c:*[ @of ]/@index ]">
-
-  <!-- depending on how the index is generated, it could be a string, so we must
-       cast it -->
-  <text>+</text>
-  <value-of select="@name" />
-</template>
-
-
-<!--
-  Generates JS representing the value of a variable
-
-  If the variable is undefined, the value will be considered to be 0 (this is
-  especially important for the summation of sets within this implementation).
-  That is: a value will never be considered undefined.
-
-  @return generated code representing value of a variable, or 0 if undefined
--->
-<template match="c:*" mode="compile-calc-value">
-  <variable name="name" select="@name" />
-  <variable name="pkg" as="element( lv:package )"
-                select="root(.)" />
-
-  <variable name="dim"
-                select="$pkg/preproc:symtable/preproc:sym[ @name=$name ]/@dim" />
-
-  <!-- retrieve the value, casting to a number (to avoid potentially nasty
-       string concatenation bugs instead of integer/floating point arithmetic)
-       as long as we're either not a set, or provide an index for the set -->
-  <variable name="value">
-    <text>A['</text>
-      <value-of select="@name" />
-    <text>']</text>
-  </variable>
-
-  <!-- the awkward double-negatives are intentional, since @index may not
-       exist; here's what we're doing:
-
-      - If it's not a set, then indexes are irrelevant; always cast scalars
-      - Otherwise
-        - If an index was provided and it is not a matrix, cast
-        - Otherwise
-          - If two indexes were provided and it is a matrix, cast
-  -->
-  <!-- N.B. it is important to do this outside the value variable, otherwise the
-       cast may be done at the incorrect time -->
-  <if test="
-      (
-        $dim='0'
-        or (
-          (
-            ( @index and not( @index = '' ) )
-            or ( ./c:index )
-          )
-          and not( $dim='2' )
-        )
-        or (
-          ( $dim='2' )
-          and ./c:index[2]
-        )
-      )
-      and not(
-        parent::c:arg
-        and not( @index )
-      )
-    ">
-
-    <text>+</text>
-  </if>
-
-  <apply-templates select="." mode="compile-calc-index">
-    <with-param name="value" select="$value" />
-  </apply-templates>
 </template>
 
 
