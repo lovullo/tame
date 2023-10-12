@@ -133,6 +133,8 @@
 
 <template mode="js-name-ref" priority="5"
           match="c:sum[@of]|c:product[@of]">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="of" select="@of" />
   <variable name="func" select="ancestor::lv:function" />
 
@@ -142,10 +144,9 @@
     <!-- is @of a function param? -->
     <when test="
         $func
-        and root(.)/preproc:symtable/preproc:sym[
-          @type='lparam'
-          and @name=concat( ':', $func/@name, ':', $of )
-        ]
+        and $symtable-map( concat( ':', $func/@name, ':', $of ) )[
+              @type='lparam'
+            ]
       ">
 
       <value-of select="@of" />
@@ -157,13 +158,7 @@
     </when>
 
     <!-- maybe a constant? -->
-    <when test="
-        root(.)/preproc:symtable/preproc:sym[
-          @type='const'
-          and @name=$of
-        ]
-      ">
-
+    <when test="$symtable-map( $of )[ @type = 'const' ]">
       <text>C['</text>
         <value-of select="@of" />
       <text>']</text>
@@ -477,6 +472,8 @@
 <!-- TODO: this should really be decoupled -->
 <!-- TODO: does not properly support matrices -->
 <template match="c:value-of[ ancestor::lv:match ]" mode="compile-calc" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <param name="noindex" as="xs:boolean" tunnel="yes"
          select="false()" />
 
@@ -485,8 +482,7 @@
   <choose>
     <!-- scalar -->
     <when test="
-        $noindex
-          or root(.)/preproc:symtable/preproc:sym[ @name=$name ]/@dim = '0'
+        $noindex or $symtable-map( $name )/@dim = '0'
       ">
       <apply-templates select="." mode="compile-calc-value" />
     </when>
@@ -642,11 +638,16 @@
   @return index (including brackets), if one was provided
 -->
 <template match="c:*" mode="compile-calc-index">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
   <param name="value" />
+
   <variable name="index" select="@index" />
 
   <choose>
-    <when test="@index">
+    <when test="$index">
+      <variable name="index-sym" as="element( preproc:sym )?"
+                select="$symtable-map( $index )" />
+
       <text>(</text>
       <value-of select="$value" />
 
@@ -666,13 +667,11 @@
         </when>
 
         <!-- scalar constant -->
-        <when test="@index = root(.)/preproc:symtable/preproc:sym
-                          [ @type='const'
-                            and @dim='0' ]
-                          /@name">
-          <value-of select="root(.)/preproc:symtable
-                                  /preproc:sym[ @name=$index ]
-                                  /@value" />
+        <when test="$index-sym[ @type='const' and @dim='0' ]">
+          <variable name="value" as="xs:string"
+                    select="$index-sym/@value" />
+
+          <value-of select="$value" />
         </when>
 
         <!-- otherwise, it's a variable -->
@@ -779,8 +778,12 @@
   @return generated function application
 -->
 <template match="c:apply" mode="compile-calc" priority="5">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="name" select="@name" />
   <variable name="self" select="." />
+  <variable name="func-sym" as="element( preproc:sym )"
+            select="$symtable-map( $name )[ @type = 'func' ]" />
 
   <call-template name="calc-compiler:gen-func-name">
     <with-param name="name" select="@name" />
@@ -792,13 +795,7 @@
 
   <!-- generate argument list in the order that the arguments are expected (they
        can be entered in the XML in any order) -->
-  <for-each select="
-      root(.)/preproc:symtable/preproc:sym[
-        @type='func'
-        and @name=$name
-      ]/preproc:sym-ref
-    ">
-
+  <for-each select="$func-sym/preproc:sym-ref">
     <text>, </text>
 
     <variable name="pname" select="substring-after( @name, $arg-prefix )" />
@@ -877,8 +874,12 @@
 -->
 <template mode="compile-calc" priority="7"
           match="c:apply[ compiler:apply-uses-tco( . ) ]">
+  <param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <variable name="name" select="@name" />
   <variable name="self" select="." />
+  <variable name="func-sym" as="element( preproc:sym )"
+            select="$symtable-map( $name )[ @type = 'func' ]" />
 
   <message select="concat('warning: ', $name, ' recursing with experimental guided TCO')" />
 
@@ -888,13 +889,7 @@
 
   <!-- reassign function arguments -->
   <variable name="args" as="element(c:arg)*">
-    <for-each select="
-        root(.)/preproc:symtable/preproc:sym[
-          @type='func'
-          and @name=$name
-        ]/preproc:sym-ref
-      ">
-
+    <for-each select="$func-sym/preproc:sym-ref">
       <variable name="pname" select="substring-after( @name, $arg-prefix )" />
       <variable name="arg" select="$self/c:arg[@name=$pname]" />
 
