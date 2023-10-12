@@ -638,14 +638,6 @@
 </template>
 
 
-<!-- remove templates that have been copied from an external source for
-     processing -->
-<template match="lv:template[
-                       @name=root()
-                         /preproc:symtable/preproc:sym[ @src ]/@name ]"
-  mode="preproc:expand" priority="5">
-</template>
-
 <!-- IMPORTANT: do not process unexpanded templates -->
 <template match="lv:template" mode="preproc:expand" priority="4">
   <sequence select="." />
