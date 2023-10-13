@@ -46,8 +46,8 @@
 
   <variable name="foo:expanded" as="element( foo:seq )">
     <foo:seq foo="baz">
-      <sequence select="eseq:expand-node( $foo:a/foo:node[1] ),
-                        eseq:expand-node( $foo:a/foo:node[2] )" />
+      <sequence select="eseq:expand-node( (), $foo:a/foo:node[1] ),
+                        eseq:expand-node( (), $foo:a/foo:node[2] )" />
     </foo:seq>
   </variable>
 
@@ -71,6 +71,7 @@
 
   <function name="eseq:expand-node" as="node()*"
             override="yes">
+    <param name="context" />
     <param name="node" as="node()" />
 
     <choose>

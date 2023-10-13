@@ -32,6 +32,8 @@
   <scenario label="Pass on an expansion sequence">
     <scenario label="with an empty sequence">
       <call function="eseq:expand-step">
+        <param name="context"
+               select="()" />
         <param name="eseq"
                select="$foo:empty-eseq" />
       </call>
@@ -43,6 +45,8 @@
 
     <scenario label="with no sequence">
       <call function="eseq:expand-step">
+        <param name="context"
+               select="()" />
         <param name="eseq"
                select="()" />
       </call>
@@ -54,6 +58,8 @@
 
     <scenario label="with an expansion element">
       <call function="eseq:expand-step">
+        <param name="context"
+               select="()" />
         <param name="eseq"
                select="$foo:a" />
       </call>
@@ -73,9 +79,12 @@
     <scenario label="with an expanded node">
       <!-- notice the additional expand-step calls -->
       <call function="eseq:expand-step">
+        <param name="context"
+               select="()" />
         <param name="eseq"
                select="eseq:expand-step(
-                         eseq:expand-step( $foo:a ) )" />
+                         (),
+                         eseq:expand-step( (), $foo:a ) )" />
       </call>
 
       <expect label="hoists expanded element out of sequence"
@@ -92,9 +101,12 @@
     <scenario label="with nodes still pending expansion">
       <!-- notice the additional expand-step calls -->
       <call function="eseq:expand-step">
+        <param name="context"
+               select="()" />
         <param name="eseq"
                select="eseq:expand-step(
-                         eseq:expand-step( $foo:unexpandable ) )" />
+                         (),
+                         eseq:expand-step( (), $foo:unexpandable ) )" />
       </call>
 
       <!-- if this fails, then our is-expanded predicate is not being
@@ -107,9 +119,11 @@
 
   <scenario label="Pass on expansion sequence with hoisted node">
     <variable name="foo:hoisted"
-      select="eseq:expand-step( $foo:expanded )" />
+      select="eseq:expand-step( (), $foo:expanded )" />
 
     <call function="eseq:expand-step">
+      <param name="context"
+             select="()" />
       <param name="eseq"
              select="$foo:hoisted" />
     </call>
@@ -128,6 +142,6 @@
                   and not( $x:result[3]/node() )" />
 
     <expect label="final pass eliminates empty expansion sequence"
-            test="not( eseq:expand-step( $x:result )/foo:seq )" />
+            test="not( eseq:expand-step( (), $x:result )/foo:seq )" />
   </scenario>
 </description>
