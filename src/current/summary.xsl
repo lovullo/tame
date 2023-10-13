@@ -27,6 +27,7 @@
   xmlns="http://www.w3.org/1999/xhtml"
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:map="http://www.w3.org/2005/xpath-functions/map"
   xmlns:lv="http://www.lovullo.com/rater"
   xmlns:lvp="http://www.lovullo.com"
   xmlns:c="http://www.lovullo.com/calc"
@@ -63,6 +64,14 @@
 <xsl:param name="fw-path" select="lv:package/@__rootpath" />
 
 <xsl:variable name="program" select="/lv:package" />
+
+<xsl:variable name="program-symtable" as="element( l:dep )"
+              select="$program/l:dep" />
+<xsl:variable name="program-symtable-map"
+              as="map( xs:string, element( preproc:sym ) )"
+              select="map:merge(
+                        for $sym in $program-symtable/preproc:sym
+                          return map{ string( $sym/@name ) : $sym } )" />
 
 
 <!--
@@ -115,7 +124,7 @@
 
   <!-- intentional newline -->
   <xsl:text disable-output-escaping="yes">&lt;!DOCTYPE html&gt;
- </xsl:text>
+  </xsl:text>
 
   <html>
     <head>
@@ -144,30 +153,45 @@
       <xsl:variable name="pkg-self" select="
           document( concat( @__rootpath, @name, '.xmlo' ), . )/lv:*
         " />
-      <xsl:apply-templates
-        select="$pkg-self/lv:*" />
+
+      <xsl:variable name="symtable-self" as="element( preproc:symtable )"
+                    select="$pkg-self/preproc:symtable" />
+      <xsl:variable name="symtable-self-map" as="map( xs:string, element( preproc:sym ) )"
+                    select="map:merge(
+                              for $sym in $symtable-self/preproc:sym
+                                return map{ string( $sym/@name ) : $sym } )" />
+
+      <xsl:apply-templates select="$pkg-self/lv:*">
+        <xsl:with-param name="symtable-map" tunnel="yes"
+                        select="$symtable-self-map" />
+      </xsl:apply-templates>
 
       <!-- get a list of unique packages and typeset them -->
       <!-- TODO: this logic is duplicated; see gen-pkg-menu -->
-      <xsl:for-each select="
-          /lv:*/l:dep/preproc:sym[
-            @src
-            and not( @src='' )
-            and not(
-              @src=preceding-sibling::preproc:sym/@src
-            )
-          ]
-        ">
-
+      <xsl:for-each-group select="$program-symtable/preproc:sym[
+                                    @src and not( @src='' ) ]"
+                          group-by="@src">
         <xsl:message>
           <xsl:text>[summary] typesetting package </xsl:text>
           <xsl:value-of select="@src" />
           <xsl:text>...</xsl:text>
         </xsl:message>
 
-        <xsl:apply-templates
-          select="document( concat( @src, '.xmlo' ), . )/lv:*/lv:*" />
-      </xsl:for-each>
+        <xsl:variable name="pkg" as="element()"
+                      select="document( concat( @src, '.xmlo' ), . )/lv:*" />
+        <xsl:variable name="symtable" as="element( preproc:symtable )"
+                      select="$pkg/preproc:symtable" />
+
+        <xsl:variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
+                      select="map:merge(
+                                for $sym in $symtable/preproc:sym
+                                  return map{ string( $sym/@name ) : $sym } )" />
+
+        <xsl:apply-templates select="$pkg/lv:*">
+          <xsl:with-param name="symtable-map" tunnel="yes"
+                          select="$symtable-map" />
+        </xsl:apply-templates>
+      </xsl:for-each-group>
 
       <!-- some general information -->
       <xsl:call-template name="summary-info" />
@@ -317,16 +341,9 @@
     </xsl:apply-templates>
 
     <!-- get a list of unique packages -->
-    <xsl:for-each select="
-        /lv:*/l:dep/preproc:sym[
-          @src
-          and not( @src='' )
-          and not(
-            @src=preceding-sibling::preproc:sym/@src
-          )
-        ]
-      ">
-
+    <xsl:for-each-group select="$program-symtable/preproc:sym[
+                                  @src and not( @src='' ) ]"
+                        group-by="@src">
       <!-- build package menu -->
       <xsl:variable name="result">
         <xsl:apply-templates select="$self" mode="gen-menu">
@@ -344,7 +361,7 @@
 
         <xsl:copy-of select="$result" />
       </xsl:if>
-    </xsl:for-each>
+    </xsl:for-each-group>
   </div>
 </xsl:template>
 
@@ -628,6 +645,8 @@
   FIXME: this is broken!
 -->
 <xsl:template match="lv:param|lv:const|lv:item" priority="1">
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:variable name="class">
     <xsl:text>param</xsl:text>
 
@@ -656,10 +675,7 @@
                               local-name()" />
 
     <legend class="sym-{$type}">
-      <xsl:variable name="sym"
-                    select="/lv:*/preproc:symtable
-                              /preproc:sym[ @name=$name ]" />
-
+      <xsl:variable name="sym" select="$symtable-map( $name )" />
       <xsl:variable name="tex" select="$sym/@tex" />
 
       <!-- only show symbol if it is defined (no need for a default since
@@ -1168,12 +1184,12 @@
   @return anyOf match HTML
 -->
 <xsl:template match="lv:match[@anyOf]" mode="match-desc">
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:variable name="anyOf" select="@anyOf" />
 
   <!-- attempt to locate the typedef -->
-  <xsl:variable name="typedef" select="
-      /lv:*/preproc:symtable/preproc:sym[ @name=$anyOf ]
-    " />
+  <xsl:variable name="typedef" select="$symtable-map( $anyOf )" />
 
   <xsl:text>match any value in </xsl:text>
 
@@ -1227,10 +1243,11 @@
   @return match HTML
 -->
 <xsl:template match="lv:match[@value]" mode="match-desc">
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:variable name="value" select="@value" />
 
-  <xsl:variable name="sym"
-                select="/lv:*/preproc:symtable/preproc:sym[ @name=$value ]" />
+  <xsl:variable name="sym" select="$symtable-map( $value )" />
 
   <xsl:text>= </xsl:text>
 
@@ -1255,11 +1272,13 @@
 
 
 <xsl:template match="c:value-of" mode="match-desc" priority="5">
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:variable name="name"
                 select="@name" />
 
   <xsl:variable name="sym" as="element( preproc:sym )"
-                select="/lv:*/preproc:symtable/preproc:sym[ @name=$name ]" />
+                select="$symtable-map( $name )" />
 
   <a href="#{$name}" class="sym-ref sym-{$sym/@type}">
     <xsl:value-of select="$name" />
@@ -1387,6 +1406,8 @@
 </xsl:template>
 
 <xsl:template match="lv:rate" mode="gen-rate-block">
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:variable name="root" select="/" />
 
   <xsl:variable name="name" select="@yields" />
@@ -1401,9 +1422,7 @@
     </xsl:attribute>
 
     <legend class="sym-rate">
-      <xsl:variable name="tex" select="
-          /lv:*/preproc:symtable/preproc:sym[ @name=$name ]/@tex
-        " />
+      <xsl:variable name="tex" select="$symtable-map( $name )/@tex" />
 
       <!-- only show symbol if it is defined (no need for a default since
            defaults are specific to a given block) -->
@@ -1647,6 +1666,8 @@
 </xsl:template>
 
 <xsl:template name="ultra-breakdown-set" match="c:*" mode="ultra-breakdown" priority="1">
+  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
+
   <xsl:param name="label" select="if ( @label ) then @label else @desc" />
   <xsl:param name="c" select="." />
 
@@ -1691,9 +1712,7 @@
 
       <xsl:if test="@name">
         <xsl:variable name="name" select="@name" />
-        <xsl:variable name="sym"
-                      select="/lv:*/preproc:symtable
-                                /preproc:sym[ @name=$name ]" />
+        <xsl:variable name="sym" select="$symtable-map( $name )" />
 
         <xsl:variable name="ref"
                       select="if ( $sym/@parent ) then
@@ -2102,9 +2121,7 @@
 <xsl:function name="preproc:sym-lookup" as="element( preproc:sym )?">
   <xsl:param name="name" as="xs:string" />
 
-  <!-- XXX: There's a linker bug where there may be duplicate symbols in
-       l:dep! -->
-  <xsl:sequence select="$program/l:dep/preproc:sym[ @name=$name ][1]" />
+  <xsl:sequence select="$program-symtable-map( $name )" />
 </xsl:function>
 
 
