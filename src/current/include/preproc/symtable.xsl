@@ -843,7 +843,8 @@
 </template>
 
 
-<template match="preproc:sym[ @type='param' ]" mode="preproc:symtable-complete" priority="5">
+<template mode="preproc:symtable-complete" priority="5"
+          match="preproc:sym[ @need-resolve-dtype='true' ]">
   <param name="syms" as="element( preproc:sym )*" />
 
   <!-- attempt to derive type information from a typedef -->
@@ -863,7 +864,7 @@
 
   <!-- complete datatype with primitive -->
   <copy>
-    <sequence select="@*" />
+    <sequence select="@*[ not( local-name() = 'need-resolve-dtype' ) ]" />
     <attribute name="dtype" select="$typedef/@dtype" />
   </copy>
 </template>

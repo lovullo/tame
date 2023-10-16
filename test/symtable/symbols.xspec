@@ -63,6 +63,7 @@
                    dim="1"
                    desc="Vector param"
                    dtype="footype"
+                   need-resolve-dtype="true"
                    default=""
                    tex="" />
 
@@ -71,6 +72,7 @@
                    dim="2"
                    desc="Matrix param with TeX"
                    dtype="tex"
+                   need-resolve-dtype="true"
                    default=""
                    tex="\tex" />
 
@@ -79,6 +81,7 @@
                    dim="0"
                    desc="Scalar param (implicit)"
                    dtype="bar"
+                   need-resolve-dtype="true"
                    default=""
                    tex="" />
 
@@ -87,6 +90,7 @@
                    dim="0"
                    desc="Scalar param (explicit)"
                    dtype="bar"
+                   need-resolve-dtype="true"
                    default=""
                    tex="" />
 
@@ -95,6 +99,7 @@
                    dim="-1"
                    desc="Unknown dimension"
                    dtype="wtf"
+                   need-resolve-dtype="true"
                    default=""
                    tex="" />
     </expect>

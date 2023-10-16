@@ -345,11 +345,16 @@
   <variable name="dim" as="xs:integer"
             select="_symtable:str-to-dim( @set )" />
 
+  <!-- @need-resolve-dtype flags this symbol as needing further processing
+       to resolve @dtype, which we cannot do until we know we have a full
+       symbol table that includes the necessary typedef referenced by the
+       current value of @dtype  -->
   <preproc:sym type="param"
                name="{@name}"
                dim="{$dim}"
                desc="{@desc}"
                dtype="{@type}"
+               need-resolve-dtype="true"
                default="{@default}"
                tex="{@sym}" />
 </template>
