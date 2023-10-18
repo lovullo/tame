@@ -142,7 +142,7 @@
 
       <!-- grab the original source symbol for these references and augment them
            with any additional dependency metadata -->
-      <variable name="syms-rtf">
+      <variable name="syms" as="element( preproc:sym )*">
         <for-each select="$uniq">
           <variable name="name" select="@name" />
           <variable name="sym" as="element( preproc:sym )?"
@@ -178,8 +178,6 @@
         </for-each>
       </variable>
 
-      <variable name="syms" select="$syms-rtf/preproc:sym" />
-
       <!-- only applicable if the symbol is @lax and the symbol was not
            found in the local symbol table -->
       <variable name="lax" select="
@@ -202,24 +200,17 @@
         </for-each>
 
         <!-- @tex provided an non-empty, or function -->
-        <for-each select="
-          $syms[
-            ( @tex and not( @tex='' ) )
-            or @type='func'
-          ]">
-
-          <choose>
-            <!-- even if function, @tex overrides symbol -->
-            <when test="@tex and not( @tex='' )">
-              <preproc:sym-ref tex="{@tex}">
+        <for-each select="$syms">
+          <preproc:sym-ref>
+            <choose>
+              <!-- even if function, @tex overrides symbol -->
+              <when test="@tex and not( @tex='' )">
+                <attribute name="tex" select="@tex" />
                 <sequence select="@*" />
                 <sequence select="preproc:meta/@*" />
-              </preproc:sym-ref>
-            </when>
+              </when>
 
-            <!-- must be a function; use its name -->
-            <otherwise>
-              <preproc:sym-ref>
+              <when test="@type = 'func'">
                 <sequence select="@*" />
                 <sequence select="preproc:meta/@*" />
 
@@ -228,63 +219,53 @@
                     <value-of select="@name" />
                   <text>}</text>
                 </attribute>
-              </preproc:sym-ref>
-            </otherwise>
-          </choose>
-        </for-each>
+              </when>
 
-        <!-- no @tex, @tex empty, no function -->
-        <for-each select="
-          $syms[
-            ( not( @tex ) or @tex='' )
-            and not( @type='func' )
-          ]">
+              <otherwise>
+                <variable name="name" select="@name" />
+                <variable name="sym" select="." />
 
-          <variable name="name" select="@name" />
-          <variable name="sym" select="." />
+                <!-- minimal attribute copy (avoid data duplication as much as
+                     possible to reduce modification headaches later on) -->
+                <sequence select="@name, @parent" />
+                <sequence select="preproc:meta/@*" />
 
-          <preproc:sym-ref>
-            <!-- minimal attribute copy (avoid data duplication as much as
-                 possible to reduce modification headaches later on) -->
-            <sequence select="@name, @parent" />
-            <sequence select="preproc:meta/@*" />
-
-            <!-- assign a symbol -->
-            <variable name="pos" select="position()" />
-            <attribute name="tex">
-              <variable name="texsym" select="
-                  $tex-defaults/preproc:syms/preproc:sym[
-                    position() = $pos
-                  ]
-                " />
-
-              <choose>
-                <when test="$sym/@tex and not( $sym/@tex='' )">
-                  <value-of select="$sym/@tex" />
-                </when>
-
-                <!-- scalar/vector default -->
-                <when test="$texsym and number( $sym/@dim ) lt 2">
-                  <value-of select="$texsym/@value" />
-                </when>
-
-                <!-- matrix default -->
-                <when test="$texsym">
-                  <value-of select="$texsym/@vec" />
-                </when>
-
-                <!-- no default available; generate one -->
-                <otherwise>
-                  <value-of select="
-                      if ( number( $sym/@dim ) lt 2 ) then '\theta'
-                      else '\Theta'
+                <!-- assign a symbol -->
+                <variable name="pos" select="position()" />
+                <attribute name="tex">
+                  <variable name="texsym" select="
+                      $tex-defaults/preproc:syms/preproc:sym[ $pos ]
                     " />
-                  <text>_{</text>
-                    <value-of select="$pos" />
-                  <text>}</text>
-                </otherwise>
-              </choose>
-            </attribute>
+
+                  <choose>
+                    <when test="$sym/@tex and not( $sym/@tex='' )">
+                      <value-of select="$sym/@tex" />
+                    </when>
+
+                    <!-- scalar/vector default -->
+                    <when test="$texsym and number( $sym/@dim ) lt 2">
+                      <value-of select="$texsym/@value" />
+                    </when>
+
+                    <!-- matrix default -->
+                    <when test="$texsym">
+                      <value-of select="$texsym/@vec" />
+                    </when>
+
+                    <!-- no default available; generate one -->
+                    <otherwise>
+                      <value-of select="
+                          if ( number( $sym/@dim ) lt 2 ) then '\theta'
+                          else '\Theta'
+                        " />
+                      <text>_{</text>
+                        <value-of select="$pos" />
+                      <text>}</text>
+                    </otherwise>
+                  </choose>
+                </attribute>
+              </otherwise>
+            </choose>
           </preproc:sym-ref>
         </for-each>
       </preproc:sym-dep>
