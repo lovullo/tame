@@ -653,11 +653,13 @@
   <variable name="varname" select="@name" />
   <variable name="param" select="$params[ @name=$varname ]" />
 
-  <variable name="copy" as="node()*">
+  <variable name="copy">
     <choose>
-      <!-- TAMER desugared @values@ application convention (see tplshort.rs) -->
-      <when test="$param/@value">
-        <!-- the value is the name of a template to copy the body from -->
+      <!-- TAMER desugared @values@ application convention (see
+           tplshort.rs); this will go away once the template system is fully
+           implemented in TAMER -->
+      <when test="$varname = '@values@' and $param/@value">
+        <!-- the value may be the name of a template to copy the body from -->
         <variable name="dsgr" select="$param/@value" />
 
         <!-- the template is always positioned as the immeditely-following
@@ -665,6 +667,11 @@
         <sequence select="$params/parent::lv:apply-template
                             /following-sibling::lv:template[ @name=$dsgr ]
                               /*" />
+      </when>
+
+      <!-- non-node value is copied as text -->
+      <when test="$param/@value">
+         <sequence select="string( $param/@value )" />
       </when>
 
       <!-- old applicatication convention has child nodes within

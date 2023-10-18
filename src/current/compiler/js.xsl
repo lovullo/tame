@@ -472,7 +472,7 @@
   <param name="const" as="element( lv:const )" />
 
   <variable name="values-def" as="xs:string?"
-            select="$const/@values" />
+            select="compiler:const-values( $const )" />
 
   <choose>
     <when test="$values-def and contains( $values-def, ';' )">
@@ -484,6 +484,21 @@
       <sequence select="$const/lv:set" />
     </otherwise>
   </choose>
+</function>
+
+
+<function name="compiler:const-values" as="xs:string?">
+  <param name="const" as="element( lv:const )" />
+
+  <!-- @values="-", a convention from command-line programs where '-' means
+       "read from stdin", will take the value from the child text of the
+       constant; this is done because Saxon performs very, very poorly on
+       huge single-line attributes (e.g. 60s for ~20MiB single-line
+       attribute) -->
+  <sequence select="if ( $const/@values = '-' ) then
+                        $const/text()
+                      else
+                        $const/@values" />
 </function>
 
 
@@ -505,7 +520,9 @@
 
     <when test="$set/@values and $allow-values">
       <sequence select="tokenize(
-                          normalize-space( $set/@values ), ',' )" />
+                          normalize-space(
+                            compiler:const-values( $set ) ),
+                          ',' )" />
     </when>
 
     <otherwise>

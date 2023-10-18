@@ -160,7 +160,11 @@
       <const name="{@__tid@}_RATE_TABLE"
              type="float"
              desc="{@__tname@} table; {@__desc@}"
-             values="@data@" />
+             values="-">
+        <!-- `@values="-"` above tells TAME to read the value from the
+             child text node -->
+        <param-copy name="@data@" />
+      </const>
     </if>
     <unless name="@data@">
       <const name="{@__tid@}_RATE_TABLE"
