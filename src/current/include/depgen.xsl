@@ -149,7 +149,7 @@
                         select="$symtable-map( $name )" />
 
           <!-- we should never have this problem. -->
-          <if test="not( $sym ) and not( @lax='true' )">
+          <if test="not( $sym )">
             <message terminate="yes">
               <text>[depgen] internal error: </text>
               <text>could not locate dependency symbol `</text>
@@ -159,12 +159,8 @@
             </message>
           </if>
 
-          <!-- copy and augment (we set @name because $sym/@name may not exist
-               if @lax) -->
           <preproc:sym name="{@name}">
-            <if test="$sym">
-              <sequence select="$sym/@*" />
-            </if>
+            <sequence select="$sym/@*" />
 
             <preproc:meta>
               <!-- retain type -->
@@ -178,27 +174,7 @@
         </for-each>
       </variable>
 
-      <!-- only applicable if the symbol is @lax and the symbol was not
-           found in the local symbol table -->
-      <variable name="lax" select="
-          $uniq[
-            @lax='true'
-            and not( @name=$syms/@name )
-          ]
-        " />
-
       <preproc:sym-dep name="{@name}">
-        <!-- process symbols that have not been found in the local symbol
-             table (only applicable when cursym is @lax) -->
-        <for-each select="$lax">
-          <!-- the @lax flag here is simply to denote that this symbol may not
-               actually exist and that ignoring the check was explicitly
-               requested (and not a bug in the depgen process) -->
-          <preproc:sym-ref name="{@name}" lax="true">
-            <sequence select="preproc:meta/@*" />
-          </preproc:sym-ref>
-        </for-each>
-
         <!-- @tex provided an non-empty, or function -->
         <for-each select="$syms">
           <preproc:sym-ref>

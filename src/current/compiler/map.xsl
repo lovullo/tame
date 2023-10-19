@@ -319,7 +319,7 @@
 <template match="lvm:pass[ root(.)/@lvmc:type = 'retmap' ]"
           mode="preproc:depgen" priority="6">
   <preproc:sym-dep name=":retmap:{@name}">
-    <preproc:sym-ref name="{@name}" lax="true" />
+    <preproc:sym-ref name="{@name}" />
   </preproc:sym-dep>
 </template>
 
@@ -378,7 +378,7 @@
                           and root(.)/@lvmc:type = 'retmap' ]"
               mode="preproc:depgen" priority="6">
   <preproc:sym-dep name=":retmap:{@to}">
-    <preproc:sym-ref name="{@from}" lax="true" />
+    <preproc:sym-ref name="{@from}" />
   </preproc:sym-dep>
 </template>
 
@@ -596,7 +596,7 @@
               mode="preproc:depgen" priority="6">
   <preproc:sym-dep name=":retmap:{@to}">
     <for-each select=".//lvm:from">
-      <preproc:sym-ref name="{@name}" lax="true" />
+      <preproc:sym-ref name="{@name}" />
     </for-each>
   </preproc:sym-dep>
 </template>
