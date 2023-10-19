@@ -107,41 +107,31 @@
     <for-each select="$deps, $deps//preproc:sym-dep">
       <variable name="sym-name" as="xs:string"
                     select="@name" />
-
       <variable name="cursym" as="element( preproc:sym )?"
                     select="$symtable-map( $sym-name )" />
 
       <if test="not( $cursym )">
-        <message select="." />
         <message terminate="yes"
                      select="concat( 'internal error: ',
                                      'cannot find symbol in symbol table: ',
                                      '`', $sym-name, '''' )" />
       </if>
 
-      <!-- do not output duplicates (we used to not output references
-           to ourselves, but we are now retaining them, since those
-           data are useful) -->
-      <variable name="uniq" select="
-          preproc:sym-ref[
-            not( @name=preceding-sibling::preproc:sym-ref/@name )
-          ]
-        " />
-
-      <!-- symbols must not have themselves as their own dependency -->
-      <if test="$uniq[ not( $cursym/@allow-circular = 'true' )
-                           and ( @name = $cursym/@name
-                                 or @parent = $cursym/@name ) ]">
-        <message terminate="yes"
+      <preproc:sym-dep name="{@name}">
+        <!-- @tex provided an non-empty, or function -->
+        <for-each-group select="preproc:sym-ref"
+                        group-by="@name">
+          <!-- symbols must not have themselves as their own dependency -->
+          <if test="not( $cursym/@allow-circular = 'true' )
+                      and ( @name = $cursym/@name
+                            or @parent = $cursym/@name )">
+            <message terminate="yes"
                      select="concat( '[preproc] !!! fatal: symbol ',
                                      $cursym/@name,
                                      ' references itself ',
                                      '(circular dependency)' )" />
-      </if>
+          </if>
 
-      <preproc:sym-dep name="{@name}">
-        <!-- @tex provided an non-empty, or function -->
-        <for-each select="$uniq">
           <variable name="name" select="@name" />
           <variable name="sym" as="element( preproc:sym )?"
                         select="$symtable-map( $name )" />
@@ -181,7 +171,7 @@
                                    number( $sym/@dim ),
                                    position() )" />
           </preproc:sym-ref>
-        </for-each>
+        </for-each-group>
       </preproc:sym-dep>
     </for-each>
   </preproc:sym-deps>
