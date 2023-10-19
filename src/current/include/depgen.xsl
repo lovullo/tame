@@ -39,15 +39,14 @@
             exclude-result-prefixes="ext util xs">
 
 
-<variable name="tex-defaults">
-  <preproc:syms>
-    <preproc:sym value="\alpha" vec="A" />
-    <preproc:sym value="\beta" vec="B" />
-    <preproc:sym value="\gamma" vec="\Gamma" />
-    <preproc:sym value="x" vec="X" />
-    <preproc:sym value="y" vec="Y" />
-    <preproc:sym value="z" vec="Z" />
-  </preproc:syms>
+  <!-- see preproc:tex-gen#3 -->
+<variable name="tex-defaults" as="element( preproc:tex )+">
+  <preproc:tex value="\alpha" vec="A" />
+  <preproc:tex value="\beta" vec="B" />
+  <preproc:tex value="\gamma" vec="\Gamma" />
+  <preproc:tex value="x" vec="X" />
+  <preproc:tex value="y" vec="Y" />
+  <preproc:tex value="z" vec="Z" />
 </variable>
 
 
@@ -173,59 +172,67 @@
             <variable name="tex" as="xs:string?"
                       select="if ( @tex ) then @tex else $sym/@tex" />
 
-            <choose>
-              <!-- even if function, @tex overrides symbol -->
-              <when test="$tex and not( $tex='' )">
-                <attribute name="tex" select="$tex" />
-              </when>
-
-              <when test="@type = 'func'">
-                <attribute name="tex">
-                  <text>\textrm{</text>
- h                   <value-of select="@name" />
-                  <text>}</text>
-                </attribute>
-              </when>
-
-              <otherwise>
-                <!-- assign a symbol -->
-                <variable name="pos" select="position()" />
-                <attribute name="tex">
-                  <variable name="texsym" select="
-                      $tex-defaults/preproc:syms/preproc:sym[ $pos ]
-                    " />
-
-                  <choose>
-                    <!-- scalar/vector default -->
-                    <when test="$texsym and number( $sym/@dim ) lt 2">
-                      <value-of select="$texsym/@value" />
-                    </when>
-
-                    <!-- matrix default -->
-                    <when test="$texsym">
-                      <value-of select="$texsym/@vec" />
-                    </when>
-
-                    <!-- no default available; generate one -->
-                    <otherwise>
-                      <value-of select="
-                          if ( number( $sym/@dim ) lt 2 ) then '\theta'
-                          else '\Theta'
-                        " />
-                      <text>_{</text>
-                        <value-of select="$pos" />
-                      <text>}</text>
-                    </otherwise>
-                  </choose>
-                </attribute>
-              </otherwise>
-            </choose>
+            <attribute name="tex" select="
+              if ( $tex and not( $tex = '' ) ) then
+                  $tex
+                else
+                  preproc:tex-gen( @name,
+                                   @type,
+                                   number( $sym/@dim ),
+                                   position() )" />
           </preproc:sym-ref>
         </for-each>
       </preproc:sym-dep>
     </for-each>
   </preproc:sym-deps>
 </template>
+
+
+<!--
+  Generate a default TeX symbol given a symbol's relative position within
+  some context.
+
+  Generally, the relative position is with respect to a parent
+  identifier.  The TeX symbols are typically used in a let list to visually
+  define variables that are later used in rendered expressions (on e.g. the
+  Summary Page).
+-->
+<function name="preproc:tex-gen" as="xs:string">
+  <param name="name" as="xs:string" />
+  <param name="type" as="xs:string" />
+  <param name="dim" as="xs:double" />
+  <param name="relpos" as="xs:integer" />
+
+  <!-- TODO: TAMER'll probably address this before it's fixed here, but this
+       may fail to generate a symbol! -->
+  <variable name="texsym" as="element( preproc:tex )?"
+            select="$tex-defaults[ $relpos ]" />
+
+  <choose>
+    <when test="$type = 'func'">
+      <sequence select="concat( '\textrm{', $name, '}' )" />
+    </when>
+
+    <!-- scalar/vector default -->
+    <when test="$texsym and $dim lt 2">
+      <sequence select="string( $texsym/@value )" />
+    </when>
+
+    <!-- matrix default -->
+    <when test="$texsym">
+      <sequence select="string( $texsym/@vec )" />
+    </when>
+
+    <otherwise>
+      <variable name="theta" as="xs:string"
+                select="if ( $dim lt 2 ) then
+                            '\theta'
+                          else
+                            '\Theta'" />
+      <sequence select="concat( $theta, '_{', $relpos, '}' )" />
+    </otherwise>
+  </choose>
+</function>
 
 
 <template mode="preproc:depgen" priority="7"
