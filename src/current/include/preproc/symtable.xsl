@@ -256,7 +256,10 @@
 
       <apply-templates mode="preproc:symtable-complete"
                            select="$newresult/preproc:sym">
-        <with-param name="syms" select="$newresult/preproc:sym" />
+        <with-param name="typedef-symtable-map" tunnel="yes"
+                    select="map:merge(
+                              for $sym in $newresult/preproc:sym[ @type = 'type' ]
+                                return map{ string( $sym/@name ) : $sym } ) " />
       </apply-templates>
     </preproc:symtable>
 
@@ -845,14 +848,13 @@
 
 <template mode="preproc:symtable-complete" priority="5"
           match="preproc:sym[ @need-resolve-dtype='true' ]">
-  <param name="syms" as="element( preproc:sym )*" />
+  <param name="typedef-symtable-map" as="map(*)" tunnel="yes" />
 
   <!-- attempt to derive type information from a typedef -->
   <!-- TODO: also check symbol table after import (post-process) -->
   <variable name="type" select="@dtype" />
   <variable name="typedef" as="element( preproc:sym )?"
-                select="$syms[ @type = 'type'
-                               and @name = $type ]" />
+            select="$typedef-symtable-map( $type )" />
 
   <if test="not( $typedef and $typedef/@dtype )">
     <message terminate="yes">
