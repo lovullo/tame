@@ -140,9 +140,8 @@
                                      '(circular dependency)' )" />
       </if>
 
-      <!-- grab the original source symbol for these references and augment them
-           with any additional dependency metadata -->
-      <variable name="syms" as="element( preproc:sym )*">
+      <preproc:sym-dep name="{@name}">
+        <!-- @tex provided an non-empty, or function -->
         <for-each select="$uniq">
           <variable name="name" select="@name" />
           <variable name="sym" as="element( preproc:sym )?"
@@ -159,53 +158,36 @@
             </message>
           </if>
 
-          <preproc:sym name="{@name}">
-            <sequence select="$sym/@*" />
-
-            <preproc:meta>
-              <!-- retain type -->
-              <sequence select="$sym/@type" />
-              <sequence select="$sym/@dim" />
-
-              <!-- copy any additional metadata -->
-              <sequence select="@*[ not( local-name() = 'name' ) ]" />
-            </preproc:meta>
-          </preproc:sym>
-        </for-each>
-      </variable>
-
-      <preproc:sym-dep name="{@name}">
-        <!-- @tex provided an non-empty, or function -->
-        <for-each select="$syms">
           <preproc:sym-ref>
+            <!-- minimal attribute copy (avoid data duplication as much as
+                 possible to reduce modification headaches later on) -->
+            <sequence select="$sym/@name,
+                              $sym/@parent,
+                              $sym/@type,
+                              $sym/@dim,
+                              $sym/@tex" />
+
+            <!-- copy any additional metadata -->
+            <sequence select="@*[ not( local-name() = 'name' ) ]" />
+
+            <variable name="tex" as="xs:string?"
+                      select="if ( @tex ) then @tex else $sym/@tex" />
+
             <choose>
               <!-- even if function, @tex overrides symbol -->
-              <when test="@tex and not( @tex='' )">
-                <attribute name="tex" select="@tex" />
-                <sequence select="@*" />
-                <sequence select="preproc:meta/@*" />
+              <when test="$tex and not( $tex='' )">
+                <attribute name="tex" select="$tex" />
               </when>
 
               <when test="@type = 'func'">
-                <sequence select="@*" />
-                <sequence select="preproc:meta/@*" />
-
                 <attribute name="tex">
                   <text>\textrm{</text>
-                    <value-of select="@name" />
+ h                   <value-of select="@name" />
                   <text>}</text>
                 </attribute>
               </when>
 
               <otherwise>
-                <variable name="name" select="@name" />
-                <variable name="sym" select="." />
-
-                <!-- minimal attribute copy (avoid data duplication as much as
-                     possible to reduce modification headaches later on) -->
-                <sequence select="@name, @parent" />
-                <sequence select="preproc:meta/@*" />
-
                 <!-- assign a symbol -->
                 <variable name="pos" select="position()" />
                 <attribute name="tex">
@@ -214,10 +196,6 @@
                     " />
 
                   <choose>
-                    <when test="$sym/@tex and not( $sym/@tex='' )">
-                      <value-of select="$sym/@tex" />
-                    </when>
-
                     <!-- scalar/vector default -->
                     <when test="$texsym and number( $sym/@dim ) lt 2">
                       <value-of select="$texsym/@value" />
