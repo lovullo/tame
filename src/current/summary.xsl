@@ -154,17 +154,7 @@
           document( concat( @__rootpath, @name, '.xmlo' ), . )/lv:*
         " />
 
-      <xsl:variable name="symtable-self" as="element( preproc:symtable )"
-                    select="$pkg-self/preproc:symtable" />
-      <xsl:variable name="symtable-self-map" as="map( xs:string, element( preproc:sym ) )"
-                    select="map:merge(
-                              for $sym in $symtable-self/preproc:sym
-                                return map{ string( $sym/@name ) : $sym } )" />
-
-      <xsl:apply-templates select="$pkg-self/lv:*">
-        <xsl:with-param name="symtable-map" tunnel="yes"
-                        select="$symtable-self-map" />
-      </xsl:apply-templates>
+      <xsl:apply-templates select="$pkg-self/lv:*" />
 
       <!-- get a list of unique packages and typeset them -->
       <!-- TODO: this logic is duplicated; see gen-pkg-menu -->
@@ -179,18 +169,8 @@
 
         <xsl:variable name="pkg" as="element()"
                       select="document( concat( @src, '.xmlo' ), . )/lv:*" />
-        <xsl:variable name="symtable" as="element( preproc:symtable )"
-                      select="$pkg/preproc:symtable" />
 
-        <xsl:variable name="symtable-map" as="map( xs:string, element( preproc:sym ) )"
-                      select="map:merge(
-                                for $sym in $symtable/preproc:sym
-                                  return map{ string( $sym/@name ) : $sym } )" />
-
-        <xsl:apply-templates select="$pkg/lv:*">
-          <xsl:with-param name="symtable-map" tunnel="yes"
-                          select="$symtable-map" />
-        </xsl:apply-templates>
+        <xsl:apply-templates select="$pkg/lv:*" />
       </xsl:for-each-group>
 
       <!-- some general information -->
@@ -407,8 +387,6 @@
   <xsl:param name="src" />
   <xsl:param name="pkg" select="$src" />
 
-  <xsl:variable name="syms" select="l:dep/preproc:sym" />
-
   <xsl:call-template name="get-menuitem-basic">
     <xsl:with-param name="title" select="'Types'" />
     <xsl:with-param name="type" select="'type'" />
@@ -485,7 +463,7 @@
   <!-- note that this does not output preprocessor-generated symbols, as that
        may yield a lot of clutter -->
   <xsl:copy-of select="
-    l:dep/preproc:sym[
+    $program-symtable/preproc:sym[
       @type=$type
       and not( @preproc:generated='true' )
       and (
@@ -633,6 +611,12 @@
   </a>
 </xsl:template>
 
+<xsl:template priority="9"
+              match="(lv:param|lv:const|lv:typedef)[
+                       not( preproc:sym-lookup( @name ) ) ]">
+  <!-- do not typeset objects that were not linked -->
+</xsl:template>
+
 
 <!--
   Generate parameter/constant list
@@ -645,17 +629,6 @@
   FIXME: this is broken!
 -->
 <xsl:template match="lv:param|lv:const|lv:item" priority="1">
-  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
-
-  <xsl:variable name="class">
-    <xsl:text>param</xsl:text>
-
-    <!-- indicate if this param is used for classification -->
-    <xsl:if test="@name = //lv:classify//lv:match/@on">
-      <xsl:text> classifies</xsl:text>
-    </xsl:if>
-  </xsl:variable>
-
   <xsl:variable name="name" select="@name" />
 
   <xsl:variable name="deps" as="element( preproc:sym-dep )?"
@@ -675,7 +648,7 @@
                               local-name()" />
 
     <legend class="sym-{$type}">
-      <xsl:variable name="sym" select="$symtable-map( $name )" />
+      <xsl:variable name="sym" select="preproc:sym-lookup( $name )" />
       <xsl:variable name="tex" select="$sym/@tex" />
 
       <!-- only show symbol if it is defined (no need for a default since
@@ -1019,47 +992,64 @@
 <xsl:template match="lv:classify" priority="1">
   <xsl:variable name="as" select="@as" />
 
-  <fieldset class="class math-typeset-hover">
-    <!-- used as an anchor -->
-    <xsl:attribute name="id">
-      <xsl:text>:class:</xsl:text>
-      <xsl:value-of select="@as" />
-    </xsl:attribute>
+  <xsl:variable name="sym" as="element( preproc:sym )?"
+                select="preproc:sym-lookup(
+                          concat( ':class:', $as ) )" />
 
-    <legend class="sym-class">
-      <xsl:value-of select="@desc" />
-      <span class="name">
-        <xsl:text> (</xsl:text>
-        <span>
-          <xsl:value-of select="@as" />
+  <!--
+    Do not spend time typesetting classifications that were not linked.
+
+    Not typesetting unused dependencies can also save a significant amount
+    of output, since some packages are full of generated code that is only
+    partly utilized by various programs.
+
+    This also allows us to use `$program-symtable-map` for all lookups,
+    since we do not try to look up dependencies that are not in our linked
+    symbol table.
+  -->
+  <xsl:if test="$sym">
+    <fieldset class="class math-typeset-hover">
+      <!-- used as an anchor -->
+      <xsl:attribute name="id">
+        <xsl:text>:class:</xsl:text>
+        <xsl:value-of select="@as" />
+      </xsl:attribute>
+
+      <legend class="sym-class">
+        <xsl:value-of select="@desc" />
+        <span class="name">
+          <xsl:text> (</xsl:text>
+          <span>
+            <xsl:value-of select="@as" />
+          </span>
+          <xsl:text>)</xsl:text>
         </span>
-        <xsl:text>)</xsl:text>
-      </span>
 
-      <!-- output source package -->
-      <xsl:call-template name="pkg-out" />
-    </legend>
+        <!-- output source package -->
+        <xsl:call-template name="pkg-out" />
+      </legend>
 
-    <div class="ultra-breakdown">
-      <fieldset>
-        <xsl:apply-templates select="lv:match" />
-      </fieldset>
-    </div>
-
-    <xsl:if test="@yields">
-      <div class="yields">
-        <xsl:attribute name="id">
-          <xsl:value-of select="@yields" />
-        </xsl:attribute>
-
-        <span class="calc-yields">Yields: </span>
-
-        <span class="sym-ref sym-cgen">
-          <xsl:value-of select="@yields" />
-        </span>
+      <div class="ultra-breakdown">
+        <fieldset>
+          <xsl:apply-templates select="lv:match" />
+        </fieldset>
       </div>
-    </xsl:if>
-  </fieldset>
+
+      <xsl:if test="@yields">
+        <div class="yields">
+          <xsl:attribute name="id">
+            <xsl:value-of select="@yields" />
+          </xsl:attribute>
+
+          <span class="calc-yields">Yields: </span>
+
+          <span class="sym-ref sym-cgen">
+            <xsl:value-of select="@yields" />
+          </span>
+        </div>
+      </xsl:if>
+    </fieldset>
+  </xsl:if>
 </xsl:template>
 
 
@@ -1184,12 +1174,10 @@
   @return anyOf match HTML
 -->
 <xsl:template match="lv:match[@anyOf]" mode="match-desc">
-  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
-
   <xsl:variable name="anyOf" select="@anyOf" />
 
   <!-- attempt to locate the typedef -->
-  <xsl:variable name="typedef" select="$symtable-map( $anyOf )" />
+  <xsl:variable name="typedef" select="preproc:sym-lookup( $anyOf )" />
 
   <xsl:text>match any value in </xsl:text>
 
@@ -1243,11 +1231,9 @@
   @return match HTML
 -->
 <xsl:template match="lv:match[@value]" mode="match-desc">
-  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
-
   <xsl:variable name="value" select="@value" />
 
-  <xsl:variable name="sym" select="$symtable-map( $value )" />
+  <xsl:variable name="sym" select="preproc:sym-lookup( $value )" />
 
   <xsl:text>= </xsl:text>
 
@@ -1272,13 +1258,11 @@
 
 
 <xsl:template match="c:value-of" mode="match-desc" priority="5">
-  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
-
   <xsl:variable name="name"
                 select="@name" />
 
   <xsl:variable name="sym" as="element( preproc:sym )"
-                select="$symtable-map( $name )" />
+                select="preproc:sym-lookup( $name )" />
 
   <a href="#{$name}" class="sym-ref sym-{$sym/@type}">
     <xsl:value-of select="$name" />
@@ -1401,13 +1385,17 @@
   @return premium calculation output
 -->
 <xsl:template match="lv:rate">
-  <!-- we only do this so that other templates can explicitly do this -->
-  <xsl:apply-templates select="." mode="gen-rate-block" />
+  <xsl:variable name="sym" as="element( preproc:sym )?"
+                select="preproc:sym-lookup( @yields )" />
+
+  <!-- see lv:classify's documentation about why we do not process
+       dependencies that were not linked -->
+  <xsl:if test="$sym">
+    <xsl:apply-templates select="." mode="gen-rate-block" />
+  </xsl:if>
 </xsl:template>
 
 <xsl:template match="lv:rate" mode="gen-rate-block">
-  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
-
   <xsl:variable name="root" select="/" />
 
   <xsl:variable name="name" select="@yields" />
@@ -1422,7 +1410,7 @@
     </xsl:attribute>
 
     <legend class="sym-rate">
-      <xsl:variable name="tex" select="$symtable-map( $name )/@tex" />
+      <xsl:variable name="tex" select="preproc:sym-lookup( $name )/@tex" />
 
       <!-- only show symbol if it is defined (no need for a default since
            defaults are specific to a given block) -->
@@ -1666,8 +1654,6 @@
 </xsl:template>
 
 <xsl:template name="ultra-breakdown-set" match="c:*" mode="ultra-breakdown" priority="1">
-  <xsl:param name="symtable-map" as="map(*)" tunnel="yes" />
-
   <xsl:param name="label" select="if ( @label ) then @label else @desc" />
   <xsl:param name="c" select="." />
 
@@ -1712,7 +1698,7 @@
 
       <xsl:if test="@name">
         <xsl:variable name="name" select="@name" />
-        <xsl:variable name="sym" select="$symtable-map( $name )" />
+        <xsl:variable name="sym" select="preproc:sym-lookup( $name )" />
 
         <xsl:variable name="ref"
                       select="if ( $sym/@parent ) then
