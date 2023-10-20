@@ -167,8 +167,17 @@
           <xsl:text>...</xsl:text>
         </xsl:message>
 
-        <xsl:variable name="pkg" as="element()"
+        <xsl:variable name="pkg"
                       select="document( concat( @src, '.xmlo' ), . )/lv:*" />
+
+        <!-- TODO: We ought to just put @as on the variable above, once any
+             bugs relating to missing build artifacts are resolved in
+             build pipelines -->
+        <xsl:if test="not( $pkg )">
+          <xsl:message select="concat(
+                                 '[summary] warning: missing package: ',
+                                 @src )" />
+        </xsl:if>
 
         <xsl:apply-templates select="$pkg/lv:*" />
       </xsl:for-each-group>
