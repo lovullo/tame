@@ -40,7 +40,6 @@
 
   <import package="class" />
   <import package="insurance" />
-  <import package="retry" />
   <import package="symbol" />
   <import package="tplgen" />
 
