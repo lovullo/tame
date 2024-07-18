@@ -21,7 +21,7 @@
 
 use super::{DefaultEscaper, Escaper};
 use super::{Error as XirError, QName, Token, TokenStream};
-use crate::sym::GlobalSymbolResolve;
+use crate::{diagnose::Diagnostic, sym::GlobalSymbolResolve};
 use std::io::{Error as IoError, Write};
 use std::result;
 
@@ -35,6 +35,18 @@ pub enum Error {
     // display to the user
     UnexpectedToken(String, WriterState),
     Todo(String, WriterState),
+}
+
+impl Diagnostic for Error {
+    fn describe<'a>(&'a self) -> Vec<crate::parse::prelude::AnnotatedSpan<'a>> {
+        // TODO: This falls back to `Display`,
+        //   which was written prior to the diagnostic system and is overly
+        //   verbose;
+        //     let's convert that into an appropriate span annotation,
+        //       which will also require fixing the TODO for `Error` itself
+        //       so that we have that span information.
+        vec![]
+    }
 }
 
 impl std::fmt::Display for Error {
