@@ -44,8 +44,9 @@ use tamer::{
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
+    diagnostic_error_sum,
     nir::NirToAirParseType,
-    parse::{lowerable, FinalizeError, ParseError, Token},
+    parse::{lowerable, FinalizeError},
     pipeline::{parse_package_xml, LowerXmliError, ParsePackageXmlError},
     xir::{self, reader::XmlXirReader, writer::XmlWriter, DefaultEscaper},
 };
@@ -180,9 +181,7 @@ fn compile<R: Reporter>(
     )(src, report_err)?;
 
     if reporter.has_errors() {
-        Err(UnrecoverableError::ErrorsDuringLowering(
-            reporter.error_count(),
-        ))
+        Err(LoweringError::ErrorsDuringLowering(reporter.error_count()).into())
     } else if let Some(dest) = fout {
         let asg = air_ctx.finish();
         derive_xmli(asg, dest, &escaper)
@@ -320,27 +319,28 @@ fn parse_options(opts: Options, args: Vec<String>) -> Result<Command, Fail> {
     Ok(Command::Compile(input, emit, output))
 }
 
-/// Toplevel `tamec` error representing a failure to complete the requested
-///   operation successfully.
-///
-/// These are errors that will result in aborting execution and exiting with
-///   a non-zero status.
-/// Contrast this with recoverable errors in [`tamer::pipeline`],
-///   which is reported real-time to the user and _does not_ cause the
-///   program to abort until the end of the compilation unit.
-///
-/// Note that an recoverable error,
-///   under a normal compilation strategy,
-///   will result in an [`UnrecoverableError::ErrorsDuringLowering`] at the
-///     end of the compilation unit.
-#[derive(Debug)]
-pub enum UnrecoverableError {
-    Io(io::Error),
-    Fmt(fmt::Error),
-    XirWriterError(xir::writer::Error),
-    LowerXmliError(LowerXmliError<Infallible>),
-    ErrorsDuringLowering(ErrorCount),
-    FinalizeError(FinalizeError),
+diagnostic_error_sum! {
+    /// Toplevel `tamec` error representing a failure to complete the requested
+    ///   operation successfully.
+    ///
+    /// These are errors that will result in aborting execution and exiting with
+    ///   a non-zero status.
+    /// Contrast this with recoverable errors in [`tamer::pipeline`],
+    ///   which is reported real-time to the user and _does not_ cause the
+    ///   program to abort until the end of the compilation unit.
+    ///
+    /// Note that an recoverable error,
+    ///   under a normal compilation strategy,
+    ///   will result in an [`UnrecoverableError::ErrorsDuringLowering`] at the
+    ///     end of the compilation unit.
+    pub enum UnrecoverableError {
+        Io(io::Error),
+        Fmt(fmt::Error),
+        XirWriterError(xir::writer::Error),
+        LowerXmliError(LowerXmliError<Infallible>),
+        LoweringError(LoweringError),
+        FinalizeError(FinalizeError),
+    }
 }
 
 /// Number of errors that occurred during this compilation unit.
@@ -349,77 +349,28 @@ pub enum UnrecoverableError {
 ///   have in your code.
 type ErrorCount = usize;
 
-impl From<io::Error> for UnrecoverableError {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
+/// Aggregate failure for lowering operations.
+#[derive(Debug)]
+pub enum LoweringError {
+    ErrorsDuringLowering(ErrorCount),
 }
 
-impl From<fmt::Error> for UnrecoverableError {
-    fn from(e: fmt::Error) -> Self {
-        Self::Fmt(e)
-    }
-}
+impl Error for LoweringError {}
 
-impl From<xir::writer::Error> for UnrecoverableError {
-    fn from(e: xir::writer::Error) -> Self {
-        Self::XirWriterError(e)
-    }
-}
-
-impl From<LowerXmliError<Infallible>> for UnrecoverableError {
-    fn from(e: LowerXmliError<Infallible>) -> Self {
-        Self::LowerXmliError(e)
-    }
-}
-
-impl From<FinalizeError> for UnrecoverableError {
-    fn from(e: FinalizeError) -> Self {
-        Self::FinalizeError(e)
-    }
-}
-
-impl<T: Token> From<ParseError<T, Infallible>> for UnrecoverableError {
-    fn from(_: ParseError<T, Infallible>) -> Self {
-        unreachable!(
-            "<UnrecoverableError as From<ParseError<T, Infallible>>>::from"
-        )
-    }
-}
-
-impl Display for UnrecoverableError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use UnrecoverableError::*;
-
+impl Display for LoweringError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Io(e) => Display::fmt(e, f),
-            Fmt(e) => Display::fmt(e, f),
-            LowerXmliError(e) => Display::fmt(e, f),
-            XirWriterError(e) => Display::fmt(e, f),
-            FinalizeError(e) => Display::fmt(e, f),
-
-            // TODO: Use formatter for dynamic "error(s)"
-            ErrorsDuringLowering(err_count) => {
-                write!(f, "aborting due to previous {err_count} error(s)",)
+            LoweringError::ErrorsDuringLowering(err_count) => {
+                write!(f, "aborting due to previous {err_count} error(s)")
             }
         }
     }
 }
 
-impl Error for UnrecoverableError {}
-
-impl Diagnostic for UnrecoverableError {
+impl Diagnostic for LoweringError {
     fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
-        use UnrecoverableError::*;
-
         match self {
-            LowerXmliError(e) => e.describe(),
-            FinalizeError(e) => e.describe(),
-
-            // Fall back to `Display`
-            Io(_) | Fmt(_) | XirWriterError(_) | ErrorsDuringLowering(_) => {
-                vec![]
-            }
+            LoweringError::ErrorsDuringLowering(_) => vec![],
         }
     }
 }

@@ -124,6 +124,105 @@ impl Diagnostic for Infallible {
     }
 }
 
+impl Diagnostic for std::io::Error {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
+        // Fall back to `Display`
+        NO_DESC
+    }
+}
+
+impl Diagnostic for std::fmt::Error {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
+        // Fall back to `Display`
+        NO_DESC
+    }
+}
+
+/// Generate an [`Error`] sum type that proxies to inner types'
+///   [`Diagnostic`].
+///
+/// TAMER's philosophy on errors is that every point in the program should
+///   very explicitly state each of its possible error states.
+/// When errors are intended to bubble up the stack to a caller,
+///   this is generally accomplished via sum types that aggregate the error
+///   types of various distinct code paths.
+///
+/// When errors are aggregated in this way,
+///   this results in a significant amount of boilerplate that can
+///   significantly distract from the rest of the system---​
+///     that is,
+///       the boilerplate introduces a cognitive burden that is
+///       disproportionate to the fairly basic job that it is doing.
+/// This job is to
+///
+///   1. Create an `enum` that is the sum type;
+///   2. Derive [`Debug`];
+///   3. Implement [`Error`];
+///   4. Implement [`From`] to lift each error type to the sum type;
+///   5. Implement [`Display`] to proxy to the [`Display`] implementation of
+///        each inner error type; and
+///   6. Implement [`Diagnostic`] to proxy to the [`Diagnostic`]
+///        implementation of each inner error type.
+///
+/// The purpose of this macro is to provide an abstraction that clearly
+///   states the intent of the sum type and eliminates that boilerplate.
+/// The syntax of this macro is meant to look like a manual implementation
+///   of the enum,
+///     such that refactoring existing code to use this template should
+///     produce a diff that (a) eliminates the `impl`s and (b) wraps the
+///     existing enum in this macro,
+///       nothing more.
+/// That is:
+///   given an `enum` representing the sum type,
+///     generate everything else.
+///
+/// [`Error`]: std::error::Error
+#[macro_export]
+macro_rules! diagnostic_error_sum {
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident {
+            $( $variant:ident($inner:ty), )+
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug)]
+        $vis enum $name {
+            $( $variant($inner), )+
+        }
+
+        impl std::error::Error for $name {}
+
+        $(
+            impl From<$inner> for $name {
+                fn from(e: $inner) -> Self {
+                    Self::$variant(e)
+                }
+            }
+        )+
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                match self {
+                    $(
+                        Self::$variant(e) => Display::fmt(e, f),
+                    )+
+                }
+            }
+        }
+
+        impl $crate::diagnose::Diagnostic for $name {
+            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan<'_>> {
+                match self {
+                    $(
+                        Self::$variant(e) => e.describe(),
+                    )+
+                }
+            }
+        }
+    }
+}
+
 /// Diagnostic severity level.
 ///
 /// Levels are used both for entire reports and for styling of individual
