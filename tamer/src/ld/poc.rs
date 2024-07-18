@@ -151,39 +151,14 @@ fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
 /// This cannot include panics,
 ///   but efforts have been made to reduce panics to situations that
 ///   represent the equivalent of assertions.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum TameldError {
-    Io(NeqIoError),
+    Io(io::Error),
     SortError(SortError),
     LoadXmloError(LoadXmloError<XirError>),
     XirWriterError(XirWriterError),
     FinalizeError(FinalizeError),
     Fmt(fmt::Error),
-}
-
-#[derive(Debug)]
-pub struct NeqIoError(io::Error);
-
-impl PartialEq for NeqIoError {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
-impl Display for NeqIoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self(e) => e.fmt(f),
-        }
-    }
-}
-
-impl Error for NeqIoError {}
-
-impl From<io::Error> for NeqIoError {
-    fn from(e: io::Error) -> Self {
-        Self(e)
-    }
 }
 
 impl From<io::Error> for TameldError {
