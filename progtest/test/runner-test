@@ -25,16 +25,35 @@ cd "$( dirname "$0" )"
 
 declare -r bin=../bin
 
-
-main()
+run-test()
 {
+    "$bin"/runner _stub/program.js "$@" >/dev/null
+}
+
+expect-ok()
+{
+    run-test "$@"
+}
+
+expect-fail()
+{
+    run-test "$@" && exit 1 || true
+}
+
+main() {
   set -x
 
   # should succeed
-  "$bin"/runner _stub/program.js _stub/good.yml >/dev/null
+  expect-ok _stub/good.yml
 
   # should fail
-  "$bin"/runner _stub/program.js _stub/bad.yml >/dev/null && exit 1 || true
+  expect-fail _stub/bad.yml
+
+  # concatenation of good and bad should fail
+  expect-fail _stub/{good,bad}.yml
+
+  # missing file should fail
+  expect-fail does-not-exist.yml 2>/dev/null
 }
 
 main "$@"
