@@ -296,7 +296,7 @@ bootstrap-if-necessary: FORCE
 suppliers.mk: $(src_suppliersmk) | bootstrap-if-necessary
 	$(ant) -q pkg-dep >/dev/null
 	find $(path_ui)/program/ -name '*.dep' | xargs cat $(path_ui)/program.dep | sort -u \
-	  > $(path_ui)/package-dfns.dep
+	  >> $(path_ui)/package-dfns.dep
 	$(RM) $(path_ui)/program.dep
 	$(path_dsl)/tame/build-aux/gen-make $(SRCPATHS) > $@
 	test ! -d $(path_c1map) || $(path_dsl)/tame/build-aux/gen-c1make $(path_c1map)/*.xml >> $@
