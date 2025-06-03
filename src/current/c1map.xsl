@@ -331,8 +331,8 @@
   </lvmp:var>
 </xsl:template>
 
-<xsl:template match="lvm:pass[@name='line_code'] | lvm:map[@to='line_code']" priority="9">
-  <xsl:message terminate="yes">error: "line_code" is a reserved word</xsl:message>
+<xsl:template match="lvm:pass[@name='line_data'] | lvm:map[@to='line_data']" priority="9">
+  <xsl:message terminate="yes">error: "line_data" is a reserved word</xsl:message>
 </xsl:template>
 
 <xsl:template match="lvm:external" priority="4">
@@ -360,6 +360,7 @@
   mode="lvmp:c1-node-result" priority="5">
 
   <lvmp:for-each name="{@lvm:for-each}">
+    
     <xsl:choose>
       <xsl:when test="lvm:when">
         <lvmp:condition when="true">
