@@ -179,9 +179,7 @@ macro_rules! object_rel {
         //   `min_specialization`;
         //     see `AsgRelMut` for more information.
         $(
-            impl AsgRelMut<$kind> for $from {
-                $( $($impl)* )?
-            }
+            object_rel!(@trait_specialization $from $kind $( $($impl)* )?);
         )*
     }};
 
@@ -210,11 +208,34 @@ macro_rules! object_rel {
     (@impl_rel_to $from:ident tree $kind:ident)  => {
         impl ObjectTreeRelTo<$kind> for $from {}
     };
-    (@impl_rel_to $from:ident dyn $kind:ident)  => {
+    (@impl_rel_to $from:ident dyn $kind:ident) => {
         // It _could_ be either a tree or cross edge;
         //   we can't know statically.
         impl ObjectTreeRelTo<$kind> for $from {}
         impl ObjectCrossRelTo<$kind> for $from {}
+    };
+
+    // If no implementation is provided by the caller,
+    //   the default behavior is to commit the edge to the graph.
+    (@trait_specialization $from:ident $kind:ident) => {
+        impl AsgRelMut<$kind> for $from {
+            fn pre_add_edge(
+                asg: &mut Asg,
+                _rel: $crate::asg::graph::ProposedRel<Self, $kind>,
+                commit: impl FnOnce(&mut Asg),
+            ) -> Result<(), AsgError> {
+                Ok(commit(asg))
+            }
+        }
+    };
+    // Otherwise,
+    //   the provided implementation gives objects a chance to validate the
+    //   proposed relation relation before either committing or rejecting
+    //   the edge.
+    (@trait_specialization $from:ident $kind:ident $($impl:tt)+) => {
+        impl AsgRelMut<$kind> for $from {
+            $($impl)+
+        }
     };
 }
 

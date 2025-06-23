@@ -609,18 +609,36 @@ impl<OA: ObjectRelatable, OB: ObjectRelatable> AsgRelMut<OB> for OA {
     ///     so this is effective the method called for all edges _unless_
     ///     overridden for a particular edge for a particular object
     ///       (see [`object::tpl`] as an example).
+    ///
+    /// The benefit of using trait specialization here is that we do not
+    ///   have to generate implementations for every relationship
+    ///     (every permutation of pairs)
+    ///     when only a subset of them are actually valid;
+    ///       should `min_specialization` not be stabalized,
+    ///         then this default implementation can be removed by using
+    ///         macros to generate those implementations.
     default fn pre_add_edge(
-        asg: &mut Asg,
-        _rel: ProposedRel<Self, OB>,
-        commit: impl FnOnce(&mut Asg),
+        _asg: &mut Asg,
+        rel: ProposedRel<Self, OB>,
+        _commit: impl FnOnce(&mut Asg),
     ) -> Result<(), AsgError> {
-        Ok(commit(asg))
+        // The type system should have prevented this; this represents a
+        // (significant) implementation bug.  Check `object_rel` macro and
+        // callers.
+        diagnostic_unreachable!(
+            vec![
+                rel.from_oi.note("for this object..."),
+                rel.to_oi.internal_error("...this target is invalid"),
+            ],
+            "AsgRelMut::pre_add_edge: invalid edge: {rel:?}",
+        );
     }
 }
 
 /// The relationship proposed by [`Asg::add_tree_edge`] or
 ///   [`Asg::add_cross_edge`],
 ///     requiring approval from [`AsgRelMut::pre_add_edge`].
+#[derive(Debug)]
 pub struct ProposedRel<OA: ObjectKind, OB: ObjectKind> {
     from_oi: ObjectIndex<OA>,
     to_oi: ObjectIndex<OB>,
