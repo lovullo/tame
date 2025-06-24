@@ -154,6 +154,12 @@
 //       which can be inscrutable if you are not very familiar with Rust's
 //       borrow checker.
 #![allow(clippy::needless_lifetimes)]
+// This project's indentation strategy for documentation
+//   (as you can read here)
+//   invalidates this lint.
+// This should be removed if we alter the indentation convention for this
+//   project.
+#![allow(clippy::doc_overindented_list_items)]
 // Uh oh.  Trait specialization, you say?
 // This deserves its own section.
 //
