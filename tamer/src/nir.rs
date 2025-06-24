@@ -71,6 +71,7 @@ use std::{
     convert::Infallible,
     error::Error,
     fmt::{Debug, Display},
+    marker::ConstParamTy,
 };
 
 pub use abstract_bind::{AbstractBindTranslate, AbstractBindTranslateError};
@@ -485,7 +486,7 @@ impl<E> From<Nir> for Result<Nir, E> {
 ///   which are refined into types as enough information becomes available.
 /// Value parsing must be deferred if a value requires desugaring or
 ///   metavalue expansion.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, ConstParamTy)]
 #[repr(u8)]
 pub enum NirSymbolTy {
     AnyIdent,
@@ -628,14 +629,12 @@ pub enum PkgType {
     Mod,
 }
 
-/// Assert that a literal value `S` was provided,
-///   yielding a [`Nir::Noop`] if successful.
-pub fn literal<const S: SymbolId>(
-    value: SPair,
-) -> Result<Nir, NirAttrParseError> {
-    match value {
-        SPair(val, span) if val == S => Ok(Nir::Noop(span)),
-        _ => Err(NirAttrParseError::LiteralMismatch(value.span(), S)),
+pub fn literal(
+    sym: SymbolId,
+) -> impl Fn(SPair) -> Result<Nir, NirAttrParseError> {
+    move |value| match value {
+        SPair(val, span) if val == sym => Ok(Nir::Noop(span)),
+        _ => Err(NirAttrParseError::LiteralMismatch(value.span(), sym)),
     }
 }
 

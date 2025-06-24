@@ -209,7 +209,7 @@ pub type SpanLenSize = global::FrontendTokenLength;
 ///
 /// See the [module-level documentation](self) for more information.
 #[cfg(target_endian = "little")]
-#[repr(packed)]
+#[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
 pub struct Span {
     /// Token length (ending byte offset - `offset`).
@@ -227,6 +227,7 @@ pub struct Span {
     ctx: Context,
 }
 
+assert_eq_size!(Span, u64);
 assert_eq_size!(Span, Option<Span>);
 
 impl Span {

@@ -153,9 +153,8 @@ pub use meta::Meta;
 pub use pkg::Pkg;
 pub use rel::{
     DynObjectRel, ObjectCrossRelTo, ObjectIndexCrossRelTo, ObjectIndexRelTo,
-    ObjectIndexTo, ObjectIndexToCross, ObjectIndexToTree, ObjectIndexTreeRelTo,
-    ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
-    ObjectTreeRelTo,
+    ObjectIndexTo, ObjectIndexToTree, ObjectIndexTreeRelTo, ObjectRel,
+    ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
 };
 pub use root::Root;
 pub use tpl::Tpl;
@@ -165,9 +164,9 @@ pub mod prelude {
     pub use super::{
         super::{super::error::AsgError, Asg, AsgRelMut},
         Object, ObjectCrossRelTo, ObjectIndex, ObjectIndexCrossRelTo,
-        ObjectIndexRelTo, ObjectIndexToCross, ObjectIndexToTree,
-        ObjectIndexTreeRelTo, ObjectKind, ObjectRel, ObjectRelFrom,
-        ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
+        ObjectIndexRelTo, ObjectIndexTreeRelTo, ObjectKind, ObjectRel,
+        ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
+        ObjectTreeRelTo,
     };
 }
 

@@ -26,12 +26,12 @@ use super::{
     TokenStream, Transition, TransitionResult,
 };
 use crate::{
-    parse::state::{Lookahead, TransitionData},
+    parse::{
+        state::{Lookahead, TransitionData},
+        Token,
+    },
     span::Span,
 };
-
-#[cfg(doc)]
-use super::Token;
 
 /// Result of applying a [`Token`] to a [`ParseState`],
 ///   with any error having been wrapped in a [`ParseError`].

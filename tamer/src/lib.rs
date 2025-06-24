@@ -85,6 +85,7 @@
 //   nightly versions as of 2023-06.
 #![allow(incomplete_features)]
 #![feature(adt_const_params)]
+#![feature(unsized_const_params)]
 // Used for traits returning functions,
 //   such as those in `crate::f`.
 // Our use of this feature is fairly basic;
