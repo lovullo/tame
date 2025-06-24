@@ -345,16 +345,16 @@ mod test {
 
     // Simply adds ":ESC" as a suffix to the provided byte slice.
     impl Escaper for MockEscaper {
-        fn escape_bytes(value: &[u8]) -> Cow<[u8]> {
+        fn escape_bytes<'a>(value: &'a [u8]) -> Cow<'a, [u8]> {
             let mut esc = value.to_owned();
             esc.extend_from_slice(b":ESC");
 
             Cow::Owned(esc)
         }
 
-        fn unescape_bytes(
-            _: &[u8],
-        ) -> result::Result<Cow<[u8]>, SpanlessError> {
+        fn unescape_bytes<'a>(
+            _: &'a [u8],
+        ) -> result::Result<Cow<'a, [u8]>, SpanlessError> {
             unreachable!("Writer should not be unescaping!")
         }
     }

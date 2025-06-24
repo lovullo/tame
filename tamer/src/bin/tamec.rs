@@ -409,7 +409,7 @@ impl Display for UnrecoverableError {
 impl Error for UnrecoverableError {}
 
 impl Diagnostic for UnrecoverableError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use UnrecoverableError::*;
 
         match self {

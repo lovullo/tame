@@ -668,7 +668,7 @@ impl Display for NirAttrParseError {
 }
 
 impl Diagnostic for NirAttrParseError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         match self {
             Self::LiteralMismatch(span, expected) => span
                 .error(format!("expecting {}", TtQuote::wrap(expected)))

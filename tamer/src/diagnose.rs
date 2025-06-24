@@ -98,7 +98,7 @@ use crate::span::Span;
 ///   as is useful to resolve the problem.
 /// Whether or not the absence of this description represents a deficiency
 ///   depends on the error context.
-pub const NO_DESC: Vec<AnnotatedSpan> = vec![];
+pub const NO_DESC: Vec<AnnotatedSpan<'_>> = vec![];
 
 /// An event able to describe itself for diagnostic reporting.
 ///
@@ -113,11 +113,11 @@ pub const NO_DESC: Vec<AnnotatedSpan> = vec![];
 pub trait Diagnostic: Display + Debug + Sized {
     /// Produce a series of [`AnnotatedSpan`]s describing the source and
     ///   circumstances of the diagnostic event.
-    fn describe(&self) -> Vec<AnnotatedSpan>;
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>>;
 }
 
 impl Diagnostic for Infallible {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         // This should never actually happen unless someone is explicitly
         //   invoking this method on `Infallible`.
         unreachable!("Infallible is not supposed to fail")
@@ -359,7 +359,7 @@ macro_rules! diagnostic_infallible {
         }
 
         impl $crate::diagnose::Diagnostic for $name {
-            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan> {
+            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan<'_>> {
                 // This is a unit struct and should not be able to be
                 //   instantiated!
                 unreachable!(

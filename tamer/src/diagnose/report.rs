@@ -149,10 +149,10 @@ impl<R: SpanResolver> Reporter for VisualReporter<R> {
 ///     allocation for a span that was just processed and whose section will
 ///     be squashed anyway
 ///       (see [`Section::maybe_squash_into`]).
-fn describe_resolved<D, F>(
+fn describe_resolved<'d, D, F>(
     mut resolve: F,
-    diagnostic: &D,
-) -> impl Iterator<Item = MaybeResolvedSpan<ResolvedSpan>>
+    diagnostic: &'d D,
+) -> impl Iterator<Item = MaybeResolvedSpan<'d, ResolvedSpan>>
 where
     D: Diagnostic,
     F: FnMut(Span) -> Result<ResolvedSpan, SpanResolverError>,

@@ -297,7 +297,7 @@ impl Display for AbstractBindTranslateError {
 }
 
 impl Diagnostic for AbstractBindTranslateError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use AbstractBindTranslateError::*;
 
         match self {

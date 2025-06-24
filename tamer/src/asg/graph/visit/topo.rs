@@ -89,10 +89,10 @@ use crate::{asg::graph::object::ObjectRel, span::Span};
 ///   ontology and will automatically sort an acyclic subgraph produced by
 ///   cutting permitted cycles.
 /// See the [module-level documentation](self) for more information.
-pub fn topo_sort<O: ObjectKind>(
-    asg: &Asg,
+pub fn topo_sort<'a, O: ObjectKind>(
+    asg: &'a Asg,
     init: impl Iterator<Item = ObjectIndex<O>>,
-) -> TopoPostOrderDfs {
+) -> TopoPostOrderDfs<'a> {
     TopoPostOrderDfs::new(asg, init.map(ObjectIndex::widen))
 }
 
@@ -508,7 +508,7 @@ impl Display for Cycle {
 impl Error for Cycle {}
 
 impl Diagnostic for Cycle {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         let path = &self.path;
         let n = path.len();
         let ident = path.last().unwrap();

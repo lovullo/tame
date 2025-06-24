@@ -47,7 +47,7 @@ impl<'a> MockBytesStart<'a> {
         self.name
     }
 
-    pub fn attributes(&self) -> MockAttributes {
+    pub fn attributes(&self) -> MockAttributes<'a> {
         self.attrs.take().expect("missing mock attributes")
     }
 }

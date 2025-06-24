@@ -368,7 +368,7 @@ impl From<CanonicalNameError> for AsgError {
 }
 
 impl Diagnostic for AsgError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use AsgError::*;
 
         // Before improving the diagnostic messages below,

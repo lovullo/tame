@@ -157,7 +157,7 @@ fn attr_value_error() {
     }
 
     impl Diagnostic for FooError {
-        fn describe(&self) -> Vec<AnnotatedSpan> {
+        fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
             vec![]
         }
     }

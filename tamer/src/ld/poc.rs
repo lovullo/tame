@@ -238,7 +238,7 @@ impl Display for TameldError {
 impl Error for TameldError {}
 
 impl Diagnostic for TameldError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         match self {
             Self::LoadXmloError(e) => e.describe(),
             Self::FinalizeError(e) => e.describe(),

@@ -401,7 +401,7 @@ fn element_with_failed_attr_parsing() {
     }
 
     impl Diagnostic for FooError {
-        fn describe(&self) -> Vec<AnnotatedSpan> {
+        fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
             vec![]
         }
     }

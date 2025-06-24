@@ -103,7 +103,7 @@ impl<NT: Nt> Display for NtError<NT> {
 }
 
 impl<NT: Nt> Diagnostic for NtError<NT> {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use crate::{parse::Token, xir::fmt::TtCloseXmlEle};
 
         match self {
@@ -150,7 +150,7 @@ impl<NT: SumNt> Display for SumNtError<NT> {
 }
 
 impl<NT: SumNt> Diagnostic for SumNtError<NT> {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         // Note that we should place expected values in the help
         //   footnote rather than the span label because it can
         //   get rather long.
@@ -213,7 +213,7 @@ impl<S: AttrParseState> Error for AttrParseError<S> {
 }
 
 impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         match self {
             // TODO: help stating attributes that can appear instead
             Self::UnexpectedAttr(attr @ Attr(.., aspan), ele_name) => aspan

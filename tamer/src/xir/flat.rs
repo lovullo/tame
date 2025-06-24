@@ -845,7 +845,7 @@ impl Error for XirToXirfError {
 }
 
 impl Diagnostic for XirToXirfError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use XirToXirfError::*;
 
         match self {

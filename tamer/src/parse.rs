@@ -252,7 +252,7 @@ pub mod test {
     }
 
     impl Diagnostic for EchoStateError {
-        fn describe(&self) -> Vec<AnnotatedSpan> {
+        fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
             vec![]
         }
     }
@@ -507,7 +507,7 @@ pub mod test {
         }
 
         impl Diagnostic for SupError {
-            fn describe(&self) -> Vec<AnnotatedSpan> {
+            fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
                 vec![]
             }
         }
@@ -525,7 +525,7 @@ pub mod test {
         }
 
         impl Diagnostic for SubAError {
-            fn describe(&self) -> Vec<AnnotatedSpan> {
+            fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
                 vec![]
             }
         }
@@ -543,7 +543,7 @@ pub mod test {
         }
 
         impl Diagnostic for SubBError {
-            fn describe(&self) -> Vec<AnnotatedSpan> {
+            fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
                 vec![]
             }
         }

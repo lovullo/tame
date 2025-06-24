@@ -649,7 +649,7 @@ impl std::error::Error for TransitionError {
 }
 
 impl Diagnostic for TransitionError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use TransitionError::*;
 
         match self {
@@ -784,7 +784,7 @@ impl std::error::Error for UnresolvedError {
 }
 
 impl Diagnostic for UnresolvedError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use UnresolvedError::*;
 
         match self {

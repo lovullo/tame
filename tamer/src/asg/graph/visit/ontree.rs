@@ -185,9 +185,9 @@ pub use order::*;
 ///
 /// See the [module-level documentation](super) for important information
 ///   about this traversal.
-pub fn tree_reconstruction(
-    asg: &Asg,
-) -> TreePreOrderDfs<SourceCompatibleTreeEdgeOrder> {
+pub fn tree_reconstruction<'a>(
+    asg: &'a Asg,
+) -> TreePreOrderDfs<'a, SourceCompatibleTreeEdgeOrder> {
     TreePreOrderDfs::new(asg)
 }
 

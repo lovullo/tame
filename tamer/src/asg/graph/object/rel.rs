@@ -378,10 +378,10 @@ impl<S> DynObjectRel<S, ObjectIndex<Object>> {
     ///   [`ObjectIndex`] without having to explicitly narrow themselves.
     /// While isn't any more or less safe than the manual alternative,
     ///   it _does_ defend against logic bugs.
-    pub fn resolve_target_oi_pair(
+    pub fn resolve_target_oi_pair<'a>(
         self,
-        asg: &Asg,
-    ) -> DynObjectRel<S, Object<OiPairObjectInner>> {
+        asg: &'a Asg,
+    ) -> DynObjectRel<S, Object<OiPairObjectInner<'a>>> {
         self.map(|(soi, toi)| (soi, toi.resolve(asg).pair_oi(toi)))
     }
 
@@ -487,10 +487,10 @@ impl<T> DynObjectRel<ObjectIndex<Object>, T> {
     ///   [`ObjectIndex`] without having to explicitly narrow themselves.
     /// While isn't any more or less safe than the manual alternative,
     ///   it _does_ defend against logic bugs.
-    pub fn resolve_source_oi_pair(
+    pub fn resolve_source_oi_pair<'a>(
         self,
-        asg: &Asg,
-    ) -> DynObjectRel<Object<OiPairObjectInner>, T> {
+        asg: &'a Asg,
+    ) -> DynObjectRel<Object<OiPairObjectInner<'a>>, T> {
         self.map(|(soi, toi)| (soi.resolve(asg).pair_oi(soi), toi))
     }
 }
@@ -501,11 +501,13 @@ impl DynObjectRel<ObjectIndex<Object>, ObjectIndex<Object>> {
     ///
     /// See [`Self::resolve_target_oi_pair`] and
     ///   [`Self::resolve_source_oi_pair`] for more information.
-    pub fn resolve_oi_pairs(
+    pub fn resolve_oi_pairs<'a>(
         self,
-        asg: &Asg,
-    ) -> DynObjectRel<Object<OiPairObjectInner>, Object<OiPairObjectInner>>
-    {
+        asg: &'a Asg,
+    ) -> DynObjectRel<
+        Object<OiPairObjectInner<'a>>,
+        Object<OiPairObjectInner<'a>>,
+    > {
         self.resolve_source_oi_pair(asg).resolve_target_oi_pair(asg)
     }
 }

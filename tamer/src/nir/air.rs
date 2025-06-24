@@ -397,7 +397,7 @@ impl Error for NirToAirError {}
 // TODO: We need to be able to augment with useful context,
 //   e.g. XML suggestions.
 impl Diagnostic for NirToAirError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use NirToAirError::*;
 
         match self {

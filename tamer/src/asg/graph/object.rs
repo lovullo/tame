@@ -464,7 +464,7 @@ impl Object<OnlyObjectInner> {
     /// Since [`Object`] is the type stored directly on the [`Asg`],
     ///   this is necessary in order to use [`Object`] as a wrapper over
     ///   narrowed [`ObjectKind`]s.
-    fn inner_as_ref(&self) -> Object<RefObjectInner> {
+    fn inner_as_ref<'a>(&'a self) -> Object<RefObjectInner<'a>> {
         map_object!(self, x => x)
     }
 
@@ -486,7 +486,10 @@ impl Object<OnlyObjectInner> {
     /// Getting this wrong won't lead to memory safety issues,
     ///   but it will lead to bugs and confusion at best,
     ///   and panics at worst if `oi` references a different [`ObjectKind`].
-    fn pair_oi(&self, oi: ObjectIndex<Object>) -> Object<OiPairObjectInner> {
+    fn pair_oi<'a>(
+        &'a self,
+        oi: ObjectIndex<Object>,
+    ) -> Object<OiPairObjectInner<'a>> {
         map_object!(
             self.inner_as_ref(),
             x => (x, oi.must_narrow_into().overwrite(self.span()))

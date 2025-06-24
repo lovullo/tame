@@ -645,7 +645,7 @@ impl Display for InterpError {
 impl Error for InterpError {}
 
 impl Diagnostic for InterpError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use InterpError::*;
 
         match self {

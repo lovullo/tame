@@ -432,7 +432,7 @@ impl Display for CanonicalNameError {
 impl Error for CanonicalNameError {}
 
 impl Diagnostic for CanonicalNameError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use CanonicalNameError::*;
 
         match self {

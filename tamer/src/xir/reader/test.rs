@@ -51,11 +51,13 @@ struct MockEscaper {}
 
 // Simply adds ":UNESC" as a suffix to the provided byte slice.
 impl Escaper for MockEscaper {
-    fn escape_bytes(_: &[u8]) -> Cow<[u8]> {
+    fn escape_bytes<'a>(_: &'a [u8]) -> Cow<'a, [u8]> {
         unreachable!("Reader should not be escaping!")
     }
 
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
+    fn unescape_bytes<'a>(
+        value: &'a [u8],
+    ) -> Result<Cow<'a, [u8]>, SpanlessError> {
         let mut unesc = value.to_owned();
         unesc.extend_from_slice(b":UNESC");
 

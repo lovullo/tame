@@ -1103,7 +1103,7 @@ macro_rules! ele_parse {
         }
 
         impl $crate::diagnose::Diagnostic for [<$super Error_>] {
-            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan> {
+            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan<'_>> {
                 match self {
                     $(
                         Self::$nt(e) => e.describe(),

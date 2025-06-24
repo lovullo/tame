@@ -723,7 +723,7 @@ fn at_invalid_char_boundary() {
 
     let line_span = ctx.span(0, 6);
 
-    let mut sut = BufSpanResolver::new(Cursor::new(buf.clone()), ctx);
+    let mut sut = BufSpanResolver::new(Cursor::new(buf), ctx);
 
     assert_eq!(
         Ok(ResolvedSpan {
@@ -735,7 +735,7 @@ fn at_invalid_char_boundary() {
                     3.unwrap_into()
                 )),
                 span: line_span,
-                text: buf.clone().into(),
+                text: buf.into(),
             }])
             .unwrap(),
         }),
@@ -755,7 +755,7 @@ fn at_invalid_char_boundary() {
                     4.unwrap_into()
                 )),
                 span: line_span,
-                text: buf.clone().into(),
+                text: buf.into(),
             }])
             .unwrap(),
         }),
@@ -774,7 +774,7 @@ fn at_invalid_char_boundary() {
                     4.unwrap_into()
                 )),
                 span: line_span,
-                text: buf.clone().into(),
+                text: buf.into(),
             }])
             .unwrap(),
         }),

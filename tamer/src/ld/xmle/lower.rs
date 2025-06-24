@@ -116,7 +116,7 @@ impl std::error::Error for SortError {
 }
 
 impl Diagnostic for SortError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use SortError::*;
 
         match self {

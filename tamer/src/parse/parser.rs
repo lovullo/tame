@@ -603,7 +603,7 @@ pub mod test {
     }
 
     impl Diagnostic for StubError {
-        fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
             unimplemented!()
         }
     }

@@ -110,7 +110,7 @@ macro_rules! lower_error_sum {
         }
 
         impl<ES: Diagnostic + PartialEq + 'static> Diagnostic for $name<ES> {
-            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
                 match self {
                     Self::Src(e) => e.describe(),
                     $(

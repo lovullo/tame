@@ -145,7 +145,7 @@ impl std::error::Error for Error {
 }
 
 impl Diagnostic for Error {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use Error::*;
 
         match self {
