@@ -231,7 +231,7 @@ macro_rules! lower_pipeline {
         ///        the sink to terminate compilation immediately.
         ///      This is a component of the [`Result`] type that is
         ///        ultimately yielded as the result of this function.
-        $vis fn $fn<$($l,)? ES: Diagnostic + 'static, EU: Diagnostic, SA, SB>(
+        $vis fn $fn<$($l,)? ES, EU, SA, SB>(
             $(
                 // Each parser may optionally receive context from an
                 //   earlier run.
@@ -249,6 +249,8 @@ macro_rules! lower_pipeline {
             EU
         >
         where
+            ES: Diagnostic + 'static,
+
             // Unrecoverable errors (EU) are errors that the sink chooses
             //   not to handle.
             // It is constructed explicitly from the sink,
@@ -256,7 +258,7 @@ macro_rules! lower_pipeline {
             //   ourselves is producing it from a finalization error,
             //     which is _not_ an error that parsers are expected to
             //     recover from.
-            EU: From<FinalizeError>,
+            EU: Diagnostic + From<FinalizeError>,
 
             SA: LowerSource<
                 UnknownToken,

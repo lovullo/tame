@@ -1146,7 +1146,7 @@ pub enum IdentDefinition {
 impl IdentDefinition {
     /// Attempt to narrow the definition into the requested type `O`,
     ///   returning [`None`] if the types do not match.
-    fn narrow<O: ObjectRelatable>(self) -> Option<ObjectIndex<O>>
+    fn narrow<O>(self) -> Option<ObjectIndex<O>>
     where
         O: ObjectRelFrom<Ident>,
     {

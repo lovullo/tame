@@ -57,7 +57,7 @@ impl<S: ParseState> ParseStatus<S> {
 
     /// Asserts a reflexive relationship between the [`ParseStatus`]es of
     ///   of `S` and `SB`.
-    pub fn reflexivity<SB: ParseState>(self) -> ParseStatus<SB>
+    pub fn reflexivity<SB>(self) -> ParseStatus<SB>
     where
         SB: ParseState<Object = <S as ParseState>::Object>,
     {

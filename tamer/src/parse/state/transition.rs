@@ -425,7 +425,7 @@ impl<S: ParseState> TransitionData<S> {
     ///
     /// While this method refers to the mathematical reflexive relation,
     ///   its exact name originates from the Coq tactic.
-    pub fn reflexivity<SB: ParseState>(self) -> TransitionData<SB>
+    pub fn reflexivity<SB>(self) -> TransitionData<SB>
     where
         SB: ParseState<
             Token = <S as ParseState>::Token,
