@@ -1011,116 +1011,6 @@ where
     }
 }
 
-impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
-    fn src_rel_ty(&self) -> ObjectRelTy {
-        match self {
-            Self((_, ty), _) => *ty,
-        }
-    }
-
-    fn widen_src(&self) -> ObjectIndex<Object> {
-        *self.as_ref()
-    }
-
-    fn pre_add_edge(
-        &self,
-        asg: &mut Asg,
-        to_oi: ObjectIndex<OB>,
-        ref_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
-    ) -> Result<(), AsgError> {
-        macro_rules! pre_add_edge {
-            ($ty:ident) => {
-                $ty::pre_add_edge(
-                    asg,
-                    ProposedRel {
-                        from_oi: self.widen_src().must_narrow_into::<$ty>(),
-                        to_oi,
-                        ref_span,
-                    },
-                    commit,
-                )
-            };
-        }
-
-        match self.src_rel_ty() {
-            ObjectRelTy::Root => pre_add_edge!(Root),
-            ObjectRelTy::Pkg => pre_add_edge!(Pkg),
-            ObjectRelTy::Ident => pre_add_edge!(Ident),
-            ObjectRelTy::Expr => pre_add_edge!(Expr),
-            ObjectRelTy::Tpl => pre_add_edge!(Tpl),
-            ObjectRelTy::Meta => pre_add_edge!(Meta),
-            ObjectRelTy::Doc => pre_add_edge!(Doc),
-        }
-    }
-}
-
-impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
-    fn src_rel_ty(&self) -> ObjectRelTy {
-        match self {
-            Self(oito) => oito.src_rel_ty(),
-        }
-    }
-
-    fn widen_src(&self) -> ObjectIndex<Object> {
-        match self {
-            Self(oito) => oito.widen_src(),
-        }
-    }
-
-    fn pre_add_edge(
-        &self,
-        asg: &mut Asg,
-        to_oi: ObjectIndex<OB>,
-        ref_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
-    ) -> Result<(), AsgError> {
-        match self {
-            Self(oito) => oito.pre_add_edge(asg, to_oi, ref_span, commit),
-        }
-    }
-}
-
-impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToCross<OB> {
-    fn src_rel_ty(&self) -> ObjectRelTy {
-        match self {
-            Self(oito) => oito.src_rel_ty(),
-        }
-    }
-
-    fn widen_src(&self) -> ObjectIndex<Object> {
-        match self {
-            Self(oito) => oito.widen_src(),
-        }
-    }
-
-    fn pre_add_edge(
-        &self,
-        asg: &mut Asg,
-        to_oi: ObjectIndex<OB>,
-        ref_span: Option<Span>,
-        commit: impl FnOnce(&mut Asg),
-    ) -> Result<(), AsgError> {
-        match self {
-            Self(oito) => oito.pre_add_edge(asg, to_oi, ref_span, commit),
-        }
-    }
-}
-
-impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for ObjectIndex<Object> {
-    fn from(oi_rel: ObjectIndexTo<OB>) -> Self {
-        oi_rel.widen_src()
-    }
-}
-
-impl<OB: ObjectRelatable> AsRef<ObjectIndex<Object>> for ObjectIndexTo<OB> {
-    fn as_ref(&self) -> &ObjectIndex<Object> {
-        match self {
-            Self((oi, _), _) => oi,
-        }
-    }
-}
-
 /// An [`ObjectIndex`]-like object that is able to create a _tree_ edge to
 ///   [`ObjectKind`] `OB`.
 ///
@@ -1351,10 +1241,60 @@ mod private {
         }
     }
 
-    impl<OB: ObjectRelatable> From<ObjectIndexToCross<OB>> for ObjectIndexTo<OB> {
-        fn from(value: ObjectIndexToCross<OB>) -> Self {
-            match value {
-                ObjectIndexToCross(oit) => oit,
+    impl<OB: ObjectRelatable> AsRef<ObjectIndex<Object>> for ObjectIndexTo<OB> {
+        fn as_ref(&self) -> &ObjectIndex<Object> {
+            match self {
+                Self((oi, _), _) => oi,
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> From<ObjectIndexTo<OB>> for ObjectIndex<Object> {
+        fn from(oi_rel: ObjectIndexTo<OB>) -> Self {
+            oi_rel.widen_src()
+        }
+    }
+
+    impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexTo<OB> {
+        fn src_rel_ty(&self) -> ObjectRelTy {
+            match self {
+                Self((_, ty), _) => *ty,
+            }
+        }
+
+        fn widen_src(&self) -> ObjectIndex<Object> {
+            *self.as_ref()
+        }
+
+        fn pre_add_edge(
+            &self,
+            asg: &mut Asg,
+            to_oi: ObjectIndex<OB>,
+            ref_span: Option<Span>,
+            commit: impl FnOnce(&mut Asg),
+        ) -> Result<(), AsgError> {
+            macro_rules! pre_add_edge {
+                ($ty:ident) => {
+                    $ty::pre_add_edge(
+                        asg,
+                        ProposedRel {
+                            from_oi: self.widen_src().must_narrow_into::<$ty>(),
+                            to_oi,
+                            ref_span,
+                        },
+                        commit,
+                    )
+                };
+            }
+
+            match self.src_rel_ty() {
+                ObjectRelTy::Root => pre_add_edge!(Root),
+                ObjectRelTy::Pkg => pre_add_edge!(Pkg),
+                ObjectRelTy::Ident => pre_add_edge!(Ident),
+                ObjectRelTy::Expr => pre_add_edge!(Expr),
+                ObjectRelTy::Tpl => pre_add_edge!(Tpl),
+                ObjectRelTy::Meta => pre_add_edge!(Meta),
+                ObjectRelTy::Doc => pre_add_edge!(Doc),
             }
         }
     }
@@ -1416,6 +1356,32 @@ mod private {
         }
     }
 
+    impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToTree<OB> {
+        fn src_rel_ty(&self) -> ObjectRelTy {
+            match self {
+                Self(oito) => oito.src_rel_ty(),
+            }
+        }
+
+        fn widen_src(&self) -> ObjectIndex<Object> {
+            match self {
+                Self(oito) => oito.widen_src(),
+            }
+        }
+
+        fn pre_add_edge(
+            &self,
+            asg: &mut Asg,
+            to_oi: ObjectIndex<OB>,
+            ref_span: Option<Span>,
+            commit: impl FnOnce(&mut Asg),
+        ) -> Result<(), AsgError> {
+            match self {
+                Self(oito) => oito.pre_add_edge(asg, to_oi, ref_span, commit),
+            }
+        }
+    }
+
     /// Some [`ObjectIndex`] that can create a _cross_ edge to `OB`.
     ///
     /// This is a specialization of
@@ -1469,6 +1435,40 @@ mod private {
         fn from(oi: ObjectIndexToCross<OB>) -> Self {
             match oi {
                 ObjectIndexToCross(inner) => inner.span(),
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> From<ObjectIndexToCross<OB>> for ObjectIndexTo<OB> {
+        fn from(value: ObjectIndexToCross<OB>) -> Self {
+            match value {
+                ObjectIndexToCross(oit) => oit,
+            }
+        }
+    }
+
+    impl<OB: ObjectRelatable> ObjectIndexRelTo<OB> for ObjectIndexToCross<OB> {
+        fn src_rel_ty(&self) -> ObjectRelTy {
+            match self {
+                Self(oito) => oito.src_rel_ty(),
+            }
+        }
+
+        fn widen_src(&self) -> ObjectIndex<Object> {
+            match self {
+                Self(oito) => oito.widen_src(),
+            }
+        }
+
+        fn pre_add_edge(
+            &self,
+            asg: &mut Asg,
+            to_oi: ObjectIndex<OB>,
+            ref_span: Option<Span>,
+            commit: impl FnOnce(&mut Asg),
+        ) -> Result<(), AsgError> {
+            match self {
+                Self(oito) => oito.pre_add_edge(asg, to_oi, ref_span, commit),
             }
         }
     }
