@@ -29,16 +29,6 @@
 //!     you should start there if you are looking for how a particular
 //!     component of parsing or code generation is integrated.
 
-// Constant functions are still in their infancy as of the time of writing
-//   (October 2021).
-// These this feature is used by [`sym::prefill::st_as_sym`] to provide
-//   polymorphic symbol types despite Rust's lack of support for constant
-//   trait methods.
-// See that function for more information.
-#![feature(const_transmute_copy)]
-// This is used to unwrap const Option results rather than providing
-//   panicing alternatives.
-#![feature(const_option)]
 // Trait aliases are convenient for reducing verbosity in situations where
 //   type aliases cannot be used.
 // To remove this feature if it is not stabalized,
@@ -48,11 +38,6 @@
 // Can be replaced with `assert!(matches!(...))`,
 //   but at a loss of a better error message.
 #![feature(assert_matches)]
-// Simplifies creating `Option` default values.
-// To remove this feature,
-//   this can be done more verbosely in the usual way,
-//   or we can write our own version.
-#![feature(option_get_or_insert_default)]
 // For `Try` and `FromResidual`,
 //   allowing us to write our own `?`-compatible types.
 #![feature(try_trait_v2)]
@@ -86,21 +71,9 @@
 #![allow(incomplete_features)]
 #![feature(adt_const_params)]
 #![feature(unsized_const_params)]
-// Used for traits returning functions,
-//   such as those in `crate::f`.
-// Our use of this feature is fairly basic;
-//   should it become too complex then we should re-evaluate what we ought
-//   to be doing relative to the status of this feature.
-#![feature(return_position_impl_trait_in_trait)]
 // Added for use with `rustfmt::skip`,
 //   so that we can ignore formatting more precisely.
 #![feature(stmt_expr_attributes)]
-// Allows using `impl Trait` for associated type bounds instead of having to
-//   extract it into a more verbose `where` clause.
-// This is not necessary,
-//   and may not even be desirable,
-//   but it's a nice option to have if `impl` would otherwise be used.
-#![feature(associated_type_bounds)]
 // We build docs for private items.
 #![allow(rustdoc::private_intra_doc_links)]
 // For sym::prefill recursive macro `static_symbols!`.
