@@ -435,7 +435,7 @@ where
     T: TextType,
 {
     fn default() -> Self {
-        Self::PreRoot(PhantomData::default())
+        Self::PreRoot(PhantomData)
     }
 }
 

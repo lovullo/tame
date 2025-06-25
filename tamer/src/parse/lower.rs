@@ -149,7 +149,7 @@ where
         let mut iter = LowerIter {
             lower,
             toks: self,
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         };
         let val = f(&mut iter)?;
 

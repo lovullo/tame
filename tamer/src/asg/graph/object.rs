@@ -163,10 +163,9 @@ pub use tpl::Tpl;
 pub mod prelude {
     pub use super::{
         super::{super::error::AsgError, Asg, AsgRelMut},
-        Object, ObjectCrossRelTo, ObjectIndex, ObjectIndexCrossRelTo,
-        ObjectIndexRelTo, ObjectIndexTreeRelTo, ObjectKind, ObjectRel,
-        ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
-        ObjectTreeRelTo,
+        Object, ObjectCrossRelTo, ObjectIndex, ObjectIndexTreeRelTo,
+        ObjectKind, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
+        ObjectRelatable, ObjectTreeRelTo,
     };
 }
 
@@ -579,7 +578,7 @@ impl<O: ObjectKind> Copy for ObjectIndex<O> {}
 
 impl<O: ObjectKind> ObjectIndex<O> {
     pub fn new<S: Into<Span>>(index: NodeIndex, span: S) -> Self {
-        Self(index, span.into(), PhantomData::default())
+        Self(index, span.into(), PhantomData)
     }
 
     /// The source location from which the request for the associated object
@@ -842,7 +841,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
         // If it weren't,
         //   then [`ObjectIndex`] protects us at runtime,
         //   so there are no safety issues here.
-        Some(ObjectIndex::<OB>(index, span, PhantomData::default()))
+        Some(ObjectIndex::<OB>(index, span, PhantomData))
             .filter(|_| O::rel_ty() == OB::rel_ty())
     }
 

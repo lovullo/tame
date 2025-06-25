@@ -139,7 +139,7 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                         ctx,
                         true,
                     )
-                    .map(|open| {
+                    .inspect(|_| {
                         let new_pos = self.reader.buffer_position();
 
                         // `<tag ... />`
@@ -153,8 +153,6 @@ impl<'s, B: BufRead, S: Escaper> XmlXirReader<'s, B, S> {
                             None,
                             CloseSpan::empty(span),
                         ));
-
-                        open
                     }),
                 ),
 

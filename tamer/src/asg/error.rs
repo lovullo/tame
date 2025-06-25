@@ -551,17 +551,12 @@ impl Diagnostic for AsgError {
                     //   so make clear why we're pointing this out.
                     // TODO: Include an identifier name,
                     //   once `Cycle` supports it.
-                    desc.extend(
-                        [
-                            obj.help(
-                                "the value cannot be computed because its",
-                            ),
-                            obj.help(
-                                "  definition requires first computing itself.",
-                            ),
-                        ]
-                        .into_iter(),
-                    );
+                    desc.extend([
+                        obj.help("the value cannot be computed because its"),
+                        obj.help(
+                            "  definition requires first computing itself.",
+                        ),
+                    ]);
                 }
 
                 desc

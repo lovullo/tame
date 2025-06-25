@@ -2443,6 +2443,7 @@ fn superstate_not_accepting_until_root_close() {
 //   modules.
 //
 // This will fail at compile time if there's a problem.
+#[allow(unused_imports)]
 pub use test_exportable_generated_idents::ExportMe;
 
 mod test_exportable_generated_idents {

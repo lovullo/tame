@@ -61,7 +61,7 @@ where
     A: AttrParseState,
 {
     fn from(e: AttrParseError<A>) -> Self {
-        Self::Attrs(e, PhantomData::default())
+        Self::Attrs(e, PhantomData)
     }
 }
 

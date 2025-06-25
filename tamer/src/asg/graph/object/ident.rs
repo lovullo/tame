@@ -1220,9 +1220,8 @@ impl ObjectIndex<Ident> {
 
         self.try_map_obj(asg, |obj| obj.resolve(name.span(), kind, src))
             .map_err(Into::into)
-            .map(|ident| {
+            .inspect(|_| {
                 is_auto_root.then(|| self.root_cross(asg));
-                ident
             })
     }
 

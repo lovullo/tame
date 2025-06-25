@@ -1054,7 +1054,7 @@ impl AirAggregateCtx {
         at: Span,
     ) -> Result<ObjectIndexToTree<Doc>, AsgError> {
         // We consider only the topmost stack frame.
-        let ost = self.stack.iter().rev().next();
+        let ost = self.stack.iter().next_back();
 
         ost.and_then(|st| st.active_doc_oi()).ok_or(
             AsgError::InvalidDocContext(

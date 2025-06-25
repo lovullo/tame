@@ -305,7 +305,7 @@ where
     }
 
     #[inline]
-    fn get_next_symbol_id(syms: &mut Vec<&'i str>) -> SymbolId<Ix> {
+    fn get_next_symbol_id(syms: &mut [&'i str]) -> SymbolId<Ix> {
         let next_index: Ix = syms
             .len()
             .try_into()
@@ -624,6 +624,7 @@ mod test {
         let bytes = &[0b11000000u8];
         let result = sut.intern_utf8(bytes);
 
+        #[allow(invalid_from_utf8)]
         match (result, from_utf8(bytes)) {
             (_, Ok(_)) => panic!("test string is valid UTF-8"),
             (Ok(_), _) => panic!("expected error"),

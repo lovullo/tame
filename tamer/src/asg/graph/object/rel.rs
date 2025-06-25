@@ -1159,7 +1159,7 @@ mod private {
         O: ObjectRelTo<OB>,
     {
         fn from(oi: ObjectIndex<O>) -> Self {
-            Self(oi.widen_dyn_ty(), PhantomData::default())
+            Self(oi.widen_dyn_ty(), PhantomData)
         }
     }
 
@@ -1191,7 +1191,7 @@ mod private {
         ) -> Option<ObjectIndexTo<OC>> {
             let Self(parts, _) = self;
             (OB::rel_ty() == OC::rel_ty())
-                .then_some(ObjectIndexTo(parts, PhantomData::default()))
+                .then_some(ObjectIndexTo(parts, PhantomData))
         }
     }
 
