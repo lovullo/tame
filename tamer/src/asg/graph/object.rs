@@ -522,7 +522,7 @@ where
     Self: Debug + PartialEq,
     Object: Into<Self> + AsRef<Self>;
 
-/// Index representing an [`Object`] stored on the [`Asg`](super::Asg).
+/// Index representing an [`Object`] stored on the [`Asg`].
 ///
 /// Object references are integer offsets,
 ///   not pointers.

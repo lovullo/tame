@@ -270,7 +270,7 @@ macro_rules! static_symbols {
         ///     and where the static type metadata is unimportant.
         ///
         /// This is equivalent to calling `as_sym` on the static newtype,
-        ///   or using [`st_as_sym`](super::super::st_as_sym).
+        ///   or using [`st_as_sym`].
         pub mod raw {
             use super::SymbolId;
 
@@ -802,7 +802,7 @@ pub mod st {
 /// Presently,
 ///   this includes only the [`Span`](crate::span::Span) context.
 ///
-/// See also [st](super::st) for general static symbols.
+/// See also [st] for general static symbols.
 pub mod st16 {
     use super::*;
 
@@ -827,7 +827,7 @@ pub mod st16 {
 /// The problem this module tries to solve is preventing anything outside of
 ///   this crate from implementing the `StaticSymbolId` trait,
 ///     since doing so opens us up to undefined behavior when transmuting
-///     via [`st_as_sym`](super::st_as_sym).
+///     via [`st_as_sym`].
 mod private {
     /// Extend this trait to prevent other modules from implementing the
     ///   subtype.

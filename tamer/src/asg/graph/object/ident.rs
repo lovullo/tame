@@ -131,7 +131,7 @@ pub enum Ident {
     /// An identifier is transparent when the system is expected to use the
     ///   identifier only as a key for locating its associated object,
     ///     "seeing through" the identifier to reference directly the
-    ///     underlying [`Object`](super::Object).
+    ///     underlying [`Object`].
     /// This is in contrast to [`Ident::Opaque`],
     ///   which is only _declared_,
     ///   and serves _in place of_ its corresponding definition.
@@ -139,8 +139,7 @@ pub enum Ident {
     /// Consequently,
     ///   this representation of an identifier is very light,
     ///   since dependents are expected to create edges to the
-    ///   [`Object`](super::Object) it references rather than the identifier
-    ///   itself;
+    ///   [`Object`] it references rather than the identifier itself;
     ///     this is safe since identifiers in TAME are immutable.
     Transparent(SPair),
 

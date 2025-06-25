@@ -266,7 +266,7 @@ pub trait WidenedError<S: ParseState, LS: ParseState> =
 ///     associated type.
 pub trait FromParseError<S: ParseState> = From<ParseStateError<S>>;
 
-/// A [`ParsedResult`](super::ParsedResult) with a [`WidenedError`].
+/// A [`ParsedResult`] with a [`WidenedError`].
 pub type WidenedParsedResult<S, E> =
     Result<Parsed<<S as ParseState>::Object>, E>;
 

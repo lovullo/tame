@@ -413,7 +413,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
     /// This is intended to be invoked by [`Iterator::next`].
     /// Accepting a token rather than the [`TokenStream`] allows the caller
     ///   to inspect the token first
-    ///     (e.g. to store a copy of the [`Span`][crate::span::Span]).
+    ///     (e.g. to store a copy of the [`Span`]).
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let otok = self

@@ -37,7 +37,7 @@ use crate::parse::ParseState;
 ///   including the challenges/concerns with this approach.
 /// In particular,
 ///   note that all lifetimes on the [`ParseState`] type are rewritten to be
-///   `'static';
+///   `'static`;
 ///     all associated `Error` types must not contain non-static lifetimes,
 ///       as is the standard convention in TAMER.
 macro_rules! lower_error_sum {
@@ -130,7 +130,7 @@ macro_rules! lower_error_sum {
 ///
 /// Composing those types results in a significant amount of boilerplate.
 /// This macro is responsible for generating a function that,
-///   given a source and optional [`ParseState`](crate::parse::ParseState) contexts,
+///   given a source and optional [`ParseState`] contexts,
 ///   will carry out the lowering operation and invoke the provided sink on
 ///     each object that comes out the end.
 ///
