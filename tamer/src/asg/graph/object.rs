@@ -566,11 +566,11 @@ impl Display for ObjectIndex<Object> {
     }
 }
 
-// Deriving this trait seems to silently fail at the time of writing
-//   (2022-12-22, Rust 1.68.0-nightly).
+// Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `O`,
+//   which we don't want since it's used as a phantom type.
 impl<O: ObjectKind> Clone for ObjectIndex<O> {
     fn clone(&self) -> Self {
-        Self(self.0, self.1, self.2)
+        *self
     }
 }
 
@@ -1080,9 +1080,11 @@ impl<O: ObjectKind> From<ObjectIndexResolvedSpan<O>> for Span {
     }
 }
 
+// Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `O`,
+//   which we don't want since it's used as a phantom type.
 impl<O: ObjectKind> Clone for ObjectIndexResolvedSpan<O> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 

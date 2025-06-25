@@ -1219,11 +1219,11 @@ mod private {
         }
     }
 
-    // Deriving `Clone`/`Copy` as of 2023-03 was introducing a
-    //   `Clone`/`Copy` bound on `OB`.
+    // Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `OB`,
+    //   which we don't want since it's used as a phantom type.
     impl<OB: ObjectRelatable> Clone for ObjectIndexTo<OB> {
         fn clone(&self) -> Self {
-            Self(self.0, self.1)
+            *self
         }
     }
 
@@ -1344,9 +1344,11 @@ mod private {
         }
     }
 
+    // Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `OB`,
+    //   which we don't want since it's used as a phantom type.
     impl<OB: ObjectRelatable> Clone for ObjectIndexToTree<OB> {
         fn clone(&self) -> Self {
-            Self(self.0)
+            *self
         }
     }
 
@@ -1427,9 +1429,11 @@ mod private {
         }
     }
 
+    // Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `OB`,
+    //   which we don't want since it's used as a phantom type.
     impl<OB: ObjectRelatable> Clone for ObjectIndexToCross<OB> {
         fn clone(&self) -> Self {
-            Self(self.0)
+            *self
         }
     }
 
