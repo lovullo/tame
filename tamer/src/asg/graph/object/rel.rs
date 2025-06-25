@@ -719,6 +719,7 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>:
     ///   we're able to provide a default trait implementation based on
     ///   [`Self::narrow`] without requiring that [`Self`] implement
     ///   [`Copy`].
+    #[allow(dead_code)] // currently used by tests, to be used by impl
     fn narrows_into<OB: ObjectRelFrom<OA> + ObjectRelatable>(
         self,
     ) -> Option<Self>
@@ -730,6 +731,7 @@ pub trait ObjectRel<OA: ObjectKind + ObjectRelatable>:
 
     /// Widen into an [`ObjectIndex`],
     ///   discarding static type information.
+    #[allow(dead_code)] // currently used by tests, to be used by impl
     fn widen(self) -> ObjectIndex<Object> {
         self.into()
     }
