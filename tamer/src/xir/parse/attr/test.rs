@@ -133,6 +133,7 @@ fn attrs_empty() {
 
 #[test]
 fn attr_value_error() {
+    #[allow(non_local_definitions)] // uses locally-scoped `FooError`
     impl TryFrom<SPair> for Foo {
         type Error = FooError;
 

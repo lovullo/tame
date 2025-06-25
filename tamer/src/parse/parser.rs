@@ -614,6 +614,12 @@ pub mod test {
         }
     }
 
+    impl From<FinalizeError> for StubError {
+        fn from(_: FinalizeError) -> Self {
+            unimplemented!()
+        }
+    }
+
     #[derive(Debug, PartialEq, Eq)]
     pub enum StubObject {
         FromYield(usize),

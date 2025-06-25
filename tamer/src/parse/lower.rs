@@ -432,12 +432,6 @@ mod test {
         let given = 27; // some value
         let toks = vec![StubToken::YieldWithLookahead(given)];
 
-        impl From<FinalizeError> for StubError {
-            fn from(_: FinalizeError) -> Self {
-                unreachable!("not expected to be used by this test")
-            }
-        }
-
         Lower::<StubEchoParseState, StubParseState, _>::lower::<_, StubError>(
             &mut StubEchoParseState::parse(toks.into_iter()),
             |sut| {
