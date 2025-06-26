@@ -26,12 +26,12 @@ use super::{
     TokenStream, Transition, TransitionResult,
 };
 use crate::{
-    parse::state::{Lookahead, TransitionData},
+    parse::{
+        state::{Lookahead, TransitionData},
+        Token,
+    },
     span::Span,
 };
-
-#[cfg(doc)]
-use super::Token;
 
 /// Result of applying a [`Token`] to a [`ParseState`],
 ///   with any error having been wrapped in a [`ParseError`].
@@ -413,7 +413,7 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Iterator for Parser<S, I> {
     /// This is intended to be invoked by [`Iterator::next`].
     /// Accepting a token rather than the [`TokenStream`] allows the caller
     ///   to inspect the token first
-    ///     (e.g. to store a copy of the [`Span`][crate::span::Span]).
+    ///     (e.g. to store a copy of the [`Span`]).
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let otok = self
@@ -603,13 +603,19 @@ pub mod test {
     }
 
     impl Diagnostic for StubError {
-        fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+        fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
             unimplemented!()
         }
     }
 
     impl From<ParseError<StubToken, StubError>> for StubError {
         fn from(_: ParseError<StubToken, StubError>) -> Self {
+            unimplemented!()
+        }
+    }
+
+    impl From<FinalizeError> for StubError {
+        fn from(_: FinalizeError) -> Self {
             unimplemented!()
         }
     }

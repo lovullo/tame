@@ -37,7 +37,7 @@ use crate::parse::ParseState;
 ///   including the challenges/concerns with this approach.
 /// In particular,
 ///   note that all lifetimes on the [`ParseState`] type are rewritten to be
-///   `'static';
+///   `'static`;
 ///     all associated `Error` types must not contain non-static lifetimes,
 ///       as is the standard convention in TAMER.
 macro_rules! lower_error_sum {
@@ -110,7 +110,7 @@ macro_rules! lower_error_sum {
         }
 
         impl<ES: Diagnostic + PartialEq + 'static> Diagnostic for $name<ES> {
-            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+            fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
                 match self {
                     Self::Src(e) => e.describe(),
                     $(
@@ -130,7 +130,7 @@ macro_rules! lower_error_sum {
 ///
 /// Composing those types results in a significant amount of boilerplate.
 /// This macro is responsible for generating a function that,
-///   given a source and optional [`ParseState`](crate::parse::ParseState) contexts,
+///   given a source and optional [`ParseState`] contexts,
 ///   will carry out the lowering operation and invoke the provided sink on
 ///     each object that comes out the end.
 ///
@@ -231,7 +231,7 @@ macro_rules! lower_pipeline {
         ///        the sink to terminate compilation immediately.
         ///      This is a component of the [`Result`] type that is
         ///        ultimately yielded as the result of this function.
-        $vis fn $fn<$($l,)? ES: Diagnostic + 'static, EU: Diagnostic, SA, SB>(
+        $vis fn $fn<$($l,)? ES, EU, SA, SB>(
             $(
                 // Each parser may optionally receive context from an
                 //   earlier run.
@@ -249,6 +249,8 @@ macro_rules! lower_pipeline {
             EU
         >
         where
+            ES: Diagnostic + 'static,
+
             // Unrecoverable errors (EU) are errors that the sink chooses
             //   not to handle.
             // It is constructed explicitly from the sink,
@@ -256,7 +258,7 @@ macro_rules! lower_pipeline {
             //   ourselves is producing it from a finalization error,
             //     which is _not_ an error that parsers are expected to
             //     recover from.
-            EU: From<FinalizeError>,
+            EU: Diagnostic + From<FinalizeError>,
 
             SA: LowerSource<
                 UnknownToken,

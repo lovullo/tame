@@ -331,7 +331,7 @@
 //!  - Rustc previously used the [Fowler-Noll-Vo (FNV)][fnv] hash
 //!      function,
 //!        but [now uses Fx Hash][rustc-fx].
-//!    This was extracted into the [`fxhash`][fxhash] crate,
+//!    This was extracted into the [`fxhash`] crate,
 //!      which is used by TAMER.
 //!    - TAMER originally used FNV,
 //!         but benchmarks showed that Fx Hash was more performant.

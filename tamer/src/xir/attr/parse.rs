@@ -136,7 +136,7 @@ impl Error for AttrParseError {
 }
 
 impl Diagnostic for AttrParseError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         match self {
             Self::AttrNameExpected(tok) => tok.span().mark_error().into(),
 

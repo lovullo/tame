@@ -153,9 +153,8 @@ pub use meta::Meta;
 pub use pkg::Pkg;
 pub use rel::{
     DynObjectRel, ObjectCrossRelTo, ObjectIndexCrossRelTo, ObjectIndexRelTo,
-    ObjectIndexTo, ObjectIndexToCross, ObjectIndexToTree, ObjectIndexTreeRelTo,
-    ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable,
-    ObjectTreeRelTo,
+    ObjectIndexTo, ObjectIndexToTree, ObjectIndexTreeRelTo, ObjectRel,
+    ObjectRelFrom, ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
 };
 pub use root::Root;
 pub use tpl::Tpl;
@@ -164,10 +163,9 @@ pub use tpl::Tpl;
 pub mod prelude {
     pub use super::{
         super::{super::error::AsgError, Asg, AsgRelMut},
-        Object, ObjectCrossRelTo, ObjectIndex, ObjectIndexCrossRelTo,
-        ObjectIndexRelTo, ObjectIndexToCross, ObjectIndexToTree,
-        ObjectIndexTreeRelTo, ObjectKind, ObjectRel, ObjectRelFrom,
-        ObjectRelTo, ObjectRelTy, ObjectRelatable, ObjectTreeRelTo,
+        Object, ObjectCrossRelTo, ObjectIndex, ObjectIndexTreeRelTo,
+        ObjectKind, ObjectRel, ObjectRelFrom, ObjectRelTo, ObjectRelTy,
+        ObjectRelatable, ObjectTreeRelTo,
     };
 }
 
@@ -465,7 +463,7 @@ impl Object<OnlyObjectInner> {
     /// Since [`Object`] is the type stored directly on the [`Asg`],
     ///   this is necessary in order to use [`Object`] as a wrapper over
     ///   narrowed [`ObjectKind`]s.
-    fn inner_as_ref(&self) -> Object<RefObjectInner> {
+    fn inner_as_ref<'a>(&'a self) -> Object<RefObjectInner<'a>> {
         map_object!(self, x => x)
     }
 
@@ -487,7 +485,10 @@ impl Object<OnlyObjectInner> {
     /// Getting this wrong won't lead to memory safety issues,
     ///   but it will lead to bugs and confusion at best,
     ///   and panics at worst if `oi` references a different [`ObjectKind`].
-    fn pair_oi(&self, oi: ObjectIndex<Object>) -> Object<OiPairObjectInner> {
+    fn pair_oi<'a>(
+        &'a self,
+        oi: ObjectIndex<Object>,
+    ) -> Object<OiPairObjectInner<'a>> {
         map_object!(
             self.inner_as_ref(),
             x => (x, oi.must_narrow_into().overwrite(self.span()))
@@ -521,7 +522,7 @@ where
     Self: Debug + PartialEq,
     Object: Into<Self> + AsRef<Self>;
 
-/// Index representing an [`Object`] stored on the [`Asg`](super::Asg).
+/// Index representing an [`Object`] stored on the [`Asg`].
 ///
 /// Object references are integer offsets,
 ///   not pointers.
@@ -565,11 +566,11 @@ impl Display for ObjectIndex<Object> {
     }
 }
 
-// Deriving this trait seems to silently fail at the time of writing
-//   (2022-12-22, Rust 1.68.0-nightly).
+// Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `O`,
+//   which we don't want since it's used as a phantom type.
 impl<O: ObjectKind> Clone for ObjectIndex<O> {
     fn clone(&self) -> Self {
-        Self(self.0, self.1, self.2)
+        *self
     }
 }
 
@@ -577,7 +578,7 @@ impl<O: ObjectKind> Copy for ObjectIndex<O> {}
 
 impl<O: ObjectKind> ObjectIndex<O> {
     pub fn new<S: Into<Span>>(index: NodeIndex, span: S) -> Self {
-        Self(index, span.into(), PhantomData::default())
+        Self(index, span.into(), PhantomData)
     }
 
     /// The source location from which the request for the associated object
@@ -840,7 +841,7 @@ impl<O: ObjectKind> ObjectIndex<O> {
         // If it weren't,
         //   then [`ObjectIndex`] protects us at runtime,
         //   so there are no safety issues here.
-        Some(ObjectIndex::<OB>(index, span, PhantomData::default()))
+        Some(ObjectIndex::<OB>(index, span, PhantomData))
             .filter(|_| O::rel_ty() == OB::rel_ty())
     }
 
@@ -1079,9 +1080,11 @@ impl<O: ObjectKind> From<ObjectIndexResolvedSpan<O>> for Span {
     }
 }
 
+// Deriving `Clone`/`Copy` introduces a `Clone`/`Copy` bound on `O`,
+//   which we don't want since it's used as a phantom type.
 impl<O: ObjectKind> Clone for ObjectIndexResolvedSpan<O> {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 

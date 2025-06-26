@@ -719,7 +719,7 @@ impl Error for StackError {
 }
 
 impl Diagnostic for StackError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         // TODO: At the time of writing, XIRT isn't used outside of tests.
         vec![]
     }

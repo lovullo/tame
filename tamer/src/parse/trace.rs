@@ -73,6 +73,10 @@ pub(super) trait ParserTrace: Default {
 ///
 /// This should be used by default for non-test builds,
 ///   since tracing can incur a significant performance cost.
+///
+/// `allow(dead_code)` since use of this is conditional behind feature
+///   flags that we do not wish to have to keep in sync here.
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Default)]
 pub struct VoidTrace;
 
@@ -98,13 +102,16 @@ impl ParserTrace for VoidTrace {
 
 /// Human-readable [`ParserTrace`].
 ///
-///
 /// Note: if one of these trace blocks does not fully output,
 ///   then you may have a `Display::fmt` or `Debug::fmt` panic---like
 ///     a `todo!` or `unimplemented!`---in
 ///     your `Token` or `ParseState`.
 ///
 /// See [module-level](super) documentation for more information.
+///
+/// `allow(dead_code)` since use of this is conditional behind feature
+///   flags that we do not wish to have to keep in sync here.
+#[allow(dead_code)]
 #[derive(Debug, PartialEq, Default)]
 pub struct HumanReadableTrace<const REASON: &'static str>;
 

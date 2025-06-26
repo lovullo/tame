@@ -57,7 +57,7 @@ impl<S: ParseState> ParseStatus<S> {
 
     /// Asserts a reflexive relationship between the [`ParseStatus`]es of
     ///   of `S` and `SB`.
-    pub fn reflexivity<SB: ParseState>(self) -> ParseStatus<SB>
+    pub fn reflexivity<SB>(self) -> ParseStatus<SB>
     where
         SB: ParseState<Object = <S as ParseState>::Object>,
     {
@@ -156,7 +156,13 @@ where
     /// This is the same concept as [`StitchableParseState`],
     ///   but operating in reverse
     ///     (delegation via trampoline instead of direct function call).
-    type Super: ClosedParseState<Object = Self::Object, Context = Self::Context> =
+    ///
+    /// NB: It is expected that `Self::Super: ClosedParseState`,
+    ///   but at the time of writing,
+    ///   `associated_type_defaults` rejects a default of `Self` in that
+    ///     case;
+    ///       that trait bound instead exists on `delegate_child`.
+    type Super: ParseState<Object = Self::Object, Context = Self::Context> =
         Self;
 
     /// Object provided to parser alongside each token.
@@ -362,6 +368,7 @@ where
     ) -> TransitionResult<Self::Super>
     where
         C: AsMut<<Self as ParseState>::Context>,
+        Self::Super: ClosedParseState,
     {
         self.parse_token(tok, context.as_mut())
             .branch_dead_la::<Self::Super, _>(

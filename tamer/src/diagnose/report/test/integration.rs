@@ -79,7 +79,7 @@ impl Error for StubError {
 }
 
 impl Diagnostic for StubError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         self.1.clone()
     }
 }

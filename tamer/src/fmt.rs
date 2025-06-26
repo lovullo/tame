@@ -288,7 +288,7 @@ pub trait ListDisplayWrapper {
     ///   implementation for the wrapped slice,
     ///     which will work well with [`format!`] and anything else that
     ///     does not have access to an explicit [`Formatter`].
-    fn wrap<T: Display>(list: &[T]) -> ListWrap<Self, T> {
+    fn wrap<'a, T: Display>(list: &'a [T]) -> ListWrap<'a, Self, T> {
         ListWrap {
             list,
             _phantom: Default::default(),

@@ -75,7 +75,7 @@ AC_SUBST([CARGO_FLAGS], "--frozen --offline")
 # This is the version of Rust that would be required if we were not
 # utilizing nightly features.  This serves as a lower version bound, whereas
 # the nightly check above serves as an upper bound.
-rustc_ver_req=1.70
+rustc_ver_req=1.90
 
 AC_CHECK_PROGS(RUSTC, [rustc])
 AC_MSG_CHECKING([rustc $RUST_TC version >= $rustc_ver_req])

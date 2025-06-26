@@ -35,7 +35,7 @@ pub type SortResult<T> = Result<T, SortError>;
 /// Lower ASG into [`XmleSections`] by ordering relocatable text fragments.
 ///
 /// The topological sort is performed by [`topo_sort`].
-pub fn sort<'a, S: XmleSections<'a>>(asg: &'a Asg, mut dest: S) -> SortResult<S>
+pub fn sort<'a, S>(asg: &'a Asg, mut dest: S) -> SortResult<S>
 where
     S: XmleSections<'a>,
 {
@@ -116,7 +116,7 @@ impl std::error::Error for SortError {
 }
 
 impl Diagnostic for SortError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use SortError::*;
 
         match self {

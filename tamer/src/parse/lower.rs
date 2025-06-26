@@ -149,7 +149,7 @@ where
         let mut iter = LowerIter {
             lower,
             toks: self,
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         };
         let val = f(&mut iter)?;
 
@@ -266,7 +266,7 @@ pub trait WidenedError<S: ParseState, LS: ParseState> =
 ///     associated type.
 pub trait FromParseError<S: ParseState> = From<ParseStateError<S>>;
 
-/// A [`ParsedResult`](super::ParsedResult) with a [`WidenedError`].
+/// A [`ParsedResult`] with a [`WidenedError`].
 pub type WidenedParsedResult<S, E> =
     Result<Parsed<<S as ParseState>::Object>, E>;
 
@@ -431,12 +431,6 @@ mod test {
     fn can_emit_object_with_lookahead_and_eof_for_lower_iter() {
         let given = 27; // some value
         let toks = vec![StubToken::YieldWithLookahead(given)];
-
-        impl From<FinalizeError> for StubError {
-            fn from(_: FinalizeError) -> Self {
-                unreachable!("not expected to be used by this test")
-            }
-        }
 
         Lower::<StubEchoParseState, StubParseState, _>::lower::<_, StubError>(
             &mut StubEchoParseState::parse(toks.into_iter()),

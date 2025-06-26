@@ -82,11 +82,13 @@ pub trait Escaper: Default {
     /// This value must be escaped such that subsequence unescaping
     ///   (using [`unescape_bytes`](Escaper::unescape_bytes))
     ///   will result in the same value.
-    fn escape_bytes(value: &[u8]) -> Cow<[u8]>;
+    fn escape_bytes<'a>(value: &'a [u8]) -> Cow<'a, [u8]>;
 
     /// Unescape raw bytes such that any relevant escape sequences are
     ///   parsed into their text representation.
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError>;
+    fn unescape_bytes<'a>(
+        value: &'a [u8],
+    ) -> Result<Cow<'a, [u8]>, SpanlessError>;
 
     /// Escape the given symbol and produce a [`SymbolId`] representing
     ///   the escaped value suitable for writing.
@@ -134,12 +136,14 @@ pub struct QuickXmlEscaper {}
 
 impl Escaper for QuickXmlEscaper {
     #[inline]
-    fn escape_bytes(value: &[u8]) -> Cow<[u8]> {
+    fn escape_bytes<'a>(value: &'a [u8]) -> Cow<'a, [u8]> {
         quick_xml::escape::escape(value)
     }
 
     #[inline]
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
+    fn unescape_bytes<'a>(
+        value: &'a [u8],
+    ) -> Result<Cow<'a, [u8]>, SpanlessError> {
         // For some reason,
         //   quick-xml has made EscapeError explicitly private to the crate,
         //     and so it is opaque to us.
@@ -231,12 +235,14 @@ impl<S: Escaper> CachingEscaper<S> {
 
 impl<S: Escaper> Escaper for CachingEscaper<S> {
     #[inline]
-    fn escape_bytes(value: &[u8]) -> Cow<[u8]> {
+    fn escape_bytes<'a>(value: &'a [u8]) -> Cow<'a, [u8]> {
         S::escape_bytes(value)
     }
 
     #[inline]
-    fn unescape_bytes(value: &[u8]) -> Result<Cow<[u8]>, SpanlessError> {
+    fn unescape_bytes<'a>(
+        value: &'a [u8],
+    ) -> Result<Cow<'a, [u8]>, SpanlessError> {
         S::unescape_bytes(value)
     }
 
@@ -297,13 +303,13 @@ mod test {
         }
 
         impl Escaper for StubEscaper {
-            fn escape_bytes(_: &[u8]) -> Cow<[u8]> {
+            fn escape_bytes<'a>(_: &'a [u8]) -> Cow<'a, [u8]> {
                 unreachable!("escape_bytes should not be called")
             }
 
-            fn unescape_bytes(
-                _: &[u8],
-            ) -> result::Result<Cow<[u8]>, SpanlessError> {
+            fn unescape_bytes<'a>(
+                _: &'a [u8],
+            ) -> result::Result<Cow<'a, [u8]>, SpanlessError> {
                 unreachable!("unescape_bytes should not be called")
             }
 

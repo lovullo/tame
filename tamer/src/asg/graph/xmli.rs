@@ -63,7 +63,7 @@ pub enum AsgTreeToXirf<'a> {
 
 impl<'a> Default for AsgTreeToXirf<'a> {
     fn default() -> Self {
-        Self::Ready(PhantomData::default())
+        Self::Ready(PhantomData)
     }
 }
 

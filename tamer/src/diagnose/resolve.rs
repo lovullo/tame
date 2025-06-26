@@ -575,7 +575,7 @@ impl Line {
         &mut self,
         span: Span,
     ) -> (String, Span, Option<Column>) {
-        let bytes = self.take_buf().unwrap_or(vec![]);
+        let bytes = self.take_buf().unwrap_or_default();
         let span = span.context().span_or_zz(0, bytes.len());
 
         (String::from_utf8_lossy(&bytes).into(), span, None)
@@ -603,7 +603,7 @@ impl Line {
         let column = self.resolve_columns(line, span);
 
         let offset_start = self.offset_start;
-        let buf = self.take_buf().unwrap_or(vec![]);
+        let buf = self.take_buf().unwrap_or_default();
         let line_span = span.context().span_or_zz(offset_start, buf.len());
 
         // SAFETY: We have already verified above,

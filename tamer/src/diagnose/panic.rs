@@ -97,7 +97,7 @@ impl<'a> Display for DiagnosticDesc<'a> {
 }
 
 impl<'a> Diagnostic for DiagnosticDesc<'a> {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         match self {
             Self(_, desc) => desc.take(),
         }

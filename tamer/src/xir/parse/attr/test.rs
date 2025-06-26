@@ -133,6 +133,7 @@ fn attrs_empty() {
 
 #[test]
 fn attr_value_error() {
+    #[allow(non_local_definitions)] // uses locally-scoped `FooError`
     impl TryFrom<SPair> for Foo {
         type Error = FooError;
 
@@ -157,7 +158,7 @@ fn attr_value_error() {
     }
 
     impl Diagnostic for FooError {
-        fn describe(&self) -> Vec<AnnotatedSpan> {
+        fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
             vec![]
         }
     }

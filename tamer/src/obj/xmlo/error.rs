@@ -127,7 +127,7 @@ impl std::error::Error for XmloError {
 }
 
 impl Diagnostic for XmloError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use XmloError::*;
 
         let malformed = "this `xmlo` file is malformed or corrupt; \

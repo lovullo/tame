@@ -228,15 +228,15 @@ ele_parse! {
     ///   different package types.
     PackageStmt := QN_PACKAGE(_, ospan) {
         @ {
-            QN_XMLNS => literal::<{URI_LV_RATER}>,
-            QN_XMLNS_C => literal::<{URI_LV_CALC}>,
-            QN_XMLNS_T => literal::<{URI_LV_TPL}>,
+            QN_XMLNS => literal(URI_LV_RATER),
+            QN_XMLNS_C => literal(URI_LV_CALC),
+            QN_XMLNS_T => literal(URI_LV_TPL),
 
             // TODO: Having trouble getting rid of `@xmlns:lv` using Saxon
             //   for `progui-pkg`,
             //     so just allow for now.
             // It can't actually be used on nodes.
-            QN_XMLNS_LV => literal::<{URI_LV_RATER}>,
+            QN_XMLNS_LV => literal(URI_LV_RATER),
 
             QN_ID => TodoAttr,
             QN_TITLE => TodoAttr,

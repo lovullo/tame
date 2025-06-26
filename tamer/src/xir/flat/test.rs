@@ -34,6 +34,15 @@ use crate::xir::test::{
 };
 use std::fmt::Debug;
 
+/// For [`xirf_to_xir`] test.
+impl From<ParseError<XirfToken<Text>, XirfToXirError>>
+    for ParseError<XirToken, XirToXirfError>
+{
+    fn from(_value: ParseError<XirfToken<Text>, XirfToXirError>) -> Self {
+        unreachable!()
+    }
+}
+
 /// Hastily and lazily produce a [`XirfToken::Open`].
 ///
 /// This function is not suitable for production use as it does not produce
@@ -617,13 +626,4 @@ fn xirf_to_xir() {
                 .collect::<Result<Vec<_>, _>>()
         )
     );
-
-    // The lowering pipeline above requires compatible errors.
-    impl From<ParseError<XirfToken<Text>, XirfToXirError>>
-        for ParseError<XirToken, XirToXirfError>
-    {
-        fn from(_value: ParseError<XirfToken<Text>, XirfToXirError>) -> Self {
-            unreachable!()
-        }
-    }
 }

@@ -421,7 +421,7 @@ impl Display for XmloAirError {
 }
 
 impl Diagnostic for XmloAirError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use XmloAirError::*;
 
         match self {

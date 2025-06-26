@@ -263,7 +263,7 @@ impl std::fmt::Display for SectionsError {
 }
 
 impl Diagnostic for SectionsError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use SectionsError::*;
 
         match self {

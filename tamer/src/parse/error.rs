@@ -122,7 +122,7 @@ impl<T: Token, E: Diagnostic + Error + PartialEq + 'static> Error
 impl<T: Token, E: Diagnostic + PartialEq + 'static> Diagnostic
     for ParseError<T, E>
 {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use ParseError::*;
 
         match self {
@@ -200,7 +200,7 @@ impl Display for FinalizeError {
 impl Error for FinalizeError {}
 
 impl Diagnostic for FinalizeError {
-    fn describe(&self) -> Vec<AnnotatedSpan> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         use FinalizeError::*;
 
         match self {

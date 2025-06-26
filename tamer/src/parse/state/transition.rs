@@ -420,12 +420,11 @@ impl<S: ParseState> TransitionData<S> {
     /// This is a stronger statement than saying two [`ParseState`]s are
     ///   _compatible_ withe one-another in some way,
     ///     which is the assertion made by
-    ///     [`StitchableParseState`](super::StitchableParseState) and may
-    ///     require data to be translated.
+    ///     [`StitchableParseState`] and may require data to be translated.
     ///
     /// While this method refers to the mathematical reflexive relation,
     ///   its exact name originates from the Coq tactic.
-    pub fn reflexivity<SB: ParseState>(self) -> TransitionData<SB>
+    pub fn reflexivity<SB>(self) -> TransitionData<SB>
     where
         SB: ParseState<
             Token = <S as ParseState>::Token,

@@ -131,7 +131,7 @@ pub enum Ident {
     /// An identifier is transparent when the system is expected to use the
     ///   identifier only as a key for locating its associated object,
     ///     "seeing through" the identifier to reference directly the
-    ///     underlying [`Object`](super::Object).
+    ///     underlying [`Object`].
     /// This is in contrast to [`Ident::Opaque`],
     ///   which is only _declared_,
     ///   and serves _in place of_ its corresponding definition.
@@ -139,8 +139,7 @@ pub enum Ident {
     /// Consequently,
     ///   this representation of an identifier is very light,
     ///   since dependents are expected to create edges to the
-    ///   [`Object`](super::Object) it references rather than the identifier
-    ///   itself;
+    ///   [`Object`] it references rather than the identifier itself;
     ///     this is safe since identifiers in TAME are immutable.
     Transparent(SPair),
 
@@ -649,7 +648,7 @@ impl std::error::Error for TransitionError {
 }
 
 impl Diagnostic for TransitionError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use TransitionError::*;
 
         match self {
@@ -784,7 +783,7 @@ impl std::error::Error for UnresolvedError {
 }
 
 impl Diagnostic for UnresolvedError {
-    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use UnresolvedError::*;
 
         match self {
@@ -1146,7 +1145,7 @@ pub enum IdentDefinition {
 impl IdentDefinition {
     /// Attempt to narrow the definition into the requested type `O`,
     ///   returning [`None`] if the types do not match.
-    fn narrow<O: ObjectRelatable>(self) -> Option<ObjectIndex<O>>
+    fn narrow<O>(self) -> Option<ObjectIndex<O>>
     where
         O: ObjectRelFrom<Ident>,
     {
@@ -1220,9 +1219,8 @@ impl ObjectIndex<Ident> {
 
         self.try_map_obj(asg, |obj| obj.resolve(name.span(), kind, src))
             .map_err(Into::into)
-            .map(|ident| {
+            .inspect(|_| {
                 is_auto_root.then(|| self.root_cross(asg));
-                ident
             })
     }
 
