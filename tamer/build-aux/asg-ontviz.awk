@@ -111,7 +111,7 @@ in_block && /^    \w+ -> \{$/ {
 # A closing curly brace always means that we've finished with the current
 #   source relation,
 #     since we're at the innermost level of nesting.
-block_src && /^    }$/ {
+block_src && /^    }/ {
     block_src = ""
     print ""
 }
