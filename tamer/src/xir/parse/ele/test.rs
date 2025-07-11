@@ -335,21 +335,23 @@ fn empty_element_with_attrs() {
     let name_val = "bar".into();
     let value_val = "baz".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
-        // Purposefully out of order just to demonstrate that order does
-        //   not matter.
-        XirfToken::Attr(Attr(QN_VALUE, value_val, AttrSpan(S2, S3))),
-        XirfToken::Attr(Attr(QN_NAME, name_val, AttrSpan(S4, S5))),
+          // Purposefully out of order just to demonstrate that order does
+          //   not matter.
+          XirfToken::Attr(Attr(QN_VALUE, value_val, AttrSpan(S2, S3))),
+          XirfToken::Attr(Attr(QN_NAME, name_val, AttrSpan(S4, S5))),
         XirfToken::Close(None, CloseSpan::empty(S6), Depth(0)),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Parsed::Object(Foo::Ele),                     // Open
-            Parsed::Object(Foo::B(SPair(value_val, S3))), // Attr
-            Parsed::Object(Foo::A(SPair(name_val, S5))),  // Attr
-            Parsed::Incomplete,                           // Close
+            Parsed::Object(Foo::Ele),                       // Open
+              Parsed::Object(Foo::B(SPair(value_val, S3))), // Attr
+              Parsed::Object(Foo::A(SPair(name_val, S5))),  // Attr
+            Parsed::Incomplete,                             // Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -442,13 +444,14 @@ fn element_with_failed_attr_parsing() {
     let name_val = "name_val".into();
     let yields_val = "yields_val".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // This will fail to parse and will not yield a token
-        XirfToken::Attr(Attr(QN_NAME, name_val, AttrSpan(S2, S3))),
-        // But this will parse successfully,
-        //   since recovery was restricted to that one token of input.
-        XirfToken::Attr(Attr(QN_YIELDS, yields_val, AttrSpan(S4, S5))),
+          // This will fail to parse and will not yield a token
+          XirfToken::Attr(Attr(QN_NAME, name_val, AttrSpan(S2, S3))),
+          // But this will parse successfully,
+          //   since recovery was restricted to that one token of input.
+          XirfToken::Attr(Attr(QN_YIELDS, yields_val, AttrSpan(S4, S5))),
         XirfToken::Close(Some(QN_ROOT), CloseSpan::empty(S6), Depth(0)),
     ];
 
@@ -521,28 +524,32 @@ fn element_with_streaming_attrs() {
     let attr1 = Attr(QN_NAME, "one".into(), AttrSpan(S2, S3));
     let attr2 = Attr(QN_TYPE, "two".into(), AttrSpan(S3, S4));
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // These attributes should stream,
-        //   but only _after_ having emitted the opening object from `@ {}`.
-        XirfToken::Attr(attr1.clone()),
-        XirfToken::Attr(attr2.clone()),
-        // A child should halt attribute parsing just the same as `@ {}`
-        //   would without the `[text]` special form.
-        XirfToken::Open(QN_CHILD, OpenSpan(S5, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+          // These attributes should stream,
+          //   but only _after_ having emitted the opening object from `@ {}`.
+          XirfToken::Attr(attr1.clone()),
+          XirfToken::Attr(attr2.clone()),
+
+          // A child should halt attribute parsing just the same as `@ {}`
+          //   would without the `[text]` special form.
+          XirfToken::Open(QN_CHILD, OpenSpan(S5, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
     ];
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::Open),        // [Root]   Root Open
-            Object(Foo::Attr(attr1)), // [Root]   attr1
-            Object(Foo::Attr(attr2)), // [Root]   attr2
-            Object(Foo::Child),       // [Child]  Child Open
-            Incomplete,               // [Child]  Child Close
-            Object(Foo::Close),       // [Root]   Root Close
+            Object(Foo::Open),          // [Root]   Root Open
+              Object(Foo::Attr(attr1)), // [Root]   attr1
+              Object(Foo::Attr(attr2)), // [Root]   attr2
+
+              Object(Foo::Child),       // [Child]  Child Open
+              Incomplete,               // [Child]  Child Close
+            Object(Foo::Close),         // [Root]   Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -584,18 +591,21 @@ fn unexpected_element() {
     //   decision to skip tokens does not skip the validations that XIRF
     //   performs,
     //     such as ensuring proper nesting.
+    #[rustfmt::skip]
     let toks = vec![
         // Any name besides `QN_PACKAGE`
         XirfToken::Open(unexpected, span, DEPTH_ROOT),
-        // From this point on we are in a recovery state,
-        //   and will not emit tokens
-        //     (or further errors)
-        //   for these inputs.
-        XirfToken::Attr(Attr(QN_VALUE, "ignored".into(), AttrSpan(S2, S3))),
-        XirfToken::Open(QN_NAME, OpenSpan(S4, N), DEPTH_CHILD),
-        // This ensures that closing at a different depth will not count
-        //   as the closing node for recovery.
-        XirfToken::Close(None, CloseSpan::empty(S5), DEPTH_CHILD),
+          // From this point on we are in a recovery state,
+          //   and will not emit tokens
+          //     (or further errors)
+          //   for these inputs.
+          XirfToken::Attr(Attr(QN_VALUE, "ignored".into(), AttrSpan(S2, S3))),
+
+          XirfToken::Open(QN_NAME, OpenSpan(S4, N), DEPTH_CHILD),
+          // This ensures that closing at a different depth will not count
+          //   as the closing node for recovery.
+          XirfToken::Close(None, CloseSpan::empty(S5), DEPTH_CHILD),
+
         // This final token closes the element that caused the error,
         //   and so brings us into an accepting state.
         XirfToken::Close(Some(unexpected), CloseSpan(S6, 3), DEPTH_ROOT),
@@ -673,19 +683,21 @@ fn single_child_element() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
-        XirfToken::Open(QN_CLASSIFY, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+          XirfToken::Open(QN_CLASSIFY, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S4, N), Depth(0)),
     ];
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Parsed::Object(Foo::RootAttr),  // [Root]  Root Open
-            Parsed::Object(Foo::ChildAttr), // [Child] Child Open
-            Parsed::Incomplete,             // [Child] Child Close
-            Parsed::Incomplete,             // [Root]  Root Close
+            Parsed::Object(Foo::RootAttr),    // [Root]  Root Open
+              Parsed::Object(Foo::ChildAttr), // [Child] Child Open
+              Parsed::Incomplete,             // [Child] Child Close
+            Parsed::Incomplete,               // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -787,26 +799,30 @@ fn multiple_child_elements_sequential() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
-        // ChildA
-        XirfToken::Open(QN_CLASSIFY, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Child B
-        XirfToken::Open(QN_EXPORT, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+          // ChildA
+          XirfToken::Open(QN_CLASSIFY, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // Child B
+          XirfToken::Open(QN_EXPORT, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S5, N), Depth(0)),
     ];
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::RootOpen(S1)),    // [Root]   Root Open
-            Object(Foo::ChildAOpen(S2)),  // [ChildA] ChildA Open
-            Object(Foo::ChildAClose(S3)), // [ChildA] ChildA Close
-            Object(Foo::ChildBOpen),      // [ChildB] ChildB Open
-            Object(Foo::ChildBClose),     // [ChildB] ChildB Close
-            Object(Foo::RootClose(S5)),   // [Root]   Root Close
+            Object(Foo::RootOpen(S1)),      // [Root]   Root Open
+              Object(Foo::ChildAOpen(S2)),  // [ChildA] ChildA Open
+              Object(Foo::ChildAClose(S3)), // [ChildA] ChildA Close
+
+              Object(Foo::ChildBOpen),      // [ChildB] ChildB Open
+              Object(Foo::ChildBClose),     // [ChildB] ChildB Close
+            Object(Foo::RootClose(S5)),     // [Root]   Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -849,18 +865,19 @@ fn x_ignored_between_elements(tok: XirfToken<RefinedText>) {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         // Whitespace before start tag.
         tok.clone(),
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
-        // Whitespace between children.
-        tok.clone(),
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        tok.clone(),
-        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        tok.clone(),
+          // Whitespace between children.
+          tok.clone(),
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+          tok.clone(),
+          XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+          tok.clone(),
         XirfToken::Close(Some(QN_SUT), CloseSpan(S5, N), Depth(0)),
         // Whitespace after end tag.
         tok.clone(),
@@ -868,16 +885,17 @@ fn x_ignored_between_elements(tok: XirfToken<RefinedText>) {
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             Incomplete,        // [Root]  tok
             Object(Foo::Root), // [Root]  Root Open
-            Incomplete,        // [Root@] tok
-            Object(Foo::A),    // [A]     A Open
-            Incomplete,        // [A]     A Close
-            Incomplete,        // [A]     tok
-            Object(Foo::B),    // [B]     B Open
-            Incomplete,        // [B]     B Close
-            Incomplete,        // [Root]  tok
+              Incomplete,      // [Root@] tok
+              Object(Foo::A),  // [A]     A Open
+              Incomplete,      // [A]     A Close
+              Incomplete,      // [A]     tok
+              Object(Foo::B),  // [B]     B Open
+              Incomplete,      // [B]     B Close
+              Incomplete,      // [Root]  tok
             Incomplete,        // [Root]  Root Close
             Incomplete,        // [Root]  tok
         ]),
@@ -964,22 +982,24 @@ fn child_error_and_recovery() {
     let unexpected = "unexpected".unwrap_into();
     let span = OpenSpan(S2, N);
 
+    #[rustfmt::skip]
     let toks = vec![
         // The first token is the expected root.
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // --> But this one is unexpected (name).
-        XirfToken::Open(unexpected, span, Depth(1)),
-        // And so we should ignore it up to this point.
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // At this point,
-        //   having encountered the closing tag,
-        //   the next token should result in a dead state,
-        //     which should then result in a transition away from the state
-        //     for `ChildA`,
-        //       which means that we expect `ChildB`.
-        // Parsing continues normally.
-        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+          // --> But this one is unexpected (name).
+          XirfToken::Open(unexpected, span, Depth(1)),
+          // And so we should ignore it up to this point.
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // At this point,
+          //   having encountered the closing tag,
+          //   the next token should result in a dead state,
+          //     which should then result in a transition away from the state
+          //     for `ChildA`,
+          //       which means that we expect `ChildB`.
+          // Parsing continues normally.
+          XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S4, N), Depth(0)),
     ];
 
@@ -1068,31 +1088,34 @@ fn child_error_and_recovery_at_close() {
     let span_a = OpenSpan(S2, N);
     let span_b = OpenSpan(S4, N);
 
+    #[rustfmt::skip]
     let toks = vec![
         // The first token is the expected root.
         XirfToken::Open(QN_PACKAGE, OpenSpan(S1, N), Depth(0)),
-        // Root is now expecting either attributes
-        //   (of which there are none),
-        //   or a closing element.
-        // In either case,
-        //   an opening element is entirely unexpected.
-        XirfToken::Open(unexpected_a, span_a, Depth(1)),
-        // And so we should ignore it up to this point.
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Let's do the same thing again.
-        // It may be ideal to have another error exposed for each individual
-        //   element that is unexpected,
-        //     but for now the parser is kept simple and we simply continue
-        //     to ignore elements until we reach the close.
-        XirfToken::Open(unexpected_b, span_b, Depth(1)),
-        // And so we should ignore it up to this point.
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
-        // Let's mix it up a bit with some text and make sure that is
-        //   ignored too.
-        XirfToken::Text(
-            RefinedText::Unrefined(Text("unexpected text".unwrap_into(), S5)),
-            Depth(1),
-        ),
+          // Root is now expecting either attributes
+          //   (of which there are none),
+          //   or a closing element.
+          // In either case,
+          //   an opening element is entirely unexpected.
+          XirfToken::Open(unexpected_a, span_a, Depth(1)),
+          // And so we should ignore it up to this point.
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // Let's do the same thing again.
+          // It may be ideal to have another error exposed for each individual
+          //   element that is unexpected,
+          //     but for now the parser is kept simple and we simply continue
+          //     to ignore elements until we reach the close.
+          XirfToken::Open(unexpected_b, span_b, Depth(1)),
+          // And so we should ignore it up to this point.
+          XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+
+          // Let's mix it up a bit with some text and make sure that is
+          //   ignored too.
+          XirfToken::Text(
+              RefinedText::Unrefined(Text("unexpected text".unwrap_into(), S5)),
+              Depth(1),
+          ),
         // Having recovered from the above tokens,
         //   this will end parsing for `Root` as expected.
         XirfToken::Close(Some(QN_PACKAGE), CloseSpan(S6, N), Depth(0)),
@@ -1342,26 +1365,30 @@ fn sum_nonterminal_as_child_element() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // A
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // B
-        XirfToken::Open(QN_C, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+          // A
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // B
+          XirfToken::Open(QN_C, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S5, N), Depth(0)),
     ];
 
     use Parsed::*;
 
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             Object(Foo::Open(QN_ROOT)),  // [Root] Root Open
-            Object(Foo::Open(QN_A)),     // [A]    A Open
-            Object(Foo::Close(QN_A)),    // [A]    A Close
-            Object(Foo::Open(QN_C)),     // [C]    B Open
-            Object(Foo::Close(QN_C)),    // [C@]   C Close (>LA)
+              Object(Foo::Open(QN_A)),   // [A]    A Open
+              Object(Foo::Close(QN_A)),  // [A]    A Close
+
+              Object(Foo::Open(QN_C)),   // [C]    B Open
+              Object(Foo::Close(QN_C)),  // [C@]   C Close (>LA)
             Object(Foo::Close(QN_ROOT)), // [Root] Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -1409,18 +1436,19 @@ fn sum_nonterminal_error_recovery() {
     //   properly yield a dead state transition.
     let dead_tok = XirfToken::Open(QN_NAME, OpenSpan(S5, N), depth);
 
+    #[rustfmt::skip]
     let toks = vec![
         // Neither A nor B,
         //   which will produce an error and enter recovery.
         XirfToken::Open(unexpected, OpenSpan(S1, N), depth),
-        // A child element to be ignored,
-        //   to ensure that its closing tag will not halt recovery
-        //   prematurely.
-        // This further tests that it's too late to provide a valid opening
-        //   token
-        //     (which is good because we're not at the right depth).
-        XirfToken::Open(QN_A, OpenSpan(S2, N), depth_child),
-        XirfToken::Close(None, CloseSpan::empty(S3), depth_child),
+          // A child element to be ignored,
+          //   to ensure that its closing tag will not halt recovery
+          //   prematurely.
+          // This further tests that it's too late to provide a valid opening
+          //   token
+          //     (which is good because we're not at the right depth).
+          XirfToken::Open(QN_A, OpenSpan(S2, N), depth_child),
+          XirfToken::Close(None, CloseSpan::empty(S3), depth_child),
         // Closing token for the bad element at the corresponding depth,
         //   which will end recovery.
         XirfToken::Close(Some(unexpected), CloseSpan(S4, N), depth),
@@ -1534,23 +1562,28 @@ fn child_repetition() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // ChildA (1)
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // ChildA (2)
-        XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // ChildB (1)
-        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
-        // ChildB (2)
-        XirfToken::Open(QN_B, OpenSpan(S5, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
-        // ChildC (only)
-        XirfToken::Open(QN_C, OpenSpan(S6, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+          // ChildA (1)
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // ChildA (2)
+          XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // ChildB (1)
+          XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+
+          // ChildB (2)
+          XirfToken::Open(QN_B, OpenSpan(S5, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+
+          // ChildC (only)
+          XirfToken::Open(QN_C, OpenSpan(S6, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
     ];
 
@@ -1580,19 +1613,24 @@ fn child_repetition() {
     //     but it's possible that this comment has not been updated since
     //     then.)
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::RootOpen),         // [Root]    Root Open
-            Object(Foo::ChildOpen(QN_A)),  // [ChildA]  ChildA Open
-            Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close
-            Object(Foo::ChildOpen(QN_A)),  // [ChildA]  ChildA Open
-            Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close
-            Object(Foo::ChildOpen(QN_B)),  // [ChildB]  ChildB Open
-            Object(Foo::ChildClose(QN_B)), // [ChildB]  ChildB Close
-            Object(Foo::ChildOpen(QN_B)),  // [ChildB]  ChildB Open
-            Object(Foo::ChildClose(QN_B)), // [ChildB]  ChildB Close
-            Object(Foo::ChildOpen(QN_C)),  // [ChildC]  ChildC Open
-            Object(Foo::ChildClose(QN_C)), // [ChildC]  ChildC Close
-            Object(Foo::RootClose),        // [Root]    Root Close
+            Object(Foo::RootOpen),           // [Root]    Root Open
+              Object(Foo::ChildOpen(QN_A)),  // [ChildA]  ChildA Open
+              Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close
+
+              Object(Foo::ChildOpen(QN_A)),  // [ChildA]  ChildA Open
+              Object(Foo::ChildClose(QN_A)), // [ChildA]  ChildA Close
+
+              Object(Foo::ChildOpen(QN_B)),  // [ChildB]  ChildB Open
+              Object(Foo::ChildClose(QN_B)), // [ChildB]  ChildB Close
+
+              Object(Foo::ChildOpen(QN_B)),  // [ChildB]  ChildB Open
+              Object(Foo::ChildClose(QN_B)), // [ChildB]  ChildB Close
+
+              Object(Foo::ChildOpen(QN_C)),  // [ChildC]  ChildC Open
+              Object(Foo::ChildClose(QN_C)), // [ChildC]  ChildC Close
+            Object(Foo::RootClose),          // [Root]    Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -1639,46 +1677,57 @@ fn child_nt_sequence_no_prev_after_next() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // A
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S2), Depth(1)),
-        // A -> A OK
-        XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // A -> B
-        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // B -> B OK
-        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // B -> A _not_ OK.
-        XirfToken::Open(QN_A, OpenSpan(S6, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+          // A
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S2), Depth(1)),
+
+          // A -> A OK
+          XirfToken::Open(QN_A, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // A -> B
+          XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // B -> B OK
+          XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // B -> A _not_ OK.
+          XirfToken::Open(QN_A, OpenSpan(S6, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
     ];
 
     use Parsed::*;
 
     assert_eq!(
+        #[rustfmt::skip]
         vec![
-            Ok(Object(Foo::Open(QN_ROOT))), // [Root]  Root Open
-            Ok(Object(Foo::Open(QN_A))),    // [A]     A Open
-            Ok(Object(Foo::Close(QN_A))),   // [A]     A Close
-            Ok(Object(Foo::Open(QN_A))),    // [A]     A Open
-            Ok(Object(Foo::Close(QN_A))),   // [A]     A Close
-            Ok(Object(Foo::Open(QN_B))),    // [B]     B Open
-            Ok(Object(Foo::Close(QN_B))),   // [B]     B Close
-            Ok(Object(Foo::Open(QN_B))),    // [B]     B Open
-            Ok(Object(Foo::Close(QN_B))),   // [B]     B Close
-            Err(ParseError::StateError(<Sut as ParseState>::Error::B(
-                <B as ParseState>::Error::UnexpectedEle(
-                    QN_A,
-                    OpenSpan(S6, N).name_span()
-                )
-            ))), // [B!] A Open
-            Ok(Incomplete),                 // [B!] A Close
+            Ok(Object(Foo::Open(QN_ROOT))),  // [Root]  Root Open
+              Ok(Object(Foo::Open(QN_A))),   // [A]     A Open
+              Ok(Object(Foo::Close(QN_A))),  // [A]     A Close
+
+              Ok(Object(Foo::Open(QN_A))),   // [A]     A Open
+              Ok(Object(Foo::Close(QN_A))),  // [A]     A Close
+
+              Ok(Object(Foo::Open(QN_B))),   // [B]     B Open
+              Ok(Object(Foo::Close(QN_B))),  // [B]     B Close
+
+              Ok(Object(Foo::Open(QN_B))),   // [B]     B Open
+              Ok(Object(Foo::Close(QN_B))),  // [B]     B Close
+
+              // B -> A is not a valid state transition
+              Err(ParseError::StateError(<Sut as ParseState>::Error::B(
+                  <B as ParseState>::Error::UnexpectedEle(
+                      QN_A,
+                      OpenSpan(S6, N).name_span()
+                  )
+              ))),                           // [B!] A Open
+              Ok(Incomplete),                // [B!] A Close
             Ok(Object(Foo::Close(QN_ROOT))), // [Root] Root Close
         ],
         Sut::parse(toks.into_iter()).collect::<Vec<ParsedResult<Sut>>>(),
@@ -1721,14 +1770,16 @@ fn child_repetition_invalid_tok_dead() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // Child (success)
-        XirfToken::Open(QN_CHILD, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // unexpected
-        XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+          // Child (success)
+          XirfToken::Open(QN_CHILD, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // unexpected
+          XirfToken::Open(unexpected, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
     ];
 
@@ -1828,23 +1879,28 @@ fn sum_repetition() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // A (1)
-        XirfToken::Open(QN_A, OpenSpan(S1, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S2), Depth(1)),
-        // A (2)
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // B (1)
-        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // C (1)
-        XirfToken::Open(QN_C, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
-        // B (2)
-        XirfToken::Open(QN_B, OpenSpan(S5, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+          // A (1)
+          XirfToken::Open(QN_A, OpenSpan(S1, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S2), Depth(1)),
+
+          // A (2)
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // B (1)
+          XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // C (1)
+          XirfToken::Open(QN_C, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+
+          // B (2)
+          XirfToken::Open(QN_B, OpenSpan(S5, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S7, N), Depth(0)),
     ];
 
@@ -1853,18 +1909,23 @@ fn sum_repetition() {
     // See notes on preceding repetition test `child_repetition` regarding
     //   the suppression of `Incomplete` for dead states.
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
             Object(Foo::Open(QN_ROOT)),  // [Root]  Root Open
-            Object(Foo::Open(QN_A)),     // [A]     A Open
-            Object(Foo::Close(QN_A)),    // [A]     A Close
-            Object(Foo::Open(QN_A)),     // [A]     A Open
-            Object(Foo::Close(QN_A)),    // [A]     A Close
-            Object(Foo::Open(QN_B)),     // [B]     B Open
-            Object(Foo::Close(QN_B)),    // [B]     B Close
-            Object(Foo::Open(QN_C)),     // [C]     C Open
-            Object(Foo::Close(QN_C)),    // [C]     C Close
-            Object(Foo::Open(QN_B)),     // [B]     B Open
-            Object(Foo::Close(QN_B)),    // [B]     B Close
+              Object(Foo::Open(QN_A)),   // [A]     A Open
+              Object(Foo::Close(QN_A)),  // [A]     A Close
+
+              Object(Foo::Open(QN_A)),   // [A]     A Open
+              Object(Foo::Close(QN_A)),  // [A]     A Close
+
+              Object(Foo::Open(QN_B)),   // [B]     B Open
+              Object(Foo::Close(QN_B)),  // [B]     B Close
+
+              Object(Foo::Open(QN_C)),   // [C]     C Open
+              Object(Foo::Close(QN_C)),  // [C]     C Close
+
+              Object(Foo::Open(QN_B)),   // [B]     B Open
+              Object(Foo::Close(QN_B)),  // [B]     B Close
             Object(Foo::Close(QN_ROOT)), // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
@@ -1948,62 +2009,76 @@ fn mixed_content_text_nodes() {
     let text_b = "text b".into();
     let text_b2 = "text b2".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        // Whitespace will not match the `[text]` special form.
-        tok_ws.clone(),
-        // Text before root open.
-        // This must be emitted as a _child_ of Root,
-        //   meaning that Root must be given the opportunity to report that
-        //   attribute parsing is finished before we emit the object.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_root, S1)), Depth(1)),
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        // Text within a child.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Text _after_ a child node,
-        //   which does not require ending attribute parsing before emitting.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_a2, S3)), Depth(1)),
-        // Try to yield B with text.
-        XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Text(RefinedText::Unrefined(Text(text_b, S4)), Depth(2)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // Finally, some more text permitted at the close of b.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_b2, S5)), Depth(1)),
-        // Encountering the text at the close should not have transitioned
-        //   us away from the parser,
-        //     so let's verify that we can still parse `AB`.
-        XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
-        // Provide C,
-        //   just so this test doesn't depend on being able to accept zero
-        //   of an NT.
-        // This otherwise has no impact on this test beyond ensuring it
-        //   doesn't fail for reasons unrelated to whitespace.
-        XirfToken::Open(QN_C, OpenSpan(S5, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+          // Whitespace will not match the `[text]` special form.
+          tok_ws.clone(),
+          // Text before root open.
+          // This must be emitted as a _child_ of Root,
+          //   meaning that Root must be given the opportunity to report that
+          //   attribute parsing is finished before we emit the object.
+          XirfToken::Text(RefinedText::Unrefined(Text(text_root, S1)), Depth(1)),
+
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+            // Text within a child.
+            XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // Text _after_ a child node,
+          //   which does not require ending attribute parsing before emitting.
+          XirfToken::Text(RefinedText::Unrefined(Text(text_a2, S3)), Depth(1)),
+
+          // Try to yield B with text.
+          XirfToken::Open(QN_B, OpenSpan(S3, N), Depth(1)),
+            XirfToken::Text(RefinedText::Unrefined(Text(text_b, S4)), Depth(2)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // Finally, some more text permitted at the close of b.
+          XirfToken::Text(RefinedText::Unrefined(Text(text_b2, S5)), Depth(1)),
+
+          // Encountering the text at the close should not have transitioned
+          //   us away from the parser,
+          //     so let's verify that we can still parse `AB`.
+          XirfToken::Open(QN_B, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+
+          // Provide C,
+          //   just so this test doesn't depend on being able to accept zero
+          //   of an NT.
+          // This otherwise has no impact on this test beyond ensuring it
+          //   doesn't fail for reasons unrelated to whitespace.
+          XirfToken::Open(QN_C, OpenSpan(S5, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S6, N), Depth(0)),
     ];
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::Open(QN_ROOT)),       // [Root]  Root Open
-            Incomplete,                       // [Root@] WS
-            Object(Foo::Text(text_root, S1)), // [Sut]   Text
-            Object(Foo::Open(QN_A)),          // [A]     A Open (<LA)
-            Object(Foo::Text(text_a, S2)),    // [Sut]   Text
-            Object(Foo::Close(QN_A)),         // [A]     A Close
-            Object(Foo::Text(text_a2, S3)),   // [Sut]   Text
-            Object(Foo::Open(QN_B)),          // [B]     B Open
-            Object(Foo::Text(text_b, S4)),    // [Sut]   Text
-            Object(Foo::Close(QN_B)),         // [B]     B Close
-            Object(Foo::Text(text_b2, S5)),   // [Sut]   Text
-            Object(Foo::Open(QN_B)),          // [B]     B Open
-            Object(Foo::Close(QN_B)),         // [B]     B Close
-            Object(Foo::Open(QN_C)),          // [C]     C Open
-            Object(Foo::Close(QN_C)),         // [C]     C Close
-            Object(Foo::Close(QN_ROOT)),      // [Root]  Root Close
+            Object(Foo::Open(QN_ROOT)),         // [Root]  Root Open
+              Incomplete,                       // [Root@] WS
+              Object(Foo::Text(text_root, S1)), // [Sut]   Text
+
+              Object(Foo::Open(QN_A)),          // [A]     A Open (<LA)
+                Object(Foo::Text(text_a, S2)),  // [Sut]   Text
+              Object(Foo::Close(QN_A)),         // [A]     A Close
+
+              Object(Foo::Text(text_a2, S3)),   // [Sut]   Text
+
+              Object(Foo::Open(QN_B)),          // [B]     B Open
+                Object(Foo::Text(text_b, S4)),  // [Sut]   Text
+              Object(Foo::Close(QN_B)),         // [B]     B Close
+
+              Object(Foo::Text(text_b2, S5)),   // [Sut]   Text
+
+              Object(Foo::Open(QN_B)),          // [B]     B Open
+              Object(Foo::Close(QN_B)),         // [B]     B Close
+
+              Object(Foo::Open(QN_C)),          // [C]     C Open
+              Object(Foo::Close(QN_C)),         // [C]     C Close
+            Object(Foo::Close(QN_ROOT)),        // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -2043,12 +2118,13 @@ fn no_mixed_content_super() {
 
     let text_a = "text a".into();
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_SUT, OpenSpan(S1, N), Depth(0)),
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        // Text should not be permitted.
-        XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+            // Text should not be permitted.
+            XirfToken::Text(RefinedText::Unrefined(Text(text_a, S2)), Depth(2)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         XirfToken::Close(Some(QN_SUT), CloseSpan(S6, N), Depth(0)),
     ];
 
@@ -2150,34 +2226,41 @@ fn superstate_preempt_element_open_sum() {
         PreAB := (PreA | PreB);
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
-        // At this point we are performing attribute parsing.
-        // Let's try to preempt;
-        //   we'll want to ensure that attributes will be omitted before the
-        //   preempted node,
-        //     otherwise we'd be a sibling rather than a child.
-        XirfToken::Open(QN_PRE_B, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Now let's return to normal parsing with the expected child.
-        XirfToken::Open(QN_CHILDA, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // We're now expecting `ChildB`.
-        // Preempt again.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
-        // Preemption should not have changed the state of `Root`,
-        //   and so _we should still be expecting `ChildB`_.
-        XirfToken::Open(QN_CHILDB, OpenSpan(S6, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
-        // We ought to be able to preempt before the closing tag too.
-        XirfToken::Open(QN_PRE_B, OpenSpan(S7, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
-        // Adjacent,
-        //   just to be sure that we allow the previous to close before we
-        //   preempt again.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S8, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+          // At this point we are performing attribute parsing.
+          // Let's try to preempt;
+          //   we'll want to ensure that attributes will be omitted before the
+          //   preempted node,
+          //     otherwise we'd be a sibling rather than a child.
+          XirfToken::Open(QN_PRE_B, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // Now let's return to normal parsing with the expected child.
+          XirfToken::Open(QN_CHILDA, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // We're now expecting `ChildB`.
+          // Preempt again.
+          XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+
+          // Preemption should not have changed the state of `Root`,
+          //   and so _we should still be expecting `ChildB`_.
+          XirfToken::Open(QN_CHILDB, OpenSpan(S6, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+
+          // We ought to be able to preempt before the closing tag too.
+          XirfToken::Open(QN_PRE_B, OpenSpan(S7, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+
+          // Adjacent,
+          //   just to be sure that we allow the previous to close before we
+          //   preempt again.
+          XirfToken::Open(QN_PRE_A, OpenSpan(S8, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+
         // This poor document has had enough.
         // Let it close.
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
@@ -2185,21 +2268,27 @@ fn superstate_preempt_element_open_sum() {
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::Root),        // [Root]    Root Open
-            Object(Foo::PreB(S3)),    // [PreB]    B Open
-            Object(Foo::PreBClose),   // [PreB]    B Close
-            Object(Foo::ChildA),      // [ChildA]  ChildA Open
-            Object(Foo::ChildAClose), // [ChildA]  ChildA Close
-            Object(Foo::PreA(S5)),    // [PreA]    A Open
-            Object(Foo::PreAClose),   // [PreA]    A Close
-            Object(Foo::ChildB),      // [ChildB]  ChildB Open
-            Object(Foo::ChildBClose), // [ChildB]  ChildB Close
-            Object(Foo::PreB(S7)),    // [PreB]    B Open
-            Object(Foo::PreBClose),   // [PreB]    B Close
-            Object(Foo::PreA(S8)),    // [PreA]    A Open
-            Object(Foo::PreAClose),   // [PreA]    A Close
-            Object(Foo::RootClose),   // [Root]  Root Close
+            Object(Foo::Root),          // [Root]    Root Open
+              Object(Foo::PreB(S3)),    // [PreB]    B Open
+              Object(Foo::PreBClose),   // [PreB]    B Close
+
+              Object(Foo::ChildA),      // [ChildA]  ChildA Open
+              Object(Foo::ChildAClose), // [ChildA]  ChildA Close
+
+              Object(Foo::PreA(S5)),    // [PreA]    A Open
+              Object(Foo::PreAClose),   // [PreA]    A Close
+
+              Object(Foo::ChildB),      // [ChildB]  ChildB Open
+              Object(Foo::ChildBClose), // [ChildB]  ChildB Close
+
+              Object(Foo::PreB(S7)),    // [PreB]    B Open
+              Object(Foo::PreBClose),   // [PreB]    B Close
+
+              Object(Foo::PreA(S8)),    // [PreA]    A Open
+              Object(Foo::PreAClose),   // [PreA]    A Close
+            Object(Foo::RootClose),     // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -2264,30 +2353,35 @@ fn superstate_preempt_element_open_non_sum() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
-        // At this point we are performing attribute parsing.
-        // Let's try to preempt;
-        //   we'll want to ensure that attributes will be omitted before the
-        //   preempted node,
-        //     otherwise we'd be a sibling rather than a child.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
-        // Now let's return to normal parsing with the expected child.
-        XirfToken::Open(QN_CHILDA, OpenSpan(S4, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
-        // We're now expecting `ChildB`.
-        // Preempt again.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
-        // Preemption should not have changed the state of `Root`,
-        //   and so _we should still be expecting `ChildB`_.
-        XirfToken::Open(QN_CHILDB, OpenSpan(S6, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
-        // Finally,
-        //   we ought to be able to preempt before the closing tag too.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S7, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
+          // At this point we are performing attribute parsing.
+          // Let's try to preempt;
+          //   we'll want to ensure that attributes will be omitted before the
+          //   preempted node,
+          //     otherwise we'd be a sibling rather than a child.
+          XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+          // Now let's return to normal parsing with the expected child.
+          XirfToken::Open(QN_CHILDA, OpenSpan(S4, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+          // We're now expecting `ChildB`.
+          // Preempt again.
+          XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+
+          // Preemption should not have changed the state of `Root`,
+          //   and so _we should still be expecting `ChildB`_.
+          XirfToken::Open(QN_CHILDB, OpenSpan(S6, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+
+          // Finally,
+          //   we ought to be able to preempt before the closing tag too.
+          XirfToken::Open(QN_PRE_A, OpenSpan(S7, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
         // This poor document has had enough.
         // Let it close.
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
@@ -2295,19 +2389,24 @@ fn superstate_preempt_element_open_non_sum() {
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::Root),        // [Root]    Root Open
-            Object(Foo::PreA(S3)),    // [PreA]    A Open
-            Object(Foo::PreAClose),   // [PreA]    A Close
-            Object(Foo::ChildA),      // [ChildA] ChildA Open
-            Object(Foo::ChildAClose), // [ChildA]  ChildA Close
-            Object(Foo::PreA(S5)),    // [PreA]    A Open
-            Object(Foo::PreAClose),   // [PreA]    A Close
-            Object(Foo::ChildB),      // [ChildB]  ChildB Open
-            Object(Foo::ChildBClose), // [ChildB]  ChildB Close
-            Object(Foo::PreA(S7)),    // [PreA]    A Open (<LA)
-            Object(Foo::PreAClose),   // [PreA]    A Close
-            Object(Foo::RootClose),   // [Root]  Root Close
+            Object(Foo::Root),          // [Root]    Root Open
+              Object(Foo::PreA(S3)),    // [PreA]    A Open
+              Object(Foo::PreAClose),   // [PreA]    A Close
+
+              Object(Foo::ChildA),      // [ChildA] ChildA Open
+              Object(Foo::ChildAClose), // [ChildA]  ChildA Close
+
+              Object(Foo::PreA(S5)),    // [PreA]    A Open
+              Object(Foo::PreAClose),   // [PreA]    A Close
+
+              Object(Foo::ChildB),      // [ChildB]  ChildB Open
+              Object(Foo::ChildBClose), // [ChildB]  ChildB Close
+
+              Object(Foo::PreA(S7)),    // [PreA]    A Open (<LA)
+              Object(Foo::PreAClose),   // [PreA]    A Close
+            Object(Foo::RootClose),     // [Root]  Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -2352,31 +2451,35 @@ fn superstate_preempt_element_open_nested() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
-        // First preemption
-        XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
-        // And now a second preemption as a child of the first.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S4, N), Depth(2)),
-        XirfToken::Close(None, CloseSpan::empty(S4), Depth(2)),
-        // Adjacent to ensure previous one closed.
-        XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(2)),
-        XirfToken::Close(None, CloseSpan::empty(S5), Depth(2)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+          // First preemption
+          XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+            // And now a second preemption as a child of the first.
+            XirfToken::Open(QN_PRE_A, OpenSpan(S4, N), Depth(2)),
+            XirfToken::Close(None, CloseSpan::empty(S4), Depth(2)),
+
+            // Adjacent to ensure previous one closed.
+            XirfToken::Open(QN_PRE_A, OpenSpan(S5, N), Depth(2)),
+            XirfToken::Close(None, CloseSpan::empty(S5), Depth(2)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
     ];
 
     use Parsed::*;
     assert_eq!(
+        #[rustfmt::skip]
         Ok(vec![
-            Object(Foo::Root),          // [Root] Root Open
-            Object(Foo::PreA(S3)),      // [PreA] PreA Open
-            Object(Foo::PreA(S4)),      // [PreA] PreA Open
-            Object(Foo::PreAClose(S4)), // [PreA] PreA Close
-            Object(Foo::PreA(S5)),      // [PreA] PreA Open
-            Object(Foo::PreAClose(S5)), // [PreA] PreA Close
-            Object(Foo::PreAClose(S3)), // [PreA] PreA Close
-            Object(Foo::RootClose),     // [Root] Root Close
+            Object(Foo::Root),              // [Root] Root Open
+              Object(Foo::PreA(S3)),        // [PreA] PreA Open
+                Object(Foo::PreA(S4)),      // [PreA] PreA Open
+                Object(Foo::PreAClose(S4)), // [PreA] PreA Close
+
+                Object(Foo::PreA(S5)),      // [PreA] PreA Open
+                Object(Foo::PreAClose(S5)), // [PreA] PreA Close
+              Object(Foo::PreAClose(S3)),   // [PreA] PreA Close
+            Object(Foo::RootClose),         // [Root] Root Close
         ]),
         Sut::parse(toks.into_iter()).collect(),
     );
@@ -2407,10 +2510,11 @@ fn superstate_not_accepting_until_root_close() {
         };
     }
 
+    #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-        XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
-        XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+          XirfToken::Open(QN_A, OpenSpan(S2, N), Depth(1)),
+          XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
         // A is in an accepting state here,
         //   but we haven't yet closed Root and so Sut should not allow us
         //   to finish parsing at this point.
