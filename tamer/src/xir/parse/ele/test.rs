@@ -230,17 +230,20 @@ fn empty_element_ns_prefix_nomatch() {
         XirfToken::Close(None, CloseSpan::empty(S2), Depth(0)),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-
-    let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        ParseError::StateError(<Sut as ParseState>::Error::Root(
-            <Root as ParseState>::Error::UnexpectedEle(
-                unexpected,
-                span.name_span()
-            )
-        )),
-        err,
+        #[rustfmt::skip]
+        vec![
+            Err(ParseError::StateError(<Sut as ParseState>::Error::Root(
+                <Root as ParseState>::Error::UnexpectedEle(
+                    unexpected,
+                    span.name_span()
+                )
+            ))),
+
+            // RECOVERY: Ignore close of unexpected element.
+            Ok(Parsed::Incomplete),
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<ParsedResult<Sut>>>(),
     );
 }
 
@@ -273,27 +276,35 @@ fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
         XirfToken::Open(QN_C_EQ, OpenSpan(S1, N), Depth(0)),
         // We're not expecting a child.
         XirfToken::Open(unexpected, span_unexpected, Depth(1)),
+        // Close the element to finish the parse.
+        XirfToken::Close(Some(QN_C_EQ), CloseSpan(S2, N), Depth(0)),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-
-    // The opening tag parses fine,
-    //   and the unexpected tag successfully terminates attribute parsing.
-    assert_eq!(sut.next(), Some(Ok(Parsed::Object(Foo)))); // [Root] Open
-
-    // But then consuming the LA will produce an error,
-    //   since we were not expecting a child.
-    let err = sut.next().unwrap().unwrap_err();
     assert_eq!(
-        ParseError::StateError(<Sut as ParseState>::Error::Root(
-            <Root as ParseState>::Error::CloseExpected(
-                // Verify that the error includes the QName that actually matched.
-                QN_C_EQ,
-                OpenSpan(S1, N),
-                XirfToken::Open(unexpected, span_unexpected, Depth(1)),
-            )
-        )),
-        err,
+        #[rustfmt::skip]
+        vec![
+            // The opening tag parses fine,
+            //   and the unexpected tag successfully terminates attribute
+            //   parsing.
+            Ok(Parsed::Object(Foo)),  // [Root] Open
+
+            // But then consuming the LA will produce an error,
+            //   since we were not expecting a child.
+            Err(ParseError::StateError(<Sut as ParseState>::Error::Root(
+                <Root as ParseState>::Error::CloseExpected(
+                    // Verify that the error includes the QName that actually matched.
+                    QN_C_EQ,
+                    OpenSpan(S1, N),
+                    XirfToken::Open(unexpected, span_unexpected, Depth(1)),
+                )
+            ))),
+
+            // RECOVERY: The previous element is ignored,
+            //   and we complete parsing by closing the last successfully
+            //   parsed element.
+            Ok(Parsed::Incomplete), // [Root] Close
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<ParsedResult<Sut>>>(),
     );
 }
 
@@ -1703,7 +1714,6 @@ fn child_nt_sequence_no_prev_after_next() {
     ];
 
     use Parsed::*;
-
     assert_eq!(
         #[rustfmt::skip]
         vec![
@@ -1727,6 +1737,8 @@ fn child_nt_sequence_no_prev_after_next() {
                       OpenSpan(S6, N).name_span()
                   )
               ))),                           // [B!] A Open
+              // RECOVERY: Ignore close of
+              //   invalid element.
               Ok(Incomplete),                // [B!] A Close
             Ok(Object(Foo::Close(QN_ROOT))), // [Root] Root Close
         ],
@@ -1783,49 +1795,46 @@ fn child_repetition_invalid_tok_dead() {
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
     ];
 
-    let mut sut = Sut::parse(toks.into_iter());
-
     use Parsed::*;
-
-    let mut next = || sut.next();
-
-    assert_eq!(next(), Some(Ok(Object(Foo::RootOpen)))); // [Root] Open
-    assert_eq!(next(), Some(Ok(Object(Foo::ChildOpen)))); // [Child] Open
-    assert_eq!(next(), Some(Ok(Object(Foo::ChildClose)))); // [Child] Close
-
-    // Intuitively,
-    //   we may want to enter recovery and ignore the element.
-    // But the problem is that we need to emit a dead state so that other
-    //   parsers can handle the input,
-    //     because it may simply be the case that our repetition is over.
-    //
-    // Given that dead state and token of lookahead,
-    //   `Parser` will immediately recurse to re-process the erroneous
-    //   `Open`.
-    // The next state after the `Child` NT is expecting a `Close`,
-    //   but upon encountering a `Open` it forces the last NT to perform the
-    //   processing,
-    //     and so the error will occur on `Child`.
     assert_eq!(
-        next(),
-        Some(Err(ParseError::StateError(
-            <Sut as ParseState>::Error::Child(
-                <Child as ParseState>::Error::UnexpectedEle(
-                    unexpected,
-                    OpenSpan(S2, N).name_span()
-                )
-            )
-        ))),
+        #[rustfmt::skip]
+        vec![
+            Ok(Object(Foo::RootOpen)), // [Root] Open
+              Ok(Object(Foo::ChildOpen)), // [Child] Open
+              Ok(Object(Foo::ChildClose)), // [Child] Close
+
+              // Intuitively,
+              //   we may want to enter recovery and ignore the element.
+              // But the problem is that we need to emit a dead state so
+              //   that other parsers can handle the input,
+              //     because it may simply be the case that our repetition
+              //     is over.
+              //
+              // Given that dead state and token of lookahead,
+              //   `Parser` will immediately recurse to re-process the
+              //   erroneous `Open`.
+              // The next state after the `Child` NT is expecting a `Close`,
+              //   but upon encountering a `Open` it forces the last NT to
+              //   perform the processing,
+              //     and so the error will occur on `Child`.
+              Err(ParseError::StateError(
+                  <Sut as ParseState>::Error::Child(
+                      <Child as ParseState>::Error::UnexpectedEle(
+                          unexpected,
+                          OpenSpan(S2, N).name_span()
+                      )
+                  )
+              )),
+
+              // RECOVERY: Ignore close of invalid element.
+              Ok(Incomplete), // [Root] Child Close
+
+            // Finally,
+            //   `Root` encounters its expected `Close` and ends recovery.
+            Ok(Object(Foo::RootClose)), // [Root] Close
+        ],
+        Sut::parse(toks.into_iter()).collect::<Vec<ParsedResult<Sut>>>(),
     );
-
-    // This next token is also ignored as part of recovery.
-    assert_eq!(next(), Some(Ok(Incomplete))); // [Root] Child Close
-
-    // Finally,
-    //   `Root` encounters its expected `Close` and ends recovery.
-    assert_eq!(next(), Some(Ok(Object(Foo::RootClose)))); // [Root] Close
-    sut.finalize()
-        .expect("recovery must complete in an accepting state");
 }
 
 // Repetition on a nonterminal of the form `(A | ... | Z)` will allow any
