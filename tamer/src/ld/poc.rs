@@ -27,7 +27,7 @@ use super::xmle::{
 };
 use crate::{
     asg::{air::AirAggregateCtx, DefaultAsg},
-    diagnose::{AnnotatedSpan, Diagnostic},
+    diagnostic_error_sum,
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,
@@ -45,7 +45,6 @@ use crate::{
 };
 use fxhash::FxBuildHasher;
 use std::{
-    error::Error,
     fmt::{self, Display},
     fs,
     io::{self, BufReader, BufWriter, Write},
@@ -142,84 +141,20 @@ fn output_xmle<'a, X: XmleSections<'a>, S: Escaper>(
     Ok(())
 }
 
-// TODO: This, like everything else here, needs a home.
-// TODO: Better encapsulation for `*ParseError` types.
-/// Linker (`tameld`) error.
-///
-/// This represents the aggregation of all possible errors that can occur
-///   during link-time.
-/// This cannot include panics,
-///   but efforts have been made to reduce panics to situations that
-///   represent the equivalent of assertions.
-#[derive(Debug)]
-pub enum TameldError {
-    Io(io::Error),
-    SortError(SortError),
-    LoadXmloError(LoadXmloError<XirError>),
-    XirWriterError(XirWriterError),
-    FinalizeError(FinalizeError),
-    Fmt(fmt::Error),
-}
-
-impl From<io::Error> for TameldError {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e.into())
-    }
-}
-
-impl From<SortError> for TameldError {
-    fn from(e: SortError) -> Self {
-        Self::SortError(e)
-    }
-}
-
-impl From<LoadXmloError<XirError>> for TameldError {
-    fn from(e: LoadXmloError<XirError>) -> Self {
-        Self::LoadXmloError(e)
-    }
-}
-
-impl From<FinalizeError> for TameldError {
-    fn from(e: FinalizeError) -> Self {
-        Self::FinalizeError(e)
-    }
-}
-
-impl From<XirWriterError> for TameldError {
-    fn from(e: XirWriterError) -> Self {
-        Self::XirWriterError(e)
-    }
-}
-
-impl From<fmt::Error> for TameldError {
-    fn from(e: fmt::Error) -> Self {
-        Self::Fmt(e)
-    }
-}
-
-impl Display for TameldError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Io(e) => Display::fmt(e, f),
-            Self::SortError(e) => Display::fmt(e, f),
-            Self::LoadXmloError(e) => Display::fmt(e, f),
-            Self::XirWriterError(e) => Display::fmt(e, f),
-            Self::FinalizeError(e) => Display::fmt(e, f),
-            Self::Fmt(e) => Display::fmt(e, f),
-        }
-    }
-}
-
-impl Error for TameldError {}
-
-impl Diagnostic for TameldError {
-    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
-        match self {
-            Self::LoadXmloError(e) => e.describe(),
-            Self::FinalizeError(e) => e.describe(),
-            Self::SortError(e) => e.describe(),
-
-            Self::Io(_) | Self::XirWriterError(_) | Self::Fmt(_) => vec![],
-        }
+diagnostic_error_sum! {
+    /// Linker (`tameld`) error.
+    ///
+    /// This represents the aggregation of all possible errors that can occur
+    ///   during link-time.
+    /// This cannot include panics,
+    ///   but efforts have been made to reduce panics to situations that
+    ///   represent the equivalent of assertions.
+    pub enum TameldError {
+        Io(io::Error),
+        SortError(SortError),
+        LoadXmloError(LoadXmloError<XirError>),
+        XirWriterError(XirWriterError),
+        FinalizeError(FinalizeError),
+        Fmt(fmt::Error),
     }
 }
