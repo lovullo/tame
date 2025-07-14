@@ -21,6 +21,9 @@
 //!
 //! _TODO:_ This needs significantly more documentation;
 //!   this is one of the most confusing and complex components of TAMER.
+//! Until then,
+//!   this module has extensive test cases that illustrate its behavior and
+//!   can serve as examples.
 
 use super::AttrParseState;
 use crate::{
