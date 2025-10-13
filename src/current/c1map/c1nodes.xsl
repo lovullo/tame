@@ -80,10 +80,10 @@
   <lvmp:node name="{name()}" escape-param="{@lvm:escape-param}"/>
   <xsl:text> => </xsl:text>
 
-  <xsl:text></xsl:text>
+  <lvmp:node-boundary escape-param="{@lvm:escape-param}">
     <!-- TODO: escape single quotes -->
     <xsl:apply-templates select="text()" mode="lvm:valparse" />
-  <xsl:text>, </xsl:text>
+  </lvmp:node-boundary>
 </xsl:template>
 
 
