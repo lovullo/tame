@@ -142,47 +142,47 @@ macro_rules! ele_parse {
         type AttrValueError = $evty:ty;
         type Object = $objty:ty;
 
-        $($rest:tt)*
+        $(
+          $(#[$nt_attr:meta])*
+          $nt:ident :=
+            // normal NT: QNAME(args...) { ... }
+            $( $qname:ident $( ($($ntp:tt)*) )? {
+              $($matches:tt)*
+            } )?
+
+            // sum NT: (N₀ | N₁ | ... | Nₙ)
+            $( ($($sum:tt)*) )?
+          ;
+        )*
     ) => {
-        ele_parse!(@!nonterm_decl <$objty, $evty> $vis $super $($rest)*);
+        $(
+          ele_parse!(@!nonterm_def <$objty, $evty>($vis, $super)
+            $(#[$nt_attr])*
+            $nt
+            $({ $qname($($($ntp)*)?) $($matches)* })?
+            $(( $($sum)*                          ))?
+          );
+        )*
     };
 
-    (@!nonterm_decl <$objty:ty, $evty:ty>
-        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident := $($rest:tt)*
-    ) => {
-        ele_parse!(@!nonterm_def <$objty, $evty>
-            $vis $super $(#[$nt_attr])* $nt $($rest)*
-        );
-    };
-
-    (@!nonterm_def <$objty:ty, $evty:ty>
-        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident $(($($ntp:tt)*))?
-        { $($matches:tt)* }; $($rest:tt)*
+    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
+        $(#[$nt_attr:meta])*
+        $nt:ident
+        { $qname:ident($($ntp:tt)*) $($matches:tt)* }
     ) => {
         ele_parse!(@!ele_expand_body <$objty, $evty>
-            $vis $super $(#[$nt_attr])* $nt $qname ($($($ntp)*)?) $($matches)*
+            $vis $super $(#[$nt_attr])* $nt $qname ($($ntp)*) $($matches)*
         );
-
-        ele_parse! {@!next $vis $super
-            type AttrValueError = $evty;
-            type Object = $objty;
-            $($rest)*
-        }
     };
 
-    (@!nonterm_def <$objty:ty, $evty:ty>
-        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident
-        ($ntref_first:ident $(| $ntref:ident)+); $($rest:tt)*
+    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
+        $(#[$nt_attr:meta])*
+        $nt:ident
+        ( $ntref_first:ident $(| $ntref:ident)+ )
     ) => {
         ele_parse!(@!ele_dfn_sum <$objty>
             $vis $super $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
         );
-
-        ele_parse! {@!next $vis $super
-            type AttrValueError = $evty;
-            type Object = $objty;
-            $($rest)*
-        }
     };
 
     (@!nonterm_decl <$objty:ty, $evty:ty> $vis:vis $super:ident) => {};
