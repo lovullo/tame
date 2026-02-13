@@ -147,49 +147,30 @@ macro_rules! ele_parse {
         );
     };
 
-    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
-        $(#[$nt_attr:meta])*
-        $nt:ident
-        { $qname:ident($($ntp:tt)*) $($matches:tt)* }
-    ) => {
-        ele_parse!(@!ele_expand_body <$objty, $evty>
-            $vis $super $(#[$nt_attr])* $nt $qname ($($ntp)*) $($matches)*
-        );
-    };
-
-    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
-        $(#[$nt_attr:meta])*
-        $nt:ident
-        ( $ntref_first:ident $(| $ntref:ident)+ )
-    ) => {
-        ele_parse!(@!ele_dfn_sum <$objty>
-            $vis $super $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
-        );
-    };
-
-    (@!nonterm_decl <$objty:ty, $evty:ty> $vis:vis $super:ident) => {};
-
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!ele_expand_body <$objty:ty, $evty:ty>
-        $vis:vis $super:ident
-        $(#[$nt_attr:meta])* $nt:ident $qname:ident ($($ntp:tt)*)
+    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
+        $(#[$nt_attr:meta])*
+        $nt:ident
+        {
+            $qname:ident($($ntp:tt)*)
 
-        @ { $($attrbody:tt)* } => $attrmap:expr,
-        $(/$(($close_span:ident))? => $closemap:expr,)?
+            @ { $($attrbody:tt)* } => $attrmap:expr,
+            $(/$(($close_span:ident))? => $closemap:expr,)?
 
-        // Special forms (`[sp](args) => expr`).
-        $(
-            [$special:ident]$(($($special_arg:tt)*))?
-                => $special_map:expr,
-        )?
+            // Special forms (`[sp](args) => expr`).
+            $(
+                [$special:ident]$(($($special_arg:tt)*))?
+                    => $special_map:expr,
+            )?
 
-        // Nonterminal references are provided as a list.
-        // A configuration specifier can be provided,
-        //   currently intended to support the Kleene star.
-        $(
-            $ntref:ident,
-        )*
+            // Nonterminal references are provided as a list.
+            // A configuration specifier can be provided,
+            //   currently intended to support the Kleene star.
+            $(
+                $ntref:ident,
+            )*
+        }
     ) => { paste::paste! {
         ele_parse! {
             @!ele_dfn_body <$objty, $evty>
@@ -216,6 +197,16 @@ macro_rules! ele_parse {
             }
         }
     } };
+
+    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
+        $(#[$nt_attr:meta])*
+        $nt:ident
+        ( $ntref_first:ident $(| $ntref:ident)+ )
+    ) => {
+        ele_parse!(@!ele_dfn_sum <$objty>
+            $vis $super $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
+        );
+    };
 
     // No explicit Close mapping defaults to doing nothing at all
     //   (so yield Incomplete).
