@@ -119,29 +119,6 @@ macro_rules! ele_parse {
             };
         )?
 
-        // Combination of square brackets above and the prefix here are
-        //   needed for disambiguation.
-        $(#[$nt_first_attr:meta])*
-        $nt_first:ident := $($nt_defs:tt)*
-    ) => {
-        ele_parse! {@!next $vis $super
-            type AttrValueError = $evty;
-            type Object = $objty;
-            $(#[$nt_first_attr])*
-            $nt_first := $($nt_defs)*
-        }
-
-        ele_parse!(@!super_sum <$objty> $(#[$super_attr])* $vis $super
-            $([super] { $($super_body)* })?
-            $nt_first := $($nt_defs)*
-        );
-    };
-
-    (@!next $vis:vis $super:ident
-        // Attr has to be first to avoid ambiguity with `$rest`.
-        type AttrValueError = $evty:ty;
-        type Object = $objty:ty;
-
         $(
           $(#[$nt_attr:meta])*
           $nt:ident :=
@@ -163,6 +140,11 @@ macro_rules! ele_parse {
             $(( $($sum)*                          ))?
           );
         )*
+
+        ele_parse!(@!super_sum <$objty> $(#[$super_attr])* $vis $super
+            $([super] { $($super_body)* })?
+            $($nt),*
+        );
     };
 
     (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
@@ -999,22 +981,7 @@ macro_rules! ele_parse {
                 $($pre_nt:ident)?
             }
         )?
-        $(
-            // NT definition is always followed by `:=`.
-            $(#[$_ident_attr:meta])*
-            $nt:ident :=
-                // Identifier if an element NT.
-                $($_i:ident)?
-                // Parenthesis for a sum NT,
-                //   or possibly the span match for an element NT.
-                // So: `:= QN_IDENT(span)` or `:= (A | B | C)`.
-                $( ($($_p:tt)*) )?
-                // Braces for an element NT body.
-                $( {$($_b:tt)*} )?
-            // Element and sum NT both conclude with a semicolon,
-            //   which we need to disambiguate the next `$nt`.
-            ;
-        )*
+        $($nt:ident),*
     ) => { paste::paste! {
         $(#[$super_attr])*
         ///
