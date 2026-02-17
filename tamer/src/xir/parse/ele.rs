@@ -155,7 +155,17 @@ macro_rules! ele_parse {
         {
             $qname:ident($($ntp:tt)*)
 
-            @ { $($attrbody:tt)* } => $attrmap:expr,
+            // Attribute definition special form.
+            @ {
+                // We must lightly parse attributes here so that we can retrieve
+                //   the field identifiers that may be later used as bindings in
+                //   `$attrmap`.
+                $(
+                    $(#[$fattr:meta])*
+                    $fmatch:tt => $fexpr:expr,
+                )*
+            } => $attrmap:expr,
+
             $(/$(($close_span:ident))? => $closemap:expr,)?
 
             // Special forms (`[sp](args) => expr`).
@@ -172,11 +182,26 @@ macro_rules! ele_parse {
             )*
         }
     ) => { paste::paste! {
+        $crate::attr_parse_stream! {
+            /// Attribute parser for
+            #[doc=concat!("[`", stringify!($nt), "`].")]
+            type Object = $objty;
+            type ValueError = $evty;
+
+            #[doc(hidden)]
+            $vis [<$nt AttrState_>] {
+                $(
+                    $(#[$fattr])*
+                    $fmatch => $fexpr,
+                )*
+            }
+        }
+
         ele_parse! {
             @!ele_dfn_body <$objty, $evty>
             $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
 
-            @ { $($attrbody)* } => $attrmap,
+            @=> $attrmap,
             /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
 
             $([$special]$(($($special_arg)*))? => $special_map,)?
@@ -257,16 +282,8 @@ macro_rules! ele_parse {
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident
         ($($qname_matched:pat, $open_span:pat)?)
 
-        // Attribute definition special form.
-        @ {
-            // We must lightly parse attributes here so that we can retrieve
-            //   the field identifiers that may be later used as bindings in
-            //   `$attrmap`.
-            $(
-                $(#[$fattr:meta])*
-                $fmatch:tt => $fexpr:expr,
-            )*
-        } => $attrmap:expr,
+        // We only need the final expression for the opening tag.
+        @=> $attrmap:expr,
 
         // Close expression
         //   (defaulting to Incomplete via @!ele_expand_body).
@@ -289,21 +306,6 @@ macro_rules! ele_parse {
             )*
         }
     ) => { paste::paste! {
-        $crate::attr_parse_stream! {
-            /// Attribute parser for
-            #[doc=concat!("[`", stringify!($nt), "`].")]
-            type Object = $objty;
-            type ValueError = $evty;
-
-            #[doc(hidden)]
-            $vis [<$nt AttrState_>] {
-                $(
-                    $(#[$fattr])*
-                    $fmatch => $fexpr,
-                )*
-            }
-        }
-
         #[doc(hidden)]
         #[derive(Debug, PartialEq, Eq)]
         $vis enum [<$nt ChildNt_>] {
