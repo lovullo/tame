@@ -492,6 +492,9 @@ macro_rules! ele_parse {
                     },
                 };
 
+                #[allow(unused_imports)]  // used for multi-NT
+                use $crate::xir::parse::Nt;
+
                 use NtState::{
                     Attrs, Expecting, NonPreemptableExpecting,
                     RecoverEleIgnore, CloseRecoverIgnore,
@@ -668,7 +671,7 @@ macro_rules! ele_parse {
                         //       which completely defeats the purpose of
                         //       having ordered states.
                         (
-                            Jmp([<$nt ChildNt_>]::ExpectClose_(meta)),
+                            Jmp(<Self as Nt>::ChildNt::ExpectClose_(meta)),
                             XirfToken::Open(qname, span, depth)
                         ) if Self(Jmp($ntprev(meta))).is_last_nt() => {
                             let tok = XirfToken::Open(qname, span, depth);
