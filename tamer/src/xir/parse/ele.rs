@@ -166,7 +166,7 @@ macro_rules! ele_parse {
                 )*
             } => $attrmap:expr,
 
-            $(/$(($close_span:ident))? => $closemap:expr,)?
+            $(/($close_span:pat) => $closemap:expr,)?
 
             // Special forms (`[sp](args) => expr`).
             $(
@@ -202,7 +202,7 @@ macro_rules! ele_parse {
             $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
 
             @=> $attrmap,
-            /$($($close_span)?)? => ele_parse!(@!ele_close $($closemap)?),
+            /( $($close_span)? ) => ele_parse!(@!ele_close $($closemap)?),
 
             $([$special]$(($($special_arg)*))? => $special_map,)?
 
@@ -287,7 +287,7 @@ macro_rules! ele_parse {
 
         // Close expression
         //   (defaulting to Incomplete via @!ele_expand_body).
-        /$($close_span:ident)? => $closemap:expr,
+        /( $($close_span:pat)? ) => $closemap:expr,
 
         // Streaming (as opposed to aggregate) attribute parsing.
         $([attr]($attr_stream_binding:pat) => $attr_stream_map:expr,)?
