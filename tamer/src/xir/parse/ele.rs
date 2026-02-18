@@ -123,21 +123,23 @@ macro_rules! ele_parse {
           $(#[$nt_attr:meta])*
           $nt:ident :=
             // normal NT: QNAME(args...) { ... }
-            $( $qname:ident $( ($($ntp:tt)*) )? {
-              $($matches:tt)*
-            } )?
-
-            // sum NT: (N₀ | N₁ | ... | Nₙ)
-            $( ($($sum:tt)*) )?
-          ;
-        )*
-    ) => {
-        $(
-          ele_parse!(@!nonterm_def <$objty, $evty>($vis, $super)
-            $(#[$nt_attr])*
-            $nt
-            $({ $qname($($($ntp)*)?) $($matches)* })?
-            $(( $($sum)*                          ))?
+            $( $qname:ident $( ($($ntp:tt)*) )? {       // \
+              $($matches:tt)*                           //  }---.
+            } )?                                        // /    |
+                                                        //      |
+            // sum NT: (N₀ | N₁ | ... | Nₙ)             //      |
+            $( ($($sum:tt)*) )?                         // --.  |
+          ;                                             //   |  |
+        )*                                              //   |  |
+    ) => {                                              //   |  |
+        // Dispatch to a parser for either the          //   |  |
+        // "normal" or the sum NT grammar.              //   |  |
+        $(                                              //   |  |
+          ele_parse!(@!define_nt<$objty, $evty, $super> //   |  |
+            $(#[$nt_attr])*                             //   |  |
+            $vis $nt                                    //   |  |
+            $(( $($sum)*                          ))?   // <-'  |
+            $({ $qname($($($ntp)*)?) $($matches)* })?   // <----'
           );
         )*
 
@@ -149,10 +151,9 @@ macro_rules! ele_parse {
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
+    (@!define_nt<$objty:ty, $evty:ty, $super:ident>
         $(#[$nt_attr:meta])*
-        $nt:ident
-        {
+        $vis:vis $nt:ident {
             $qname:ident($($ntp:tt)*)
 
             // Attribute definition special form.
@@ -223,10 +224,9 @@ macro_rules! ele_parse {
         }
     } };
 
-    (@!nonterm_def <$objty:ty, $evty:ty>($vis:vis, $super:ident)
+    (@!define_nt<$objty:ty, $evty:ty, $super:ident>
         $(#[$nt_attr:meta])*
-        $nt:ident
-        ( $ntref_first:ident $(| $ntref:ident)+ )
+        $vis:vis $nt:ident( $ntref_first:ident $(| $ntref:ident)+ )
     ) => {
         ele_parse!(@!ele_dfn_sum <$objty>
             $vis $super $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
