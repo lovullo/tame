@@ -158,14 +158,11 @@ macro_rules! ele_parse {
 
             // Attribute definition special form.
             @ {
-                // We must lightly parse attributes here so that we can retrieve
-                //   the field identifiers that may be later used as bindings in
-                //   `$attrmap`.
                 $(
                     $(#[$fattr:meta])*
                     $fmatch:tt => $fexpr:expr,
                 )*
-            } => $attrmap:expr,
+            } => $openmap:expr,
 
             $(/($close_span:pat) => $closemap:expr,)?
 
@@ -202,7 +199,7 @@ macro_rules! ele_parse {
             @!ele_dfn_body <$objty, $evty>
             $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
 
-            @=> $attrmap,
+            @=> $openmap,
             /( $($close_span)? ) => ele_parse!(@!ele_close $($closemap)?),
 
             $([$special]$(($($special_arg)*))? => $special_map,)?
@@ -283,13 +280,13 @@ macro_rules! ele_parse {
         ($($qname_matched:pat, $open_span:pat)?)
 
         // We only need the final expression for the opening tag.
-        @=> $attrmap:expr,
+        @=> $openmap:expr,
 
         // Close expression
         //   (defaulting to Incomplete via @!ele_expand_body).
         /( $($close_span:pat)? ) => $closemap:expr,
 
-        // Streaming (as opposed to aggregate) attribute parsing.
+        // Attribute delegation special form.
         $([attr]($attr_stream_binding:pat) => $attr_stream_map:expr,)?
 
         // Nonterminal references.
@@ -488,7 +485,7 @@ macro_rules! ele_parse {
                             let $open_span = span;
                         )?
 
-                        <$objty>::try_from($attrmap)
+                        <$objty>::try_from($openmap)
                             .map($crate::parse::ParseStatus::Object)
                             .transition(Self(Attrs(
                                 (qname, span, depth),
@@ -520,15 +517,9 @@ macro_rules! ele_parse {
                         )).incomplete()
                     },
 
-                    // Streaming attribute matching takes precedence over
-                    //   aggregate.
-                    // This is primarily me being lazy,
-                    //   because it's not worth a robust syntax for something
-                    //   that's rarely used
-                    //     (macro-wise, I mean;
-                    //       it's heavily utilized as a percentage of
-                    //         source file parsed since short-hand template
-                    //         applications are heavily used).
+                    // When the [attr] special form is used,
+                    //   we entirely delegate attribute parsing without
+                    //   performing our own explicit mapping.
                     $(
                         (
                             st @ Attrs(..),
@@ -537,34 +528,14 @@ macro_rules! ele_parse {
                             Transition(Self(st))
                                 .ok(<$objty>::from($attr_stream_map))
                         },
-
-                        // Override the aggregate attribute parser
-                        //   delegation by forcing the below match to become
-                        //   unreachable
-                        //     (xref anchor <<SATTR>>).
-                        // Since we have already emitted the `$attrmap`
-                        //   object on `Open`,
-                        //     this yields an incomplete parse.
-                        (Attrs(meta, _), tok) => {
-                            ele_parse!(@!ntref_delegate
-                                stack,
-                                Self(Jmp($ntfirst(meta))),
-                                $ntfirst_st,
-                                Transition($ntfirst_st::default())
-                                       .incomplete()
-                                       .with_lookahead(tok),
-                                Transition(Self(Jmp($ntfirst(meta))))
-                                    .incomplete()
-                                    .with_lookahead(tok)
-                            )
-                        }
                     )?
 
-                    // This becomes unreachable when the `[attr]` special
-                    //   form is provided,
-                    //     which overrides this match directly above
-                    //       (xref <<SATTR>>).
-                    #[allow(unreachable_patterns)]
+                    // Explicit attribute parsing.
+                    // This becomes unreachable in practice when the
+                    //   `[attr]` special form is provided,
+                    //     since the above match consumes `Attr` tokens.
+                    // TODO: We want to detect pattern conflicts so that
+                    //   they can be exposed in the macro DSL.
                     (Attrs(meta, sa), tok) => {
                         sa.delegate::<Self, _>(
                             tok,
