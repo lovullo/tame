@@ -71,7 +71,8 @@ fn empty_element_no_attrs_no_close() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo,
+            (Open(..)) => Foo,
+            @ {}
         };
     }
 
@@ -109,8 +110,9 @@ fn empty_element_no_attrs_with_close() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::Attr,
-            /(_) => Foo::Close,
+            (Open(..)) => Foo::Attr,
+            @ {}
+            (Close(..)) => Foo::Close,
         };
     }
 
@@ -147,9 +149,10 @@ fn empty_element_no_attrs_with_close_with_spans() {
         type AttrValueError = Infallible;
         type Object = Foo;
 
-        Root := QN_PACKAGE(_, ospan) {
-            @ {} => Foo::Attr(ospan),
-            /(cspan) => Foo::Close(cspan),
+        Root := QN_PACKAGE {
+            (Open(_, ospan)) => Foo::Attr(ospan),
+            @ {}
+            (Close(_, cspan)) => Foo::Close(cspan),
         };
     }
 
@@ -183,8 +186,9 @@ fn empty_element_ns_prefix() {
         type Object = Foo;
 
         // This matches `c:*`.
-        Root := NS_C(qname, _) {
-            @ {} => Foo(qname),
+        Root := NS_C {
+            (Open(qname, _)) => Foo(qname),
+            @ {}
         };
     }
 
@@ -217,7 +221,8 @@ fn empty_element_ns_prefix_nomatch() {
 
         // This matches `c:*`.
         Root := NS_C {
-            @ {} => Foo,
+            (Open(..)) => Foo,
+            @ {}
         };
     }
 
@@ -264,7 +269,8 @@ fn empty_element_ns_prefix_invalid_close_contains_matching_qname() {
 
         // This matches `c:*`.
         Root := NS_C {
-            @ {} => Foo,
+            (Open(..)) => Foo,
+            @ {}
         };
     }
 
@@ -336,10 +342,12 @@ fn empty_element_with_attrs() {
         //   (we'd use an appropriate newtype),
         //     but for the sake of this test we'll keep things simple.
         Root := QN_PACKAGE {
+            (Open(..)) => Foo::Ele,
+
             @ {
                 QN_NAME => Foo::A,
                 QN_VALUE => Foo::B,
-            } => Foo::Ele,
+            }
         };
     }
 
@@ -435,20 +443,23 @@ fn element_with_failed_attr_parsing() {
         type Object = Foo;
 
         Root := QN_ROOT {
+            (Open(..)) => Foo::Open,
+
             @ {
                 // This one will always fail:
                 QN_NAME => FooError,
 
                 // This one will always succeed:
                 QN_YIELDS => Foo::Attr,
-            } => Foo::Open,
+            }
 
             // Important to check that this is not emitted.
-            /(_) => Foo::Close,
+            (Close(..)) => Foo::Close,
         };
 
         Child := QN_CHILD {
-            @ {} => Foo::Child,
+            (Open(..)) => Foo::Child,
+            @ {}
         };
     }
 
@@ -517,18 +528,21 @@ fn element_with_streaming_attrs() {
         type Object = Foo;
 
         Root := QN_ROOT {
-            // symbol soup
-            @ {} => Foo::Open,
-            /(_) => Foo::Close,
+            (Open(..)) => Foo::Open,
+
+            @ {}
 
             // This binds all attributes in place of `@ {}` above.
             [attr](attr) => Foo::Attr(attr),
 
             Child,
+
+            (Close(..)) => Foo::Close,
         };
 
         Child := QN_CHILD {
-            @ {} => Foo::Child,
+            (Open(..)) => Foo::Child,
+            @ {}
         };
     }
 
@@ -577,8 +591,8 @@ fn unexpected_element() {
         type Object = ();
 
         Root := QN_PACKAGE {
-            // symbol soup
-            @ {} => (),
+            (Open(..)) => (),
+            @ {}
         };
     }
 
@@ -684,13 +698,16 @@ fn single_child_element() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::RootAttr,
+            (Open(..)) => Foo::RootAttr,
+
+            @ {}
 
             Child,
         };
 
         Child := QN_CLASSIFY {
-            @ {} => Foo::ChildAttr,
+            (Open(..)) => Foo::ChildAttr,
+            @ {}
         };
     }
 
@@ -734,7 +751,9 @@ fn single_child_element_missing() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::Root,
+            (Open(..)) => Foo::Root,
+
+            @ {}
 
             // Expected,
             //   but will not be provided.
@@ -743,7 +762,8 @@ fn single_child_element_missing() {
 
         // We never yield this.
         Child := QN_CLASSIFY {
-            @ {} => Foo::Child,
+            (Open(..)) => Foo::Child,
+            @ {}
         };
     }
 
@@ -787,26 +807,30 @@ fn multiple_child_elements_sequential() {
         type AttrValueError = Infallible;
         type Object = Foo;
 
-        Root := QN_PACKAGE(_, ospan) {
-            @ {} => Foo::RootOpen(ospan.span()),
-            /(cspan) => Foo::RootClose(cspan.span()),
+        Root := QN_PACKAGE {
+            (Open(_, ospan)) => Foo::RootOpen(ospan.span()),
+            @ {}
 
             // Order matters here.
             ChildA,
             ChildB,
+
+            (Close(_, cspan)) => Foo::RootClose(cspan.span()),
         };
 
         // Demonstrates that span identifier bindings are scoped to the
         //   nonterminal block
         //     (so please keep the identifiers the same as above).
-        ChildA := QN_CLASSIFY(_, ospan) {
-            @ {} => Foo::ChildAOpen(ospan.span()),
-            /(cspan) => Foo::ChildAClose(cspan.span()),
+        ChildA := QN_CLASSIFY {
+            (Open(_, ospan)) => Foo::ChildAOpen(ospan.span()),
+            @ {}
+            (Close(_, cspan)) => Foo::ChildAClose(cspan.span()),
         };
 
         ChildB := QN_EXPORT {
-            @ {} => Foo::ChildBOpen,
-            /(_) => Foo::ChildBClose,
+            (Open(..)) => Foo::ChildBOpen,
+            @ {}
+            (Close(..)) => Foo::ChildBClose,
         };
     }
 
@@ -861,18 +885,22 @@ fn x_ignored_between_elements(tok: XirfToken<RefinedText>) {
         type Object = Foo;
 
         Root := QN_SUT {
-            @ {} => Foo::Root,
+            (Open(..)) => Foo::Root,
+
+            @ {}
 
             A,
             B,
         };
 
         A := QN_A {
-            @ {} => Foo::A,
+            (Open(..)) => Foo::A,
+            @ {}
         };
 
         B := QN_B {
-            @ {} => Foo::B,
+            (Open(..)) => Foo::B,
+            @ {}
         };
     }
 
@@ -967,10 +995,8 @@ fn child_error_and_recovery() {
         type Object = Foo;
 
         Root := QN_ROOT {
-            @ {} => Foo::RootOpen,
-
-            // Must be emitted if `RootOpen` is to maintain balance.
-            /(_) => Foo::RootClose,
+            (Open(..)) => Foo::RootOpen,
+            @ {}
 
             // This is what we're expecting,
             //   but not what we will provide.
@@ -979,14 +1005,19 @@ fn child_error_and_recovery() {
             // But we _will_ provide this expected value,
             //   after error recovery ignores the above.
             ChildB,
+
+            // Must be emitted if `RootOpen` is to maintain balance.
+            (Close(..)) => Foo::RootClose,
         };
 
         ChildA := QN_A {
-            @ {} => Foo::ChildABad,
+            (Open(..)) => Foo::ChildABad,
+            @ {}
         };
 
         ChildB := QN_B {
-            @ {} => Foo::ChildB,
+            (Open(..)) => Foo::ChildB,
+            @ {}
         };
     }
 
@@ -1089,8 +1120,9 @@ fn child_error_and_recovery_at_close() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::Open,
-            /(_) => Foo::Close,
+            (Open(..)) => Foo::Open,
+            @ {}
+            (Close(..)) => Foo::Close,
         };
     }
 
@@ -1219,15 +1251,18 @@ fn sum_nonterminal_accepts_any_valid_element() {
         Root := (A | B | C);
 
         A := QN_A {
-            @ {} => Foo::A,
+            (Open(..)) => Foo::A,
+            @ {}
         };
 
         B := QN_B {
-            @ {} => Foo::B,
+            (Open(..)) => Foo::B,
+            @ {}
         };
 
         C := QN_C {
-            @ {} => Foo::C,
+            (Open(..)) => Foo::C,
+            @ {}
         };
     }
 
@@ -1277,11 +1312,13 @@ fn sum_nonterminal_accepts_x(tok: XirfToken<RefinedText>) {
         Root := (A | B);
 
         A := QN_A {
-            @ {} => Foo::A,
+            (Open(..)) => Foo::A,
+            @ {}
         };
 
         B := QN_B {
-            @ {} => Foo::B,
+            (Open(..)) => Foo::B,
+            @ {}
         };
     }
 
@@ -1350,29 +1387,34 @@ fn sum_nonterminal_as_child_element() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::Open(QN_ROOT),
-            /(_) => Foo::Close(QN_ROOT),
+            (Open(..)) => Foo::Open(QN_ROOT),
+            @ {}
 
             // A|B followed by a C.
             AB,
             C,
+
+            (Close(..)) => Foo::Close(QN_ROOT),
         };
 
         AB := (A | B);
 
         A := QN_A {
-            @ {} => Foo::Open(QN_A),
-            /(_) => Foo::Close(QN_A),
+            (Open(..)) => Foo::Open(QN_A),
+            @ {}
+            (Close(..)) => Foo::Close(QN_A),
         };
 
         B := QN_B {
-            @ {} => Foo::Open(QN_B),
-            /(_) => Foo::Close(QN_B),
+            (Open(..)) => Foo::Open(QN_B),
+            @ {}
+            (Close(..)) => Foo::Close(QN_B),
         };
 
         C := QN_C {
-            @ {} => Foo::Open(QN_C),
-            /(_) => Foo::Close(QN_C),
+            (Open(..)) => Foo::Open(QN_C),
+            @ {}
+            (Close(..)) => Foo::Close(QN_C),
         };
     }
 
@@ -1430,11 +1472,13 @@ fn sum_nonterminal_error_recovery() {
         Root := (A | B);
 
         A := QN_A {
-            @ {} => Foo::A,
+            (Open(..)) => Foo::A,
+            @ {}
         };
 
         B := QN_B {
-            @ {} => Foo::B,
+            (Open(..)) => Foo::B,
+            @ {}
         };
     }
 
@@ -1549,27 +1593,32 @@ fn child_repetition() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::RootOpen,
-            /(_) => Foo::RootClose,
+            (Open(..)) => Foo::RootOpen,
+            @ {}
 
             ChildA,
             ChildB,
             ChildC,
+
+            (Close(..)) => Foo::RootClose,
         };
 
         ChildA := QN_A {
-            @ {} => Foo::ChildOpen(QN_A),
-            /(_) => Foo::ChildClose(QN_A),
+            (Open(..)) => Foo::ChildOpen(QN_A),
+            @ {}
+            (Close(..)) => Foo::ChildClose(QN_A),
         };
 
         ChildB := QN_B {
-            @ {} => Foo::ChildOpen(QN_B),
-            /(_) => Foo::ChildClose(QN_B),
+            (Open(..)) => Foo::ChildOpen(QN_B),
+            @ {}
+            (Close(..)) => Foo::ChildClose(QN_B),
         };
 
         ChildC := QN_C {
-            @ {} => Foo::ChildOpen(QN_C),
-            /(_) => Foo::ChildClose(QN_C),
+            (Open(..)) => Foo::ChildOpen(QN_C),
+            @ {}
+            (Close(..)) => Foo::ChildClose(QN_C),
         };
     }
 
@@ -1670,21 +1719,25 @@ fn child_nt_sequence_no_prev_after_next() {
         type Object = Foo;
 
         Root := QN_ROOT {
-            @ {} => Foo::Open(QN_ROOT),
-            /(_) => Foo::Close(QN_ROOT),
+            (Open(..)) => Foo::Open(QN_ROOT),
+            @ {}
 
             A,
             B,
+
+            (Close(..)) => Foo::Close(QN_ROOT),
         };
 
         A := QN_A {
-            @ {} => Foo::Open(QN_A),
-            /(_) => Foo::Close(QN_A),
+            (Open(..)) => Foo::Open(QN_A),
+            @ {}
+            (Close(..)) => Foo::Close(QN_A),
         };
 
         B := QN_B {
-            @ {} => Foo::Open(QN_B),
-            /(_) => Foo::Close(QN_B),
+            (Open(..)) => Foo::Open(QN_B),
+            @ {}
+            (Close(..)) => Foo::Close(QN_B),
         };
     }
 
@@ -1770,15 +1823,18 @@ fn child_repetition_invalid_tok_dead() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::RootOpen,
-            /(_) => Foo::RootClose,
+            (Open(..)) => Foo::RootOpen,
+            @ {}
 
             Child,
+
+            (Close(..)) => Foo::RootClose,
         };
 
         Child := QN_CHILD {
-            @ {} => Foo::ChildOpen,
-            /(_) => Foo::ChildClose,
+            (Open(..)) => Foo::ChildOpen,
+            @ {}
+            (Close(..)) => Foo::ChildClose,
         };
     }
 
@@ -1862,29 +1918,34 @@ fn sum_repetition() {
         type Object = Foo;
 
         Root := QN_PACKAGE {
-            @ {} => Foo::Open(QN_ROOT),
-            /(_) => Foo::Close(QN_ROOT),
+            (Open(..)) => Foo::Open(QN_ROOT),
+            @ {}
 
             // A|B|C in any order,
             //   any number of times.
             ABC,
+
+            (Close(..)) => Foo::Close(QN_ROOT),
         };
 
         ABC := (A | B | C );
 
         A := QN_A {
-            @ {} => Foo::Open(QN_A),
-            /(_) => Foo::Close(QN_A),
+            (Open(..)) => Foo::Open(QN_A),
+            @ {}
+            (Close(..)) => Foo::Close(QN_A),
         };
 
         B := QN_B {
-            @ {} => Foo::Open(QN_B),
-            /(_) => Foo::Close(QN_B),
+            (Open(..)) => Foo::Open(QN_B),
+            @ {}
+            (Close(..)) => Foo::Close(QN_B),
         };
 
         C := QN_C {
-            @ {} => Foo::Open(QN_C),
-            /(_) => Foo::Close(QN_C),
+            (Open(..)) => Foo::Open(QN_C),
+            @ {}
+            (Close(..)) => Foo::Close(QN_C),
         };
     }
 
@@ -1973,8 +2034,8 @@ fn mixed_content_text_nodes() {
         };
 
         Root := QN_ROOT {
-            @ {} => Foo::Open(QN_ROOT),
-            /(_) => Foo::Close(QN_ROOT),
+            (Open(..)) => Foo::Open(QN_ROOT),
+            @ {}
 
             // Text allowed at any point between these elements because of
             //   the `[super]` definition.
@@ -1984,26 +2045,33 @@ fn mixed_content_text_nodes() {
             // Used to verify that Text doesn't force a dead state
             //   transition away from AB at the close of a `A|B`.
             C,
+
+            (Close(..)) => Foo::Close(QN_ROOT),
         };
 
         A := QN_A {
-            @ {} => Foo::Open(QN_A),
-            /(_) => Foo::Close(QN_A),
+            (Open(..)) => Foo::Open(QN_A),
+
+            @ {}
 
             // Text should be permitted even though we permit no children,
             //   because of the `[super]` definition.
+
+            (Close(..)) => Foo::Close(QN_A),
         };
 
         B := QN_B {
-            @ {} => Foo::Open(QN_B),
-            /(_) => Foo::Close(QN_B),
+            (Open(..)) => Foo::Open(QN_B),
+            @ {}
+            (Close(..)) => Foo::Close(QN_B),
         };
 
         AB := (A | B);
 
         C := QN_C {
-            @ {} => Foo::Open(QN_C),
-            /(_) => Foo::Close(QN_C),
+            (Open(..)) => Foo::Open(QN_C),
+            @ {}
+            (Close(..)) => Foo::Close(QN_C),
         };
     }
 
@@ -2115,13 +2183,16 @@ fn no_mixed_content_super() {
         type Object = Foo;
 
         Root := QN_SUT {
-            @ {} => Foo::Root,
+            (Open(..)) => Foo::Root,
+
+            @ {}
 
             A,
         };
 
         A := QN_A {
-            @ {} => Foo::A,
+            (Open(..)) => Foo::A,
+            @ {}
         };
     }
 
@@ -2204,32 +2275,38 @@ fn superstate_preempt_element_open_sum() {
         };
 
         Root := QN_ROOT {
-            @ {} => Foo::Root,
-            /(_) => Foo::RootClose,
+            (Open(..)) => Foo::Root,
+            @ {}
 
             // Note how `AB` is _not_ a child here.
             ChildA,
             ChildB,
+
+            (Close(..)) => Foo::RootClose,
         };
 
         ChildA := QN_CHILDA {
-            @ {} => Foo::ChildA,
-            /(_) => Foo::ChildAClose,
+            (Open(..)) => Foo::ChildA,
+            @ {}
+            (Close(..)) => Foo::ChildAClose,
         };
 
         ChildB := QN_CHILDB {
-            @ {} => Foo::ChildB,
-            /(_) => Foo::ChildBClose,
+            (Open(..)) => Foo::ChildB,
+            @ {}
+            (Close(..)) => Foo::ChildBClose,
         };
 
-        PreA := QN_PRE_A(_, ospan) {
-            @ {} => Foo::PreA(ospan.span()),
-            /(_) => Foo::PreAClose,
+        PreA := QN_PRE_A {
+            (Open(_, ospan)) => Foo::PreA(ospan.span()),
+            @ {}
+            (Close(..)) => Foo::PreAClose,
         };
 
-        PreB := QN_PRE_B(_, ospan) {
-            @ {} => Foo::PreB(ospan.span()),
-            /(_) => Foo::PreBClose,
+        PreB := QN_PRE_B {
+            (Open(_, ospan)) => Foo::PreB(ospan.span()),
+            @ {}
+            (Close(..)) => Foo::PreBClose,
         };
 
         PreAB := (PreA | PreB);
@@ -2338,27 +2415,33 @@ fn superstate_preempt_element_open_non_sum() {
         };
 
         Root := QN_ROOT {
-            @ {} => Foo::Root,
-            /(_) => Foo::RootClose,
+            (Open(..)) => Foo::Root,
+
+            @ {}
 
             // Note how `AB` is _not_ a child here.
             ChildA,
             ChildB,
+
+            (Close(..)) => Foo::RootClose,
         };
 
         ChildA := QN_CHILDA {
-            @ {} => Foo::ChildA,
-            /(_) => Foo::ChildAClose,
+            (Open(..)) => Foo::ChildA,
+            @ {}
+            (Close(..)) => Foo::ChildAClose,
         };
 
         ChildB := QN_CHILDB {
-            @ {} => Foo::ChildB,
-            /(_) => Foo::ChildBClose,
+            (Open(..)) => Foo::ChildB,
+            @ {}
+            (Close(..)) => Foo::ChildBClose,
         };
 
-        PreA := QN_PRE_A(_, ospan) {
-            @ {} => Foo::PreA(ospan.span()),
-            /(_) => Foo::PreAClose,
+        PreA := QN_PRE_A {
+            (Open(_, ospan)) => Foo::PreA(ospan.span()),
+            @ {}
+            (Close(..)) => Foo::PreAClose,
         };
     }
 
@@ -2450,13 +2533,15 @@ fn superstate_preempt_element_open_nested() {
         };
 
         Root := QN_ROOT {
-            @ {} => Foo::Root,
-            /(_) => Foo::RootClose,
+            (Open(..)) => Foo::Root,
+            @ {}
+            (Close(..)) => Foo::RootClose,
         };
 
-        PreA := QN_PRE_A(_, ospan) {
-            @ {} => Foo::PreA(ospan.span()),
-            /(cspan) => Foo::PreAClose(cspan.span()),
+        PreA := QN_PRE_A {
+            (Open(_, ospan)) => Foo::PreA(ospan.span()),
+            @ {}
+            (Close(_, cspan)) => Foo::PreAClose(cspan.span()),
         };
     }
 
@@ -2509,13 +2594,17 @@ fn superstate_not_accepting_until_root_close() {
         type Object = ();
 
         Root := QN_ROOT {
-            @ {} => (),
+            (Open(..)) => (),
+
+            @ {}
 
             A,
         };
 
         A := QN_A {
-            @ {} => (),
+            (Open(..)) => (),
+
+            @ {}
         };
     }
 
@@ -2571,7 +2660,9 @@ mod test_exportable_generated_idents {
         type Object = ();
 
         ExportMe := QN_PACKAGE {
-            @ {} => (),
+            (Open(..)) => (),
+
+            @ {}
         };
     }
 }

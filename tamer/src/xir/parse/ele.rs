@@ -123,7 +123,7 @@ macro_rules! ele_parse {
           $(#[$nt_attr:meta])*
           $nt:ident :=
             // normal NT: QNAME(args...) { ... }
-            $( $qname:ident $( ($($ntp:tt)*) )? {       // \
+            $( $qname:ident {                           // \
               $($matches:tt)*                           //  }---.
             } )?                                        // /    |
                                                         //      |
@@ -138,8 +138,8 @@ macro_rules! ele_parse {
           ele_parse!(@!define_nt<$objty, $evty, $super> //   |  |
             $(#[$nt_attr])*                             //   |  |
             $vis $nt                                    //   |  |
-            $(( $($sum)*                          ))?   // <-'  |
-            $({ $qname($($($ntp)*)?) $($matches)* })?   // <----'
+            $(( $($sum)*            ))?                 // <-'  |
+            $({ $qname $($matches)* })?                 // <----'
           );
         )*
 
@@ -154,7 +154,11 @@ macro_rules! ele_parse {
     (@!define_nt<$objty:ty, $evty:ty, $super:ident>
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident {
-            $qname:ident($($ntp:tt)*)
+            $qname:ident
+
+            // An opening token is always required to ensure that every
+            //   parse has a mapping and things don't get lost.
+            (Open $openpat:pat) => $openmap:expr,
 
             // Attribute definition special form.
             @ {
@@ -162,9 +166,7 @@ macro_rules! ele_parse {
                     $(#[$fattr:meta])*
                     $fmatch:tt => $fexpr:expr,
                 )*
-            } => $openmap:expr,
-
-            $(/($close_span:pat) => $closemap:expr,)?
+            }
 
             // Special forms (`[sp](args) => expr`).
             $(
@@ -178,6 +180,8 @@ macro_rules! ele_parse {
             $(
                 $ntref:ident,
             )*
+
+            $( (Close $closepat:pat) => $closemap:expr, )?
         }
     ) => { paste::paste! {
         $crate::attr_parse_stream! {
@@ -197,10 +201,10 @@ macro_rules! ele_parse {
 
         ele_parse! {
             @!ele_dfn_body <$objty, $evty>
-            $vis $super $(#[$nt_attr])*$nt $qname ($($ntp)*)
+            $vis $super $(#[$nt_attr])*$nt $qname
 
-            @=> $openmap,
-            /( $($close_span)? ) => ele_parse!(@!ele_close $($closemap)?),
+            ($openpat) => $openmap,
+            ($($closepat)?) => ele_parse!(@!ele_close $($closemap)?),
 
             $([$special]$(($($special_arg)*))? => $special_map,)?
 
@@ -277,14 +281,9 @@ macro_rules! ele_parse {
 
     (@!ele_dfn_body <$objty:ty, $evty:ty>
         $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident
-        ($($qname_matched:pat, $open_span:pat)?)
 
-        // We only need the final expression for the opening tag.
-        @=> $openmap:expr,
-
-        // Close expression
-        //   (defaulting to Incomplete via @!ele_expand_body).
-        /( $($close_span:pat)? ) => $closemap:expr,
+        ($openpat:pat) => $openmap:expr,
+        ($($closepat:pat)?) => $closemap:expr,
 
         // Attribute delegation special form.
         $([attr]($attr_stream_binding:pat) => $attr_stream_map:expr,)?
@@ -480,10 +479,7 @@ macro_rules! ele_parse {
                         Expecting | NonPreemptableExpecting | Closed(..),
                         XirfToken::Open(qname, span, depth)
                     ) if $nt::matches(qname) => {
-                        $(
-                            let $qname_matched = qname;
-                            let $open_span = span;
-                        )?
+                        let $openpat = (qname, span);
 
                         <$objty>::try_from($openmap)
                             .map($crate::parse::ParseStatus::Object)
@@ -640,10 +636,9 @@ macro_rules! ele_parse {
                     (
                         Jmp([<$nt ChildNt_>]::ExpectClose_((qname, _, depth)))
                         | CloseRecoverIgnore((qname, _, depth), _),
-                        XirfToken::Close(_, span, tok_depth)
+                         XirfToken::Close(_, span, tok_depth)
                     ) if tok_depth == depth => {
-                        $(#[allow(unused_variables)] let $qname_matched = qname;)?
-                        $(let $close_span = span;)?
+                        $(let $closepat = (qname, span);)?
                         $closemap.transition(Self(Closed(Some(qname), span.tag_span())))
                     },
 
