@@ -533,7 +533,8 @@ fn element_with_streaming_attrs() {
             @ {}
 
             // This binds all attributes in place of `@ {}` above.
-            [attr](attr) => Foo::Attr(attr),
+            (Attr(name, value, attrspan)) =>
+                Foo::Attr(Attr(name, value, attrspan)),
 
             Child,
 

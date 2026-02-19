@@ -1044,7 +1044,7 @@ ele_parse! {
         // TODO: Allow for removing this
         @ {}
 
-        [attr](attr) => TodoAttr(SPair(attr.value(), attr.span())),
+        (Attr(_, value, attrspan)) => TodoAttr(SPair(value, attrspan.span())),
 
         ApplyArg,
     };
@@ -1079,7 +1079,7 @@ ele_parse! {
         // TODO: Allow for removing this
         @ {}
 
-        [attr](attr) => TodoAttr(SPair(attr.value(), attr.span())),
+        (Attr(_, value, attrspan)) => TodoAttr(SPair(value, attrspan.span())),
 
         ApplyArg,
     };
@@ -1908,7 +1908,7 @@ ele_parse! {
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above
         //     (which is used only for emitting the opening object).
-        [attr](Attr(name, value, AttrSpan(name_span, value_span))) => {
+        (Attr(name, value, AttrSpan(name_span, value_span))) => {
             Nir::Open(
                 // TODO: This simply _ignores_ the namespace prefix.
                 //   If it's not a useful construct,
@@ -1983,7 +1983,7 @@ ele_parse! {
         @ {}
 
         // Streaming attribute parsing.
-        [attr](attr) => TodoAttr(SPair(attr.value(), attr.span())),
+        (Attr(_, value, attrspan)) => TodoAttr(SPair(value, attrspan.span())),
 
         // TODO: REMOVE ME
         //   (bug in `ele_parse!` requiring at least one NT in this

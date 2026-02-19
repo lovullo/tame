@@ -168,10 +168,9 @@ macro_rules! ele_parse {
                 )*
             }
 
-            // Special forms (`[sp](args) => expr`).
+            // Alternative attribute handling
             $(
-                [$special:ident]$(($($special_arg:tt)*))?
-                    => $special_map:expr,
+                (Attr $attrpat:pat) => $attrmap:expr,
             )?
 
             // Nonterminal references are provided as a list.
@@ -206,7 +205,7 @@ macro_rules! ele_parse {
             ($openpat) => $openmap,
             ($($closepat)?) => ele_parse!(@!ele_close $($closemap)?),
 
-            $([$special]$(($($special_arg)*))? => $special_map,)?
+            $(($attrpat) => $attrmap,)?
 
             <> {
                 $(
@@ -286,7 +285,7 @@ macro_rules! ele_parse {
         ($($closepat:pat)?) => $closemap:expr,
 
         // Attribute delegation special form.
-        $([attr]($attr_stream_binding:pat) => $attr_stream_map:expr,)?
+        $(($attr_stream_binding:pat) => $attr_stream_map:expr,)?
 
         // Nonterminal references.
         <> {
@@ -519,8 +518,10 @@ macro_rules! ele_parse {
                     $(
                         (
                             st @ Attrs(..),
-                            XirfToken::Attr($attr_stream_binding),
+                            XirfToken::Attr(Attr(name, value, attrspan)),
                         ) => {
+                            let $attr_stream_binding = (name, value, attrspan);
+
                             Transition(Self(st))
                                 .ok(<$objty>::from($attr_stream_map))
                         },
