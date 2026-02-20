@@ -172,7 +172,7 @@ ele_parse! {
     //   program;
     //     see [`NirParseState`] for more information.
     [super] {
-        [text](sym, span) => Nir::Text(SPair(sym, span)),
+        (Text(sym, span)) => Nir::Text(SPair(sym, span)),
         TplKw
     };
 

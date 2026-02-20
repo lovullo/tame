@@ -934,7 +934,7 @@ macro_rules! ele_parse {
                 // Non-whitespace text nodes can be mapped into elements
                 //   with the given QName as a preprocessing step,
                 //     allowing them to reuse the existing element NT system.
-                $([text]($text:ident, $text_span:ident) => $text_map:expr,)?
+                $( (Text $textpat:pat) => $textmap:expr, )?
 
                 // Optional _single_ NT to preempt arbitrary elements.
                 // Sum NTs can be used to preempt multiple elements.
@@ -1077,12 +1077,13 @@ macro_rules! ele_parse {
                                 st,
                                 XirfToken::Text(
                                     RefinedText::Unrefined(
-                                        Text($text, $text_span)
+                                        Text(sym, span)
                                     ),
                                     _,
                                 )
                             ) if st.can_preempt_node() => {
-                                Transition(st).ok(<$objty>::from($text_map))
+                                let $textpat = (sym, span);
+                                Transition(st).ok(<$objty>::from($textmap))
                             },
                         )?
 

@@ -559,7 +559,7 @@ fn element_with_streaming_attrs() {
           XirfToken::Attr(attr2.clone()),
 
           // A child should halt attribute parsing just the same as `@ {}`
-          //   would without the `[text]` special form.
+          //   would without the `Text` special form.
           XirfToken::Open(QN_CHILD, OpenSpan(S5, N), Depth(1)),
           XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
         XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
@@ -2003,7 +2003,7 @@ fn sum_repetition() {
     );
 }
 
-// Text nodes may appear between elements if a `[text]` special form
+// Text nodes may appear between elements if a `Text` special form
 //   specifies a mapping on the superstate.
 // This is "mixed content" in XML.
 #[test]
@@ -2029,9 +2029,8 @@ fn mixed_content_text_nodes() {
         type Object = Foo;
 
         [super] {
-            // The `[text]` special form here introduces a `Text` mapping
-            //   for all non-whitespace text nodes.
-            [text](sym, span) => Foo::Text(sym, span),
+            // Text mapping for all non-whitespace text nodes.
+            (Text(sym, span)) => Foo::Text(sym, span),
         };
 
         Root := QN_ROOT {
@@ -2090,7 +2089,7 @@ fn mixed_content_text_nodes() {
     #[rustfmt::skip]
     let toks = vec![
         XirfToken::Open(QN_ROOT, OpenSpan(S1, N), Depth(0)),
-          // Whitespace will not match the `[text]` special form.
+          // Whitespace will not match `Text`.
           tok_ws.clone(),
           // Text before root open.
           // This must be emitted as a _child_ of Root,
@@ -2235,7 +2234,7 @@ fn no_mixed_content_super() {
     );
 }
 
-// Using the same superstate node preemption mechanism as `[text]` above,
+// Using the same superstate node preemption mechanism as `Text` above,
 //   the superstate can also preempt opening element nodes.
 // This is useful for things that can appear in _any_ context,
 //   such as template applications.
