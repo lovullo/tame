@@ -114,7 +114,8 @@
 //!       possibly expand into anything else.
 //! What the template system does with those tokens is beyond our concern.
 //!
-//! See [`TplKw`] for template tokens that are accepted anywhere.
+//! See [`nir_parse_state::TplKw`] for template tokens that are accepted
+//!   anywhere.
 
 use super::{Nir::*, *};
 use crate::{
@@ -122,6 +123,9 @@ use crate::{
     sym::st::raw::*,
     xir::st::{prefix::*, qname::*},
 };
+
+// TODO: The name suggests this is private; what should we do here?
+pub use nir_parse_state::NirParseStateError_;
 
 ele_parse! {
     /// Parser lowering [XIR](crate::xir) into [`Nir`].
@@ -164,6 +168,7 @@ ele_parse! {
     /// Superstate
     /// ----------
     pub enum NirParseState;
+    mod nir_parse_state;
 
     type AttrValueError = NirAttrParseError;
     type Object = Nir;

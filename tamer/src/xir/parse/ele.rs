@@ -109,6 +109,14 @@ macro_rules! ele_parse {
         $(#[$super_attr:meta])*
         $vis:vis enum $super:ident;
 
+        // Will either be the user-provided followed by default,
+        //   or only the default.
+        // This is placed after `enum` due to `vis` ambiguity,
+        //   but it also suggests that everything following it will be
+        //   within a module,
+        //     with `$super` exported.
+        $(mod $mod:ident;)?
+
         // Attr has to be first to avoid ambiguity with `$rest`.
         type AttrValueError = $avety:ty;
         type Object = $objty:ty;
@@ -131,41 +139,59 @@ macro_rules! ele_parse {
             $( ($($sum:tt)*) )?                         // --.  |
           ;                                             //   |  |
         )*                                              //   |  |
-    ) => {                                              //   |  |
-        // Dispatch to a parser for either the          //   |  |
-        // "normal" or the sum NT grammar.              //   |  |
-        $(                                              //   |  |
-          ele_parse!(@!define_nt                        //   |  |
-            $(#[$nt_attr])*                             //   |  |
-            $vis $nt                                    //   |  |
-            $(( $($sum)*            ))?                 // <-'  |
-            $({ $qname $($matches)* })?                 // <----'
-          );
+    ) => {paste::paste!{                                //   |  |
+        ele_parse!(@!mod $vis $super; $(mod $mod)? {    //   |  |
+            use super::*;                               //   |  |
+                                                        //   |  |
+            mod meta {                                  //   |  |
+                use super::*;                           //   |  |
+                                                        //   |  |
+                pub type Super = $super;                //   |  |
+                pub type AttrValueError = $avety;       //   |  |
+                pub type Object = $objty;               //   |  |
+            }                                           //   |  |
+                                                        //   |  |
+            // Dispatch to a parser for either the      //   |  |
+            // "normal" or the sum NT grammar.          //   |  |
+            $(                                          //   |  |
+                ele_parse!(@!define_nt                  //   |  |
+                  $(#[$nt_attr])*                       //   |  |
+                  $nt                                   //   |  |
+                  $(( $($sum)*            ))?           // <-'  |
+                  $({ $qname $($matches)* })?           // <----'
+                );
+            )*
 
-          impl $crate::xir::parse::NtMeta for $nt {
-              type Super = $super;
-              type AttrValueError = $avety;
-              type Object = $objty;
-          }
-        )*
+            ele_parse!(@!super_sum $(#[$super_attr])* $super
+                $([super] { $($super_body)* })?
+                $($nt),*
+            );
+        });
+    }};
 
-        impl $crate::xir::parse::NtMeta for $super {
-            type Super = $super;
-            type AttrValueError = $avety;
-            type Object = $objty;
+    // `mod $ident;` form was provided by the user.
+    (@!mod $vis:vis $super:ident; mod $mod:ident { $($body:tt)* }) => {paste::paste!{
+        mod $mod {
+            $($body)*
         }
 
-        ele_parse!(@!super_sum $(#[$super_attr])* $vis $super
-            $([super] { $($super_body)* })?
-            $($nt),*
-        );
-    };
+        $vis use $mod::$super;
+    }};
+
+    // `mod $ident;` form was _not_ provided, and so we must generate one.
+    (@!mod $vis:vis $super:ident; { $($body:tt)* }) => {paste::paste!{
+        mod [<_ele_parse $super:snake>] {
+            $($body)*
+        }
+
+        $vis use [<_ele_parse $super:snake>]::$super;
+    }};
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
     (@!define_nt
         $(#[$nt_attr:meta])*
-        $vis:vis $nt:ident {
+        $nt:ident {
             $qname:ident
 
             // An opening token is always required to ensure that every
@@ -198,11 +224,11 @@ macro_rules! ele_parse {
         $crate::attr_parse_stream! {
             /// Attribute parser for
             #[doc=concat!("[`", stringify!($nt), "`].")]
-            type Object = <$nt as $crate::xir::parse::NtMeta>::Object;
-            type ValueError = <$nt as $crate::xir::parse::NtMeta>::AttrValueError;
+            type Object = meta::Object;
+            type ValueError = meta::AttrValueError;
 
             #[doc(hidden)]
-            $vis [<$nt AttrState_>] {
+            pub [<$nt AttrState_>] {
                 $(
                     $(#[$fattr])*
                     $fmatch => $fexpr,
@@ -212,7 +238,7 @@ macro_rules! ele_parse {
 
         ele_parse! {
             @!ele_dfn_body
-            $(#[$nt_attr])* $vis $nt $qname
+            $(#[$nt_attr])* $nt $qname
 
             ($openpat) => $openmap,
             ($($closepat)?) => ele_parse!(@!ele_close $($closemap)?),
@@ -238,10 +264,10 @@ macro_rules! ele_parse {
 
     (@!define_nt
         $(#[$nt_attr:meta])*
-        $vis:vis $nt:ident( $ntref_first:ident $(| $ntref:ident)+ )
+        $nt:ident( $ntref_first:ident $(| $ntref:ident)+ )
     ) => {
         ele_parse!(@!ele_dfn_sum
-            $(#[$nt_attr])* $vis $nt [$ntref_first $($ntref)*]
+            $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
         );
     };
 
@@ -291,7 +317,7 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_body
-        $(#[$nt_attr:meta])* $vis:vis $nt:ident $qname:ident
+        $(#[$nt_attr:meta])* $nt:ident $qname:ident
 
         ($openpat:pat) => $openmap:expr,
         ($($closepat:pat)?) => $closemap:expr,
@@ -315,7 +341,7 @@ macro_rules! ele_parse {
     ) => { paste::paste! {
         #[doc(hidden)]
         #[derive(Debug, PartialEq, Eq)]
-        $vis enum [<$nt ChildNt_>] {
+        pub enum [<$nt ChildNt_>] {
             $(
                 $ntref(
                     (
@@ -339,7 +365,7 @@ macro_rules! ele_parse {
         ///
         #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
         #[derive(Debug, PartialEq, Eq, Default)]
-        $vis struct $nt($crate::xir::parse::NtState<$nt>);
+        pub struct $nt($crate::xir::parse::NtState<$nt>);
 
         impl $nt {
             /// A default state that cannot be preempted by the superstate.
@@ -451,10 +477,10 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = <Self as $crate::xir::parse::NtMeta>::Object;
+            type Object = meta::Object;
             type Error = $crate::xir::parse::NtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
-            type Super = <Self as $crate::xir::parse::NtMeta>::Super;
+            type Super = meta::Super;
 
             fn parse_token(
                 self,
@@ -695,7 +721,7 @@ macro_rules! ele_parse {
     }};
 
     (@!ele_dfn_sum
-        $(#[$nt_attr:meta])* $vis:vis $nt:ident [$($ntref:ident)*]
+        $(#[$nt_attr:meta])* $nt:ident [$($ntref:ident)*]
     ) => {paste::paste! {
         $(#[$nt_attr])*
         ///
@@ -705,7 +731,7 @@ macro_rules! ele_parse {
             "."
         )]
         #[derive(Debug, PartialEq, Eq, Default)]
-        $vis struct $nt($crate::xir::parse::SumNtState<$nt>);
+        pub struct $nt($crate::xir::parse::SumNtState<$nt>);
 
         impl $nt {
             fn non_preemptable() -> Self {
@@ -804,10 +830,10 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = <Self as $crate::xir::parse::NtMeta>::Object;
+            type Object = meta::Object;
             type Error = $crate::xir::parse::SumNtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
-            type Super = <Self as $crate::xir::parse::NtMeta>::Super;
+            type Super = meta::Super;
 
             fn parse_token(
                 self,
@@ -934,7 +960,7 @@ macro_rules! ele_parse {
     //     logic,
     //       and we have to do so in a way that we can aggregate all of
     //       those data.
-    (@!super_sum $(#[$super_attr:meta])* $vis:vis $super:ident
+    (@!super_sum $(#[$super_attr:meta])* $super:ident
         $(
             [super] {
                 // Non-whitespace text nodes can be mapped into elements
@@ -967,7 +993,7 @@ macro_rules! ele_parse {
         /// [`ParseState`]: crate::parse::ParseState
         /// [`ClosedParseState`]: crate::parse::ClosedParseState
         #[derive(Debug, PartialEq, Eq)]
-        $vis enum $super {
+        pub enum $super {
             $(
                 $nt($nt),
             )*
@@ -1008,7 +1034,7 @@ macro_rules! ele_parse {
         /// Superstate error object representing the union of all related
         ///   parsers' errors.
         #[derive(Debug, PartialEq)]
-        $vis enum [<$super Error_>] {
+        pub enum [<$super Error_>] {
             $(
                 $nt(<$nt as $crate::parse::ParseState>::Error),
             )*
@@ -1055,7 +1081,7 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = <Self as $crate::xir::parse::NtMeta>::Object;
+            type Object = meta::Object;
             type Error = [<$super Error_>];
             type Context = $crate::xir::parse::SuperStateContext<Self>;
 
@@ -1245,19 +1271,6 @@ macro_rules! ele_parse {
 /// It represents the reification of such a state machine and all of its
 ///   transitions.
 pub trait SuperState: ClosedParseState {}
-
-/// Nonterminal metadata.
-///
-/// This trait is used internally by the [`ele_parse!`] parser-generator as
-///   an alternative to threading tokens through macro invocations.
-pub trait NtMeta {
-    // Superstate, representing the root of all NTs.
-    type Super;
-    // Error type representing attribute value parsing failures.
-    type AttrValueError;
-    // Type of tokens emitted by the parser.
-    type Object;
-}
 
 /// Nonterminal.
 ///
