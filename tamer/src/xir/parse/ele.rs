@@ -135,12 +135,16 @@ macro_rules! ele_parse {
         // Dispatch to a parser for either the          //   |  |
         // "normal" or the sum NT grammar.              //   |  |
         $(                                              //   |  |
-          ele_parse!(@!define_nt<$objty, $evty, $super> //   |  |
+          ele_parse!(@!define_nt<$objty, $evty>         //   |  |
             $(#[$nt_attr])*                             //   |  |
             $vis $nt                                    //   |  |
             $(( $($sum)*            ))?                 // <-'  |
             $({ $qname $($matches)* })?                 // <----'
           );
+
+          impl $crate::xir::parse::NtMeta for $nt {
+              type Super = $super;
+          }
         )*
 
         ele_parse!(@!super_sum <$objty> $(#[$super_attr])* $vis $super
@@ -151,7 +155,7 @@ macro_rules! ele_parse {
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!define_nt<$objty:ty, $evty:ty, $super:ident>
+    (@!define_nt<$objty:ty, $evty:ty>
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident {
             $qname:ident
@@ -200,7 +204,7 @@ macro_rules! ele_parse {
 
         ele_parse! {
             @!ele_dfn_body <$objty, $evty>
-            $vis $super $(#[$nt_attr])*$nt $qname
+            $(#[$nt_attr])* $vis $nt $qname
 
             ($openpat) => $openmap,
             ($($closepat)?) => ele_parse!(@!ele_close $($closemap)?),
@@ -224,12 +228,12 @@ macro_rules! ele_parse {
         }
     } };
 
-    (@!define_nt<$objty:ty, $evty:ty, $super:ident>
+    (@!define_nt<$objty:ty, $evty:ty>
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident( $ntref_first:ident $(| $ntref:ident)+ )
     ) => {
         ele_parse!(@!ele_dfn_sum <$objty>
-            $vis $super $(#[$nt_attr])* $nt [$ntref_first $($ntref)*]
+            $(#[$nt_attr])* $vis $nt [$ntref_first $($ntref)*]
         );
     };
 
@@ -279,7 +283,7 @@ macro_rules! ele_parse {
     };
 
     (@!ele_dfn_body <$objty:ty, $evty:ty>
-        $vis:vis $super:ident $(#[$nt_attr:meta])* $nt:ident $qname:ident
+        $(#[$nt_attr:meta])* $vis:vis $nt:ident $qname:ident
 
         ($openpat:pat) => $openmap:expr,
         ($($closepat:pat)?) => $closemap:expr,
@@ -385,10 +389,7 @@ macro_rules! ele_parse {
             ///   node preemption.
             ///
             /// For more information,
-            ///   see the superstate
-            #[doc=concat!(
-                " [`", stringify!($super), "::can_preempt_node`]."
-            )]
+            ///   see the superstate.
             fn can_preempt_node(&self) -> bool {
                 match self {
                     Self(st) => st.can_preempt_node(),
@@ -445,7 +446,7 @@ macro_rules! ele_parse {
             type Object = $objty;
             type Error = $crate::xir::parse::NtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
-            type Super = $super;
+            type Super = <Self as $crate::xir::parse::NtMeta>::Super;
 
             fn parse_token(
                 self,
@@ -685,8 +686,8 @@ macro_rules! ele_parse {
         }
     }};
 
-    (@!ele_dfn_sum <$objty:ty> $vis:vis $super:ident
-        $(#[$nt_attr:meta])* $nt:ident [$($ntref:ident)*]
+    (@!ele_dfn_sum <$objty:ty>
+        $(#[$nt_attr:meta])* $vis:vis $nt:ident [$($ntref:ident)*]
     ) => {paste::paste! {
         $(#[$nt_attr])*
         ///
@@ -766,10 +767,7 @@ macro_rules! ele_parse {
             ///   superstate node preemption.
             ///
             /// For more information,
-            ///   see the superstate
-            #[doc=concat!(
-                " [`", stringify!($super), "::can_preempt_node`]."
-            )]
+            ///   see the superstate.
             fn can_preempt_node(&self) -> bool {
                 match self {
                     Self(st) => st.can_preempt_node(),
@@ -801,7 +799,7 @@ macro_rules! ele_parse {
             type Object = $objty;
             type Error = $crate::xir::parse::SumNtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
-            type Super = $super;
+            type Super = <Self as $crate::xir::parse::NtMeta>::Super;
 
             fn parse_token(
                 self,
@@ -1239,6 +1237,15 @@ macro_rules! ele_parse {
 /// It represents the reification of such a state machine and all of its
 ///   transitions.
 pub trait SuperState: ClosedParseState {}
+
+/// Nonterminal metadata.
+///
+/// This trait is used internally by the [`ele_parse!`] parser-generator as
+///   an alternative to threading tokens through macro invocations.
+pub trait NtMeta {
+    // Superstate, representing the root of all NTs.
+    type Super;
+}
 
 /// Nonterminal.
 ///
