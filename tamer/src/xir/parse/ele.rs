@@ -110,7 +110,7 @@ macro_rules! ele_parse {
         $vis:vis enum $super:ident;
 
         // Attr has to be first to avoid ambiguity with `$rest`.
-        type AttrValueError = $evty:ty;
+        type AttrValueError = $avety:ty;
         type Object = $objty:ty;
 
         $(
@@ -135,7 +135,7 @@ macro_rules! ele_parse {
         // Dispatch to a parser for either the          //   |  |
         // "normal" or the sum NT grammar.              //   |  |
         $(                                              //   |  |
-          ele_parse!(@!define_nt<$objty, $evty>         //   |  |
+          ele_parse!(@!define_nt<$objty>                //   |  |
             $(#[$nt_attr])*                             //   |  |
             $vis $nt                                    //   |  |
             $(( $($sum)*            ))?                 // <-'  |
@@ -144,6 +144,7 @@ macro_rules! ele_parse {
 
           impl $crate::xir::parse::NtMeta for $nt {
               type Super = $super;
+              type AttrValueError = $avety;
           }
         )*
 
@@ -155,7 +156,7 @@ macro_rules! ele_parse {
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!define_nt<$objty:ty, $evty:ty>
+    (@!define_nt<$objty:ty>
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident {
             $qname:ident
@@ -191,7 +192,7 @@ macro_rules! ele_parse {
             /// Attribute parser for
             #[doc=concat!("[`", stringify!($nt), "`].")]
             type Object = $objty;
-            type ValueError = $evty;
+            type ValueError = <$nt as $crate::xir::parse::NtMeta>::AttrValueError;
 
             #[doc(hidden)]
             $vis [<$nt AttrState_>] {
@@ -203,7 +204,7 @@ macro_rules! ele_parse {
         }
 
         ele_parse! {
-            @!ele_dfn_body <$objty, $evty>
+            @!ele_dfn_body <$objty>
             $(#[$nt_attr])* $vis $nt $qname
 
             ($openpat) => $openmap,
@@ -228,7 +229,7 @@ macro_rules! ele_parse {
         }
     } };
 
-    (@!define_nt<$objty:ty, $evty:ty>
+    (@!define_nt<$objty:ty>
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident( $ntref_first:ident $(| $ntref:ident)+ )
     ) => {
@@ -282,7 +283,7 @@ macro_rules! ele_parse {
         )
     };
 
-    (@!ele_dfn_body <$objty:ty, $evty:ty>
+    (@!ele_dfn_body <$objty:ty>
         $(#[$nt_attr:meta])* $vis:vis $nt:ident $qname:ident
 
         ($openpat:pat) => $openmap:expr,
@@ -1245,6 +1246,8 @@ pub trait SuperState: ClosedParseState {}
 pub trait NtMeta {
     // Superstate, representing the root of all NTs.
     type Super;
+    // Error type representing attribute value parsing failures.
+    type AttrValueError;
 }
 
 /// Nonterminal.
