@@ -135,7 +135,7 @@ macro_rules! ele_parse {
         // Dispatch to a parser for either the          //   |  |
         // "normal" or the sum NT grammar.              //   |  |
         $(                                              //   |  |
-          ele_parse!(@!define_nt<$objty>                //   |  |
+          ele_parse!(@!define_nt                        //   |  |
             $(#[$nt_attr])*                             //   |  |
             $vis $nt                                    //   |  |
             $(( $($sum)*            ))?                 // <-'  |
@@ -145,10 +145,17 @@ macro_rules! ele_parse {
           impl $crate::xir::parse::NtMeta for $nt {
               type Super = $super;
               type AttrValueError = $avety;
+              type Object = $objty;
           }
         )*
 
-        ele_parse!(@!super_sum <$objty> $(#[$super_attr])* $vis $super
+        impl $crate::xir::parse::NtMeta for $super {
+            type Super = $super;
+            type AttrValueError = $avety;
+            type Object = $objty;
+        }
+
+        ele_parse!(@!super_sum $(#[$super_attr])* $vis $super
             $([super] { $($super_body)* })?
             $($nt),*
         );
@@ -156,7 +163,7 @@ macro_rules! ele_parse {
 
     // Expand the provided data to a more verbose form that provides the
     //   context necessary for state transitions.
-    (@!define_nt<$objty:ty>
+    (@!define_nt
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident {
             $qname:ident
@@ -191,7 +198,7 @@ macro_rules! ele_parse {
         $crate::attr_parse_stream! {
             /// Attribute parser for
             #[doc=concat!("[`", stringify!($nt), "`].")]
-            type Object = $objty;
+            type Object = <$nt as $crate::xir::parse::NtMeta>::Object;
             type ValueError = <$nt as $crate::xir::parse::NtMeta>::AttrValueError;
 
             #[doc(hidden)]
@@ -204,7 +211,7 @@ macro_rules! ele_parse {
         }
 
         ele_parse! {
-            @!ele_dfn_body <$objty>
+            @!ele_dfn_body
             $(#[$nt_attr])* $vis $nt $qname
 
             ($openpat) => $openmap,
@@ -229,11 +236,11 @@ macro_rules! ele_parse {
         }
     } };
 
-    (@!define_nt<$objty:ty>
+    (@!define_nt
         $(#[$nt_attr:meta])*
         $vis:vis $nt:ident( $ntref_first:ident $(| $ntref:ident)+ )
     ) => {
-        ele_parse!(@!ele_dfn_sum <$objty>
+        ele_parse!(@!ele_dfn_sum
             $(#[$nt_attr])* $vis $nt [$ntref_first $($ntref)*]
         );
     };
@@ -283,7 +290,7 @@ macro_rules! ele_parse {
         )
     };
 
-    (@!ele_dfn_body <$objty:ty>
+    (@!ele_dfn_body
         $(#[$nt_attr:meta])* $vis:vis $nt:ident $qname:ident
 
         ($openpat:pat) => $openmap:expr,
@@ -444,7 +451,7 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = $objty;
+            type Object = <Self as $crate::xir::parse::NtMeta>::Object;
             type Error = $crate::xir::parse::NtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = <Self as $crate::xir::parse::NtMeta>::Super;
@@ -482,7 +489,7 @@ macro_rules! ele_parse {
                     ) if $nt::matches(qname) => {
                         let $openpat = (qname, span);
 
-                        <$objty>::try_from($openmap)
+                        <Self::Object>::try_from($openmap)
                             .map($crate::parse::ParseStatus::Object)
                             .transition(Self(Attrs(
                                 (qname, span, depth),
@@ -525,7 +532,7 @@ macro_rules! ele_parse {
                             let $attr_stream_binding = (name, value, attrspan);
 
                             Transition(Self(st))
-                                .ok(<$objty>::from($attr_stream_map))
+                                .ok(<Self::Object>::from($attr_stream_map))
                         },
                     )?
 
@@ -687,7 +694,7 @@ macro_rules! ele_parse {
         }
     }};
 
-    (@!ele_dfn_sum <$objty:ty>
+    (@!ele_dfn_sum
         $(#[$nt_attr:meta])* $vis:vis $nt:ident [$($ntref:ident)*]
     ) => {paste::paste! {
         $(#[$nt_attr])*
@@ -797,7 +804,7 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = $objty;
+            type Object = <Self as $crate::xir::parse::NtMeta>::Object;
             type Error = $crate::xir::parse::SumNtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = <Self as $crate::xir::parse::NtMeta>::Super;
@@ -927,7 +934,7 @@ macro_rules! ele_parse {
     //     logic,
     //       and we have to do so in a way that we can aggregate all of
     //       those data.
-    (@!super_sum <$objty:ty> $(#[$super_attr:meta])* $vis:vis $super:ident
+    (@!super_sum $(#[$super_attr:meta])* $vis:vis $super:ident
         $(
             [super] {
                 // Non-whitespace text nodes can be mapped into elements
@@ -1048,7 +1055,7 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = $objty;
+            type Object = <Self as $crate::xir::parse::NtMeta>::Object;
             type Error = [<$super Error_>];
             type Context = $crate::xir::parse::SuperStateContext<Self>;
 
@@ -1082,7 +1089,7 @@ macro_rules! ele_parse {
                                 )
                             ) if st.can_preempt_node() => {
                                 let $textpat = (sym, span);
-                                Transition(st).ok(<$objty>::from($textmap))
+                                Transition(st).ok(<Self::Object>::from($textmap))
                             },
                         )?
 
@@ -1248,6 +1255,8 @@ pub trait NtMeta {
     type Super;
     // Error type representing attribute value parsing failures.
     type AttrValueError;
+    // Type of tokens emitted by the parser.
+    type Object;
 }
 
 /// Nonterminal.
