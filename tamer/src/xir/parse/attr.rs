@@ -46,7 +46,7 @@ use crate::{
     parse::ClosedParseState,
     xir::{OpenSpan, QName},
 };
-use std::{convert::Infallible, fmt::Debug};
+use std::convert::Infallible;
 
 /// Attribute parsing automaton.
 ///
@@ -61,10 +61,6 @@ pub trait AttrParseState: ClosedParseState {
     ///   meaning such conversion cannot fail and [`From`] may be used in
     ///   place of [`TryFrom`].
     type ValueError: Diagnostic + PartialEq = Infallible;
-
-    /// Object holding the current state of field aggregation,
-    ///   before the yield of the final object.
-    type Fields: Debug + PartialEq + Eq;
 
     /// Begin attribute parsing within the context of the provided element.
     ///
@@ -111,16 +107,8 @@ macro_rules! attr_parse_stream {
             Done($crate::xir::QName, $crate::xir::OpenSpan),
         }
 
-        /// Intermediate state of parser as fields are aggregated.
-        ///
-        /// TODO: Remove once integrated with `ele_parse!`.
-        #[allow(non_camel_case_types)]
-        #[derive(Debug, PartialEq, Eq, Default)]
-        $vis struct [<$state_name Fields>];
-
         impl $crate::xir::parse::AttrParseState for $state_name {
             type ValueError = $evty;
-            type Fields = [<$state_name Fields>];
 
             fn with_element(
                 ele: $crate::xir::QName,
