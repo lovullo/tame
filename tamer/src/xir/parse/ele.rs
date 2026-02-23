@@ -339,7 +339,6 @@ macro_rules! ele_parse {
             )*
         }
     ) => { paste::paste! {
-        #[doc(hidden)]
         #[derive(Debug, PartialEq, Eq)]
         pub enum [<$nt ChildNt_>] {
             $(
