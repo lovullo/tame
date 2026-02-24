@@ -366,7 +366,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq, Default)]
         pub struct $nt($crate::xir::parse::NtState<$nt>);
 
-        impl $nt {
+        impl $crate::xir::parse::NtBase for $nt {
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self {
@@ -386,7 +386,7 @@ macro_rules! ele_parse {
             ///
             /// This is always `1` for this parser.
             #[allow(dead_code)] // used by Sum NTs
-            const fn matches_n() -> usize {
+            fn matches_n() -> usize {
                 1
             }
 
@@ -495,7 +495,7 @@ macro_rules! ele_parse {
                     xir::{
                         EleSpan,
                         flat::XirfToken,
-                        parse::{parse_attrs, NtState},
+                        parse::{parse_attrs, NtBase, NtState},
                     },
                 };
 
@@ -734,7 +734,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq, Default)]
         pub struct $nt($crate::xir::parse::SumNtState<$nt>);
 
-        impl $nt {
+        impl $crate::xir::parse::NtBase for $nt {
             fn non_preemptable() -> Self {
                 Self($crate::xir::parse::SumNtState::NonPreemptableExpecting)
             }
@@ -769,7 +769,7 @@ macro_rules! ele_parse {
             //
             // This is the sum of the number of matches of each
             //   constituent NT.
-            const fn matches_n() -> usize {
+            fn matches_n() -> usize {
                 // Count the number of NTs by adding the number of
                 //   matches in each.
                 0 $(+ $ntref::matches_n())*
@@ -808,13 +808,15 @@ macro_rules! ele_parse {
                     Self(st) => st.can_preempt_node(),
                 }
             }
+
+            fn is_last_nt(&self) -> bool {
+                false
+            }
         }
 
         impl $crate::xir::parse::SumNt for $nt {
-            /// Begin formatting using [`Self::fmt_matches`].
-            ///
-            /// This provides the initial values for the function.
             fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                use $crate::xir::parse::NtBase;
                 Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
             }
         }
@@ -846,10 +848,13 @@ macro_rules! ele_parse {
                     xir::{
                         flat::XirfToken,
                         EleSpan,
-                        parse::SumNtState::{
-                            Expecting,
-                            NonPreemptableExpecting,
-                            RecoverEleIgnore,
+                        parse::{
+                            NtBase,
+                            SumNtState::{
+                                Expecting,
+                                NonPreemptableExpecting,
+                                RecoverEleIgnore,
+                            },
                         },
                     },
                 };
@@ -1010,6 +1015,7 @@ macro_rules! ele_parse {
         //     (otherwise we have a chicken-and-egg problem).
         impl Default for $super {
             fn default() -> Self {
+                use $crate::xir::parse::NtBase;
                 ele_parse!(@!ntfirst_init $super, $($nt)*)
             }
         }
@@ -1098,7 +1104,7 @@ macro_rules! ele_parse {
 
                 // Used only by _some_ expansions.
                 #[allow(unused_imports)]
-                use $crate::xir::flat::Text;
+                use $crate::xir::{flat::Text, parse::NtBase};
 
                 match (self, tok) {
                     // [super] {
@@ -1245,6 +1251,7 @@ macro_rules! ele_parse {
             ///     then we would emit an object in an incorrect context.
             #[allow(dead_code)] // TODO: Remove when using for tpl apply
             fn can_preempt_node(&self) -> bool {
+                use $crate::xir::parse::NtBase;
                 match self {
                     $(
                         Self::$nt(st) => st.can_preempt_node(),
@@ -1272,6 +1279,48 @@ macro_rules! ele_parse {
 /// It represents the reification of such a state machine and all of its
 ///   transitions.
 pub trait SuperState: ClosedParseState {}
+
+pub trait NtBase {
+    /// A default state that cannot be preempted by the superstate.
+    #[allow(dead_code)] // not utilized for every NT
+    fn non_preemptable() -> Self;
+
+    /// Whether the given QName would be matched by any of the
+    ///   parsers associated with this type.
+    fn matches(qname: QName) -> bool;
+
+    /// Number of
+    ///   [`NodeMatcher`]s considered by this parser.
+    ///
+    /// This is always `1` for this parser.
+    fn matches_n() -> usize;
+
+    /// Format matcher for display.
+    ///
+    /// This value may be rendered singularly or as part of a list of
+    ///   values joined together by Sum NTs.
+    /// This function receives the number of values to be formatted
+    ///   as `n` and the current 0-indexed offset within that list
+    ///   as `i`.
+    /// This allows for zero-copy rendering of composable NTs.
+    ///
+    /// `i` must be incremented after the operation.
+    fn fmt_matches(
+        n: usize,
+        i: &mut usize,
+        f: &mut std::fmt::Formatter,
+    ) -> std::fmt::Result;
+
+    /// Whether the parser is in a state that can tolerate superstate
+    ///   node preemption.
+    ///
+    /// For more information,
+    ///   see the superstate.
+    fn can_preempt_node(&self) -> bool;
+
+    /// Whether the current state represents the last child NT.
+    fn is_last_nt(&self) -> bool;
+}
 
 /// Nonterminal.
 ///
