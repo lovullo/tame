@@ -488,7 +488,10 @@ macro_rules! ele_parse {
                 stack: &mut Self::Context,
             ) -> $crate::parse::TransitionResult<Self::Super> {
                 use $crate::{
-                    parse::{Transition, Transitionable},
+                    parse::{
+                        Transition, Transitionable, Token, ParseStatus,
+                        EmptyContext
+                    },
                     xir::{
                         EleSpan,
                         flat::XirfToken,
@@ -511,11 +514,11 @@ macro_rules! ele_parse {
                     (
                         Expecting | NonPreemptableExpecting | Closed(..),
                         XirfToken::Open(qname, span, depth)
-                    ) if $nt::matches(qname) => {
+                    ) if Self::matches(qname) => {
                         let $openpat = (qname, span);
 
                         <Self::Object>::try_from($openmap)
-                            .map($crate::parse::ParseStatus::Object)
+                            .map(ParseStatus::Object)
                             .transition(Self(Attrs(
                                 (qname, span, depth),
                                 parse_attrs(qname, span)
@@ -570,7 +573,7 @@ macro_rules! ele_parse {
                     (Attrs(meta, sa), tok) => {
                         sa.delegate::<Self, _>(
                             tok,
-                            $crate::parse::EmptyContext,
+                            EmptyContext,
                             |sa| Transition(Self(Attrs(meta, sa))),
                             || Transition(Self(Jmp($ntfirst(meta)))),
                         )
@@ -669,7 +672,7 @@ macro_rules! ele_parse {
                     // XIRF ensures proper nesting,
                     //   so we do not need to check the element name.
                     (
-                        Jmp([<$nt ChildNt_>]::ExpectClose_((qname, _, depth)))
+                        Jmp(<Self as Nt>::ChildNt::ExpectClose_((qname, _, depth)))
                         | CloseRecoverIgnore((qname, _, depth), _),
                          XirfToken::Close(_, span, tok_depth)
                     ) if tok_depth == depth => {
@@ -678,10 +681,9 @@ macro_rules! ele_parse {
                     },
 
                     (
-                        Jmp([<$nt ChildNt_>]::ExpectClose_(meta @ (qname, otspan, _))),
+                        Jmp(<Self as Nt>::ChildNt::ExpectClose_(meta @ (qname, otspan, _))),
                         unexpected_tok
                     ) => {
-                        use $crate::parse::Token;
                         Transition(Self(
                             CloseRecoverIgnore(meta, unexpected_tok.span())
                         )).err(
@@ -830,7 +832,7 @@ macro_rules! ele_parse {
                 $crate::xir::flat::RefinedText
             >;
             type Object = meta::Object;
-            type Error = $crate::xir::parse::SumNtError<$nt>;
+            type Error = $crate::xir::parse::SumNtError<Self>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
             type Super = meta::Super;
 
