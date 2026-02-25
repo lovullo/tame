@@ -305,17 +305,6 @@ macro_rules! ele_parse {
         )
     };
 
-    // Same as above,
-    //   but in situations where we will never transition to a done state.
-    (@!ntref_delegate_nodone
-        $stack:ident, $ret:expr, $ntnext_st:ty, $target:expr
-    ) => {
-        $stack.transfer_with_ret(
-            Transition($ret),
-            $target,
-        )
-    };
-
     (@!ele_dfn_body
         $(#[$nt_attr:meta])* $nt:ident $qname:ident
 
@@ -655,16 +644,14 @@ macro_rules! ele_parse {
                             XirfToken::Open(qname, span, depth)
                         ) if Self(Jmp($ntprev(meta))).is_last_nt() => {
                             let tok = XirfToken::Open(qname, span, depth);
-                            ele_parse!(@!ntref_delegate_nodone
-                                stack,
-                                Self(Jmp($ntprev(meta))),
-                                $ntprev_st,
+                            stack.transfer_with_ret(
+                                Transition(Self(Jmp($ntprev(meta)))),
                                 // If this NT cannot handle this element,
                                 //   it should error and enter recovery to
                                 //   ignore it.
                                 Transition(<$ntprev_st>::non_preemptable())
                                     .incomplete()
-                                    .with_lookahead(tok)
+                                    .with_lookahead(tok),
                             )
                         },
                     )*
@@ -865,10 +852,8 @@ macro_rules! ele_parse {
                             st @ (Expecting | NonPreemptableExpecting),
                             XirfToken::Open(qname, span, depth)
                         ) if $ntref::matches(qname) => {
-                            ele_parse!(@!ntref_delegate_nodone
-                                stack,
-                                Self(Expecting),
-                                $ntref,
+                            stack.transfer_with_ret(
+                                Transition(Self(Expecting)),
                                 Transition(
                                     // Propagate non-preemption status,
                                     //   otherwise we'll provide a lookback
@@ -893,10 +878,8 @@ macro_rules! ele_parse {
                             NonPreemptableExpecting,
                             XirfToken::Open(qname, span, depth)
                         ) if $ntref::matches(qname) => {
-                            ele_parse!(@!ntref_delegate_nodone
-                                stack,
-                                Self(Expecting),
-                                $ntref,
+                            stack.transfer_with_ret(
+                                Transition(Self(Expecting)),
                                 Transition(
                                     $ntref::non_preemptable()
                                 ).incomplete().with_lookahead(
