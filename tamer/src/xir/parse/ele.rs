@@ -873,20 +873,6 @@ macro_rules! ele_parse {
                                 )
                             )
                         },
-
-                        (
-                            NonPreemptableExpecting,
-                            XirfToken::Open(qname, span, depth)
-                        ) if $ntref::matches(qname) => {
-                            stack.transfer_with_ret(
-                                Transition(Self(Expecting)),
-                                Transition(
-                                    $ntref::non_preemptable()
-                                ).incomplete().with_lookahead(
-                                    XirfToken::Open(qname, span, depth)
-                                )
-                            )
-                        },
                     )*
 
                     // If we're non-preemptable,
