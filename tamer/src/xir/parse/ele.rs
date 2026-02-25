@@ -851,58 +851,59 @@ macro_rules! ele_parse {
                         NonPreemptableExpecting,
                         tok @ XirfToken::Open(qname, span, depth)
                     ) => {
+                        None::<Self::Super>
                         $(
-                            if $ntref::matches(qname) {
-                                return stack.transfer_with_ret(
-                                    Transition(Self(Expecting)),
-                                    Transition(
-                                        // Propagate non-preemption status,
-                                        //   otherwise we'll provide a lookback
-                                        //   of the original token and end up
-                                        //   recursing until we hit the `stack`
-                                        //   limit.
-                                        $ntref::non_preemptable()
-                                    ).incomplete().with_lookahead(tok)
-                                );
-                            }
+                            .or_else(|| $ntref::non_preemptable_for(qname))
                         )*
-
-                        // Since we're non-preemptable,
-                        //   we're expected to be able to process this token
-                        //   or fail trying.
-                        Transition(Self(
-                            RecoverEleIgnore(qname, span, depth, Default::default())
-                        )).err(
-                            // Use name span rather than full `OpenSpan`
-                            //   since it's specifically the name that was
-                            //   unexpected,
-                            //     not the fact that it's an element.
-                            Self::Error::UnexpectedEle(
-                                qname,
-                                span.name_span(),
-                                Default::default(),
-                            )
-                        )
+                            .map(|nt| stack.transfer_with_ret(
+                                Transition(Self(Expecting)),
+                                // Propagate non-preemption status,
+                                //   otherwise we'll provide a lookback of
+                                //   the original token and end up recursing
+                                //   until we hit the `stack` limit.
+                                Transition(nt).incomplete().with_lookahead(tok)
+                            ))
+                            .unwrap_or_else(|| {
+                                // Since we're non-preemptable,
+                                //   we're expected to be able to process this token
+                                //   or fail trying.
+                                Transition(Self(
+                                    RecoverEleIgnore(qname, span, depth, Default::default())
+                                )).err(
+                                    // Use name span rather than full `OpenSpan`
+                                    //   since it's specifically the name that was
+                                    //   unexpected,
+                                    //     not the fact that it's an element.
+                                    Self::Error::UnexpectedEle(
+                                        qname,
+                                        span.name_span(),
+                                        Default::default(),
+                                    )
+                                )
+                            })
                     },
 
                     (
                         Expecting,
                         tok @ XirfToken::Open(qname, ..)
                     ) => {
+                        None::<Self::Super>
                         $(
-                            if $ntref::matches(qname) {
-                                return stack.transfer_with_ret(
-                                    Transition(Self(Expecting)),
-                                    Transition(
-                                        $ntref::default()
-                                    ).incomplete().with_lookahead(tok)
-                                );
-                            }
+                            .or_else(|| $ntref::default_for(qname))
                         )*
-
-                        // An unexpected token when repeating ends repetition
-                        //   and should not result in an error.
-                        Transition(Self(Expecting)).dead(tok)
+                            .map(|nt| stack.transfer_with_ret(
+                                Transition(Self(Expecting)),
+                                // note: this clone is just because the
+                                //   borrow checker can't prove a single use
+                                //   between this closure and below; it should
+                                //   optimize away
+                                Transition(nt).incomplete().with_lookahead(tok.clone())
+                            ))
+                            .unwrap_or_else(
+                                // An unexpected token ends repetition
+                                //   and should not result in an error.
+                                || Transition(Self(Expecting)).dead(tok)
+                            )
                     },
 
                     // An unexpected token when repeating ends repetition
@@ -1257,7 +1258,7 @@ macro_rules! ele_parse {
 ///   transitions.
 pub trait SuperState: ClosedParseState {}
 
-pub trait NtBase {
+pub trait NtBase: Default + ParseState {
     /// A default state that cannot be preempted by the superstate.
     #[allow(dead_code)] // not utilized for every NT
     fn non_preemptable() -> Self;
@@ -1265,6 +1266,21 @@ pub trait NtBase {
     /// Whether the given QName would be matched by any of the
     ///   parsers associated with this type.
     fn matches(qname: QName) -> bool;
+
+    /// Superstate-compatible default state for matching [`QName`].
+    ///
+    /// This is useful for chaining NT matches.
+    fn default_for(qname: QName) -> Option<Self::Super> {
+        Self::matches(qname).then_some(Self::default().into())
+    }
+
+    /// Superstate-compatible non-preemptable default state for matching
+    ///   [`QName`].
+    ///
+    /// This is useful for chaining NT matches.
+    fn non_preemptable_for(qname: QName) -> Option<Self::Super> {
+        Self::matches(qname).then_some(Self::non_preemptable().into())
+    }
 
     /// Number of
     ///   [`NodeMatcher`]s considered by this parser.
