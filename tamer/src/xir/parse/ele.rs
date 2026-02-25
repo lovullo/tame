@@ -847,41 +847,29 @@ macro_rules! ele_parse {
                 };
 
                 match (self.0, tok) {
-                    $(
-                        (
-                            st @ (Expecting | NonPreemptableExpecting),
-                            XirfToken::Open(qname, span, depth)
-                        ) if $ntref::matches(qname) => {
-                            stack.transfer_with_ret(
-                                Transition(Self(Expecting)),
-                                Transition(
-                                    // Propagate non-preemption status,
-                                    //   otherwise we'll provide a lookback
-                                    //   of the original token and end up
-                                    //   recursing until we hit the `stack`
-                                    //   limit.
-                                    match st {
-                                        NonPreemptableExpecting => {
-                                            $ntref::non_preemptable()
-                                        }
-                                        _ => {
-                                            $ntref::default()
-                                        }
-                                    }
-                                ).incomplete().with_lookahead(
-                                    XirfToken::Open(qname, span, depth)
-                                )
-                            )
-                        },
-                    )*
-
-                    // If we're non-preemptable,
-                    //   then we're expected to be able to process this
-                    //   token or fail trying.
                     (
                         NonPreemptableExpecting,
-                        XirfToken::Open(qname, span, depth)
+                        tok @ XirfToken::Open(qname, span, depth)
                     ) => {
+                        $(
+                            if $ntref::matches(qname) {
+                                return stack.transfer_with_ret(
+                                    Transition(Self(Expecting)),
+                                    Transition(
+                                        // Propagate non-preemption status,
+                                        //   otherwise we'll provide a lookback
+                                        //   of the original token and end up
+                                        //   recursing until we hit the `stack`
+                                        //   limit.
+                                        $ntref::non_preemptable()
+                                    ).incomplete().with_lookahead(tok)
+                                );
+                            }
+                        )*
+
+                        // Since we're non-preemptable,
+                        //   we're expected to be able to process this token
+                        //   or fail trying.
                         Transition(Self(
                             RecoverEleIgnore(qname, span, depth, Default::default())
                         )).err(
@@ -895,6 +883,26 @@ macro_rules! ele_parse {
                                 Default::default(),
                             )
                         )
+                    },
+
+                    (
+                        Expecting,
+                        tok @ XirfToken::Open(qname, ..)
+                    ) => {
+                        $(
+                            if $ntref::matches(qname) {
+                                return stack.transfer_with_ret(
+                                    Transition(Self(Expecting)),
+                                    Transition(
+                                        $ntref::default()
+                                    ).incomplete().with_lookahead(tok)
+                                );
+                            }
+                        )*
+
+                        // An unexpected token when repeating ends repetition
+                        //   and should not result in an error.
+                        Transition(Self(Expecting)).dead(tok)
                     },
 
                     // An unexpected token when repeating ends repetition
