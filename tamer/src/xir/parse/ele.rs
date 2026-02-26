@@ -466,12 +466,10 @@ macro_rules! ele_parse {
         }
 
         impl $crate::parse::ParseState for $nt {
-            type Token = $crate::xir::flat::XirfToken<
-                $crate::xir::flat::RefinedText
-            >;
+            type Token = <Self::Super as $crate::parse::ParseState>::Token;
             type Object = <Self::Super as $crate::parse::ParseState>::Object;
             type Error = $crate::xir::parse::NtError<$nt>;
-            type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
+            type Context = <Self::Super as $crate::parse::ParseState>::Context;
             type Super = <Self as $crate::xir::parse::NtBase>::NtSuper;
 
             fn parse_token(
@@ -803,12 +801,10 @@ macro_rules! ele_parse {
         }
 
         impl $crate::parse::ParseState for $nt {
-            type Token = $crate::xir::flat::XirfToken<
-                $crate::xir::flat::RefinedText
-            >;
+            type Token = <Self::Super as $crate::parse::ParseState>::Token;
             type Object = <Self::Super as $crate::parse::ParseState>::Object;
             type Error = $crate::xir::parse::SumNtError<Self>;
-            type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
+            type Context = <Self::Super as $crate::parse::ParseState>::Context;
             type Super = <Self as $crate::xir::parse::NtBase>::NtSuper;
 
             fn parse_token(
