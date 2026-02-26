@@ -51,6 +51,7 @@ use crate::{
         CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
         attr::{Attr, AttrSpan},
         flat::{Depth, RefinedText, Text, Whitespace, XirfToken},
+        parse::NtBase,
         st::{prefix::*, qname::*},
     },
 };
@@ -1606,7 +1607,7 @@ ele_parse_test! {
         assert_eq!(
             err,
             ParseError::StateError(<Sut as ParseState>::Error::Root(
-                <sut::Root as ParseState>::Error::UnexpectedEle(
+                <sut::Root as NtBase>::ParseError::UnexpectedEle(
                     unexpected,
                     OpenSpan(S1, N).name_span(),
                     Default::default(),

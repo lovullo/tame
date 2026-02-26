@@ -25,12 +25,19 @@
 //!   this module has extensive test cases that illustrate its behavior and
 //!   can serve as examples.
 
-use super::AttrParseState;
+use super::{AttrParseState, SumNtError};
 use crate::{
+    diagnose::Diagnostic,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{ClosedParseState, Context, ParseState, StateStack},
+    parse::{
+        ClosedParseState, Context, ParseState, StateStack, Transition,
+        TransitionResult,
+    },
     span::Span,
-    xir::{CloseSpan, OpenSpan, Prefix, QName, flat::Depth},
+    xir::{
+        CloseSpan, EleSpan, OpenSpan, Prefix, QName,
+        flat::{Depth, RefinedText, XirfToken},
+    },
 };
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -358,6 +365,7 @@ macro_rules! ele_parse {
         impl $crate::xir::parse::NtBase for $nt {
             type NtSuper = meta::Super;
             type ParseState = Self;
+            type ParseError = $crate::xir::parse::NtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
                 Self($crate::xir::parse::NtState::Expecting)
@@ -730,18 +738,19 @@ macro_rules! ele_parse {
 
         impl $crate::xir::parse::NtBase for $nt {
             type NtSuper = meta::Super;
-            type ParseState = Self;
+            type ParseState = $crate::xir::parse::SumNtState<$nt>;
+            type ParseError = $crate::xir::parse::SumNtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-                Self($crate::xir::parse::SumNtState::Expecting)
+               $crate::xir::parse::SumNtState::Expecting
             }
 
             fn non_preemptable() -> Self::ParseState {
-                Self($crate::xir::parse::SumNtState::NonPreemptableExpecting)
+                $crate::xir::parse::SumNtState::NonPreemptableExpecting
             }
 
             fn matches(qname: $crate::xir::QName) -> Option<Self::NtSuper> {
-                None::<Self::Super> $( .or_else(|| $ntref::matches(qname)) )*
+                None::<Self::NtSuper> $( .or_else(|| $ntref::matches(qname)) )*
             }
 
             // Number of
@@ -807,119 +816,6 @@ macro_rules! ele_parse {
                 match self {
                     Self(st) => std::fmt::Display::fmt(st, f),
                 }
-            }
-        }
-
-        impl $crate::parse::ParseState for $nt {
-            type Token = <Self::Super as $crate::parse::ParseState>::Token;
-            type Object = <Self::Super as $crate::parse::ParseState>::Object;
-            type Error = $crate::xir::parse::SumNtError<Self>;
-            type Context = <Self::Super as $crate::parse::ParseState>::Context;
-            type Super = <Self as $crate::xir::parse::NtBase>::NtSuper;
-
-            fn parse_token(
-                self,
-                tok: Self::Token,
-                stack: &mut Self::Context,
-            ) -> $crate::parse::TransitionResult<Self::Super> {
-                use $crate::{
-                    parse::Transition,
-                    xir::{
-                        flat::XirfToken,
-                        EleSpan,
-                        parse::{
-                            NtBase,
-                            SumNtState::{
-                                Expecting,
-                                NonPreemptableExpecting,
-                                RecoverEleIgnore,
-                            },
-                            SuperState,
-                        },
-                    },
-                };
-
-                match (self.0, tok) {
-                    (
-                        NonPreemptableExpecting,
-                        tok @ XirfToken::Open(qname, span, depth)
-                    ) => {
-                        Self::matches(qname)
-                            .map(|nt| stack.transfer_with_ret(
-                                Transition(Self(Expecting)),
-                                // Propagate non-preemption status,
-                                //   otherwise we'll provide a lookback of
-                                //   the original token and end up recursing
-                                //   until we hit the `stack` limit.
-                                Transition(
-                                    nt.expect_non_preemptable()
-                                ).incomplete().with_lookahead(tok)
-                            ))
-                            .unwrap_or_else(|| {
-                                // Since we're non-preemptable,
-                                //   we're expected to be able to process this token
-                                //   or fail trying.
-                                Transition(Self(
-                                    RecoverEleIgnore(qname, span, depth, Default::default())
-                                )).err(
-                                    // Use name span rather than full `OpenSpan`
-                                    //   since it's specifically the name that was
-                                    //   unexpected,
-                                    //     not the fact that it's an element.
-                                    Self::Error::UnexpectedEle(
-                                        qname,
-                                        span.name_span(),
-                                        Default::default(),
-                                    )
-                                )
-                            })
-                    },
-
-                    (
-                        Expecting,
-                        tok @ XirfToken::Open(qname, ..)
-                    ) => {
-                        Self::matches(qname)
-                            .map(|nt| stack.transfer_with_ret(
-                                Transition(Self(Expecting)),
-                                // note: this clone is just because the
-                                //   borrow checker can't prove a single use
-                                //   between this closure and below; it should
-                                //   optimize away
-                                Transition(nt).incomplete().with_lookahead(tok.clone())
-                            ))
-                            .unwrap_or_else(
-                                // An unexpected token ends repetition
-                                //   and should not result in an error.
-                                || Transition(Self(Expecting)).dead(tok)
-                            )
-                    },
-
-                    // An unexpected token when repeating ends repetition
-                    //   and should not result in an error.
-                    (
-                        Expecting | NonPreemptableExpecting,
-                        tok
-                    ) => Transition(Self(Expecting)).dead(tok),
-
-                    // XIRF ensures that the closing tag matches the opening,
-                    //   so we need only check depth.
-                    (
-                        RecoverEleIgnore(_, _, depth_open, _),
-                        XirfToken::Close(_, _, depth_close)
-                    ) if depth_open == depth_close => {
-                        Transition(Self(Expecting)).incomplete()
-                    },
-
-                    (st @ RecoverEleIgnore(..), _) => {
-                        Transition(Self(st)).incomplete()
-                    },
-                }
-            }
-
-            fn is_accepting(&self, _: &Self::Context) -> bool {
-                use $crate::xir::parse::SumNtState;
-                matches!(self, Self(SumNtState::Expecting))
             }
         }
     }};
@@ -988,8 +884,8 @@ macro_rules! ele_parse {
         }
 
         $(
-            impl From<$nt> for $super {
-                fn from(st: $nt) -> Self {
+            impl From<<$nt as $crate::xir::parse::NtBase>::ParseState> for $super {
+                fn from(st: <$nt as $crate::xir::parse::NtBase>::ParseState) -> Self {
                     $super::$nt(st)
                 }
             }
@@ -1010,15 +906,15 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq)]
         pub enum [<$super Error_>] {
             $(
-                $nt(<$nt as $crate::parse::ParseState>::Error),
+                $nt(<<$nt as $crate::xir::parse::NtBase>::ParseState as $crate::parse::ParseState>::Error),
             )*
         }
 
         $(
-            impl From<<$nt as $crate::parse::ParseState>::Error>
+            impl From<<<$nt as $crate::xir::parse::NtBase>::ParseState as $crate::parse::ParseState>::Error>
                 for [<$super Error_>]
             {
-                fn from(e: <$nt as $crate::parse::ParseState>::Error) -> Self {
+                fn from(e: <<$nt as $crate::xir::parse::NtBase>::ParseState as $crate::parse::ParseState>::Error) -> Self {
                     [<$super Error_>]::$nt(e)
                 }
             }
@@ -1230,7 +1126,12 @@ macro_rules! ele_parse {
 ///   interdependencies.
 /// It represents the reification of such a state machine and all of its
 ///   transitions.
-pub trait SuperState: ClosedParseState {
+pub trait SuperState:
+    ClosedParseState<
+        Token = XirfToken<RefinedText>,
+        Context = SuperStateContext<Self>,
+    > + Default
+{
     /// Whether the inner (active child) [`ParseState`] is in an accepting
     ///   state.
     ///
@@ -1266,15 +1167,16 @@ pub trait SuperState: ClosedParseState {
     fn expect_non_preemptable(self) -> Self;
 }
 
-pub trait NtBase
+pub trait NtBase: PartialEq + Debug
 where
-    Self: ParseState<Super = Self::NtSuper>,
+    <Self::NtSuper as ParseState>::Error: From<Self::ParseError>,
 {
-    /// Superstate of all NTs.
-    type NtSuper: From<Self::ParseState>;
-
+    // Superstate of all NTs.
+    type NtSuper: From<Self::ParseState> + SuperState;
     /// Parser for this NT.
-    type ParseState: ParseState<Super = Self::NtSuper>;
+    type ParseState: ParseState<Super = Self::NtSuper, Error = Self::ParseError>;
+    /// Errors emitted by [`Self::ParseState`].
+    type ParseError: Diagnostic + Debug + PartialEq;
 
     /// A default state that can be preempted by [`Self::NtSuper`].
     fn preemptable() -> Self::ParseState;
@@ -1486,7 +1388,7 @@ impl<NT: Nt> Display for NtState<NT> {
 /// Sum nonterminal.
 ///
 /// This trait is used internally by the [`ele_parse!`] parser-generator.
-pub trait SumNt: Debug {
+pub trait SumNt: NtBase {
     fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result;
 }
 
@@ -1560,6 +1462,111 @@ impl<NT: SumNt> Display for SumNtState<NT> {
                 f.write_str(")")
             }
         }
+    }
+}
+
+impl<NT: SumNt> ParseState for SumNtState<NT>
+where
+    Self: Into<NT::NtSuper>,
+    <NT as NtBase>::ParseError: From<SumNtError<NT>>,
+{
+    type Token = XirfToken<RefinedText>;
+    type Object = <Self::Super as ParseState>::Object;
+    type Error = <NT as NtBase>::ParseError;
+    type Context = SuperStateContext<NT::NtSuper>;
+    type Super = <NT as NtBase>::NtSuper;
+
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        stack: &mut Self::Context,
+    ) -> TransitionResult<Self::Super> {
+        use SumNtState::*;
+
+        match (self, tok) {
+            (
+                NonPreemptableExpecting,
+                tok @ XirfToken::Open(qname, span, depth),
+            ) => {
+                NT::matches(qname)
+                    .map(|nt| {
+                        stack.transfer_with_ret(
+                            Transition(Expecting),
+                            // Propagate non-preemption status,
+                            //   otherwise we'll provide a lookback of
+                            //   the original token and end up recursing
+                            //   until we hit the `stack` limit.
+                            Transition(nt.expect_non_preemptable())
+                                .incomplete()
+                                .with_lookahead(tok),
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        // Since we're non-preemptable,
+                        //   we're expected to be able to process this token
+                        //   or fail trying.
+                        Transition(RecoverEleIgnore(
+                            qname,
+                            span,
+                            depth,
+                            Default::default(),
+                        ))
+                        .err(
+                            // Use name span rather than full `OpenSpan`
+                            //   since it's specifically the name that was
+                            //   unexpected,
+                            //     not the fact that it's an element.
+                            SumNtError::UnexpectedEle(
+                                qname,
+                                span.name_span(),
+                                Default::default(),
+                            ),
+                        )
+                    })
+            }
+
+            (Expecting, tok @ XirfToken::Open(qname, ..)) => {
+                NT::matches(qname)
+                    .map(|nt| {
+                        stack.transfer_with_ret(
+                            Transition(Expecting),
+                            // note: this clone is just because the
+                            //   borrow checker can't prove a single use
+                            //   between this closure and below; it should
+                            //   optimize away
+                            Transition(nt)
+                                .incomplete()
+                                .with_lookahead(tok.clone()),
+                        )
+                    })
+                    .unwrap_or_else(
+                        // An unexpected token ends repetition
+                        //   and should not result in an error.
+                        || Transition(Expecting).dead(tok),
+                    )
+            }
+
+            // An unexpected token when repeating ends repetition
+            //   and should not result in an error.
+            (Expecting | NonPreemptableExpecting, tok) => {
+                Transition(Expecting).dead(tok)
+            }
+
+            // XIRF ensures that the closing tag matches the opening,
+            //   so we need only check depth.
+            (
+                RecoverEleIgnore(_, _, depth_open, _),
+                XirfToken::Close(_, _, depth_close),
+            ) if depth_open == depth_close => {
+                Transition(Expecting).incomplete()
+            }
+
+            (st @ RecoverEleIgnore(..), _) => Transition(st).incomplete(),
+        }
+    }
+
+    fn is_accepting(&self, _: &Self::Context) -> bool {
+        matches!(self, SumNtState::Expecting)
     }
 }
 
