@@ -365,8 +365,10 @@ macro_rules! ele_parse {
             /// Whether the given QName would be matched by any of the
             ///   parsers associated with this type.
             #[inline]
-            fn matches(qname: $crate::xir::QName) -> bool {
-                <Self as $crate::xir::parse::Nt>::matcher().matches(qname)
+            fn matches(qname: $crate::xir::QName) -> Option<Self::Super> {
+                <Self as $crate::xir::parse::Nt>::matcher()
+                    .matches(qname)
+                    .then_some(Self::default().into())
             }
 
             /// Number of
@@ -503,7 +505,7 @@ macro_rules! ele_parse {
                     (
                         Expecting | NonPreemptableExpecting | Closed(..),
                         XirfToken::Open(qname, span, depth)
-                    ) if Self::matches(qname) => {
+                    ) if Self::matches(qname).is_some() => {
                         let $openpat = (qname, span);
 
                         <Self::Object>::try_from($openmap)
@@ -581,7 +583,7 @@ macro_rules! ele_parse {
                         (
                             Jmp($ntprev(meta)),
                             XirfToken::Open(qname, span, depth)
-                        ) if $ntprev_st::matches(qname) => {
+                        ) if $ntprev_st::matches(qname).is_some() => {
                             let tok = XirfToken::Open(qname, span, depth);
 
                             ele_parse!(@!ntref_delegate
@@ -726,28 +728,8 @@ macro_rules! ele_parse {
                 Self($crate::xir::parse::SumNtState::NonPreemptableExpecting)
             }
 
-            // Whether the given QName would be matched by any of the
-            //   parsers associated with this type.
-            //
-            // This is short-circuiting and will return as soon as one
-            //   parser is found,
-            //     so it may be a good idea to order the sum type according
-            //     to the most likely value to be encountered.
-            // At its worst,
-            //   this may be equivalent to a linear search of the parsers.
-            // With that said,
-            //   Rust/LLVM may optimize this in any number of ways,
-            //   especially if each inner parser matches on a QName
-            //     constant.
-            // Let a profiler and disassembly guide you.
-            #[allow(dead_code)] // used by superstate
-            fn matches(qname: $crate::xir::QName) -> bool {
-                // If we used an array or a trait,
-                //   then we'd need everything to be a similar type;
-                //     this allows for _any_ type provided that it expands
-                //     into something that contains a `matches` associated
-                //     function of a compatible type.
-                false $(|| $ntref::matches(qname))*
+            fn matches(qname: $crate::xir::QName) -> Option<Self::Super> {
+                None::<Self::Super> $( .or_else(|| $ntref::matches(qname)) )*
             }
 
             // Number of
@@ -851,17 +833,16 @@ macro_rules! ele_parse {
                         NonPreemptableExpecting,
                         tok @ XirfToken::Open(qname, span, depth)
                     ) => {
-                        None::<Self::Super>
-                        $(
-                            .or_else(|| $ntref::non_preemptable_for(qname))
-                        )*
+                        Self::matches(qname)
                             .map(|nt| stack.transfer_with_ret(
                                 Transition(Self(Expecting)),
                                 // Propagate non-preemption status,
                                 //   otherwise we'll provide a lookback of
                                 //   the original token and end up recursing
                                 //   until we hit the `stack` limit.
-                                Transition(nt).incomplete().with_lookahead(tok)
+                                Transition(
+                                    nt.expect_non_preemptable()
+                                ).incomplete().with_lookahead(tok)
                             ))
                             .unwrap_or_else(|| {
                                 // Since we're non-preemptable,
@@ -887,10 +868,7 @@ macro_rules! ele_parse {
                         Expecting,
                         tok @ XirfToken::Open(qname, ..)
                     ) => {
-                        None::<Self::Super>
-                        $(
-                            .or_else(|| $ntref::default_for(qname))
-                        )*
+                        Self::matches(qname)
                             .map(|nt| stack.transfer_with_ret(
                                 Transition(Self(Expecting)),
                                 // note: this clone is just because the
@@ -1113,7 +1091,7 @@ macro_rules! ele_parse {
                                     ospan,
                                     depth,
                                 ),
-                            ) if st.can_preempt_node() && $pre_nt::matches(qname) => {
+                            ) if st.can_preempt_node() && $pre_nt::matches(qname).is_some() => {
                                 stack.transfer_with_ret(
                                     Transition(st),
                                     Transition(
@@ -1236,6 +1214,17 @@ macro_rules! ele_parse {
                     )*
                 }
             }
+
+            /// Force current state into a non-preemptable expecting state.
+            #[allow(dead_code)]  // Only used with sum NTs
+            fn expect_non_preemptable(self) -> Self {
+                use $crate::xir::parse::NtBase;
+                match self {
+                    $(
+                        Self::$nt(_) => $nt::non_preemptable().into(),
+                    )*
+                }
+            }
         }
 
         impl $crate::xir::parse::SuperState for $super {}
@@ -1264,23 +1253,16 @@ pub trait NtBase: Default + ParseState {
     fn non_preemptable() -> Self;
 
     /// Whether the given QName would be matched by any of the
-    ///   parsers associated with this type.
-    fn matches(qname: QName) -> bool;
-
-    /// Superstate-compatible default state for matching [`QName`].
+    ///   NT parsers associated with this type.
     ///
-    /// This is useful for chaining NT matches.
-    fn default_for(qname: QName) -> Option<Self::Super> {
-        Self::matches(qname).then_some(Self::default().into())
-    }
-
-    /// Superstate-compatible non-preemptable default state for matching
-    ///   [`QName`].
-    ///
-    /// This is useful for chaining NT matches.
-    fn non_preemptable_for(qname: QName) -> Option<Self::Super> {
-        Self::matches(qname).then_some(Self::non_preemptable().into())
-    }
+    /// If any such NT is found,
+    ///   this returns it.
+    /// This widens to the supertype to support returning any number of
+    ///   possible NTs.
+    /// By returning the matching NT,
+    ///   we are able to generalize [`QName`] matching without having to
+    ///   generate custom code per parser via [`ele_parse`].
+    fn matches(qname: QName) -> Option<Self::Super>;
 
     /// Number of
     ///   [`NodeMatcher`]s considered by this parser.
