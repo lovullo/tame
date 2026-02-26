@@ -356,6 +356,8 @@ macro_rules! ele_parse {
         pub struct $nt($crate::xir::parse::NtState<$nt>);
 
         impl $crate::xir::parse::NtBase for $nt {
+            type NtSuper = meta::Super;
+
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self {
@@ -365,7 +367,7 @@ macro_rules! ele_parse {
             /// Whether the given QName would be matched by any of the
             ///   parsers associated with this type.
             #[inline]
-            fn matches(qname: $crate::xir::QName) -> Option<Self::Super> {
+            fn matches(qname: $crate::xir::QName) -> Option<Self::NtSuper> {
                 <Self as $crate::xir::parse::Nt>::matcher()
                     .matches(qname)
                     .then_some(Self::default().into())
@@ -467,10 +469,10 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = meta::Object;
+            type Object = <Self::Super as $crate::parse::ParseState>::Object;
             type Error = $crate::xir::parse::NtError<$nt>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
-            type Super = meta::Super;
+            type Super = <Self as $crate::xir::parse::NtBase>::NtSuper;
 
             fn parse_token(
                 self,
@@ -724,11 +726,13 @@ macro_rules! ele_parse {
         pub struct $nt($crate::xir::parse::SumNtState<$nt>);
 
         impl $crate::xir::parse::NtBase for $nt {
+            type NtSuper = meta::Super;
+
             fn non_preemptable() -> Self {
                 Self($crate::xir::parse::SumNtState::NonPreemptableExpecting)
             }
 
-            fn matches(qname: $crate::xir::QName) -> Option<Self::Super> {
+            fn matches(qname: $crate::xir::QName) -> Option<Self::NtSuper> {
                 None::<Self::Super> $( .or_else(|| $ntref::matches(qname)) )*
             }
 
@@ -802,10 +806,10 @@ macro_rules! ele_parse {
             type Token = $crate::xir::flat::XirfToken<
                 $crate::xir::flat::RefinedText
             >;
-            type Object = meta::Object;
+            type Object = <Self::Super as $crate::parse::ParseState>::Object;
             type Error = $crate::xir::parse::SumNtError<Self>;
             type Context = $crate::xir::parse::SuperStateContext<Self::Super>;
-            type Super = meta::Super;
+            type Super = <Self as $crate::xir::parse::NtBase>::NtSuper;
 
             fn parse_token(
                 self,
@@ -1247,7 +1251,13 @@ macro_rules! ele_parse {
 ///   transitions.
 pub trait SuperState: ClosedParseState {}
 
-pub trait NtBase: Default + ParseState {
+pub trait NtBase: Default
+where
+    Self: ParseState<Super = Self::NtSuper>,
+{
+    /// Superstate of all NTs.
+    type NtSuper: From<Self>;
+
     /// A default state that cannot be preempted by the superstate.
     #[allow(dead_code)] // not utilized for every NT
     fn non_preemptable() -> Self;
@@ -1262,7 +1272,7 @@ pub trait NtBase: Default + ParseState {
     /// By returning the matching NT,
     ///   we are able to generalize [`QName`] matching without having to
     ///   generate custom code per parser via [`ele_parse`].
-    fn matches(qname: QName) -> Option<Self::Super>;
+    fn matches(qname: QName) -> Option<Self::NtSuper>;
 
     /// Number of
     ///   [`NodeMatcher`]s considered by this parser.
