@@ -824,6 +824,7 @@ macro_rules! ele_parse {
                                 NonPreemptableExpecting,
                                 RecoverEleIgnore,
                             },
+                            SuperState,
                         },
                     },
                 };
@@ -1055,12 +1056,14 @@ macro_rules! ele_parse {
             ) -> $crate::parse::TransitionResult<Self> {
                 use $crate::{
                     parse::Transition,
-                    xir::flat::{XirfToken, RefinedText},
+                    xir::{
+                        flat::{XirfToken, RefinedText},
+                    },
                 };
 
                 // Used only by _some_ expansions.
                 #[allow(unused_imports)]
-                use $crate::xir::{flat::Text, parse::NtBase};
+                use $crate::xir::{flat::Text, parse::{NtBase, SuperState}};
 
                 match (self, tok) {
                     // [super] {
@@ -1142,6 +1145,8 @@ macro_rules! ele_parse {
             }
 
             fn is_accepting(&self, stack: &Self::Context) -> bool {
+                use $crate::xir::parse::SuperState;
+
                 // This is short-circuiting,
                 //   starting at the _bottom_ of the stack and moving
                 //   upward.
@@ -1163,11 +1168,7 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $super {
-            /// Whether the inner (active child) [`ParseState`] is in an
-            ///   accepting state.
-            ///
-            /// [`ParseState`]: crate::parse::ParseState
+        impl $crate::xir::parse::SuperState for $super {
             fn is_inner_accepting(
                 &self,
                 ctx: &<Self as $crate::parse::ParseState>::Context
@@ -1181,30 +1182,6 @@ macro_rules! ele_parse {
                 }
             }
 
-            /// Whether the inner parser is in a state that can tolerate
-            ///   superstate node preemption.
-            ///
-            /// Node preemption allows us (the superstate) to ask for
-            ///   permission from the inner parser to parse some token
-            ///   ourselves,
-            ///     by asking whether the parser is in a state that would
-            ///     cause semantic issues if we were to do so.
-            ///
-            /// For example,
-            ///   if we were to preempt text nodes while an inner parser was
-            ///   still parsing attributes,
-            ///     then we would emit an object associated with that text
-            ///     before the inner parser had a chance to conclude that
-            ///     attribute parsing has completed and emit the opening
-            ///     object for that node;
-            ///       the result would otherwise be an incorrect
-            ///       `Text, Open` instead of the correct `Open, Text`,
-            ///         which would effectively unparent the text.
-            /// Similarly,
-            ///   if we were to parse our own tokens while an inner parser
-            ///   was performing error recovery in such a way as to ignore
-            ///   all child tokens,
-            ///     then we would emit an object in an incorrect context.
             #[allow(dead_code)] // TODO: Remove when using for tpl apply
             fn can_preempt_node(&self) -> bool {
                 use $crate::xir::parse::NtBase;
@@ -1226,8 +1203,6 @@ macro_rules! ele_parse {
                 }
             }
         }
-
-        impl $crate::xir::parse::SuperState for $super {}
     }};
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
@@ -1245,7 +1220,41 @@ macro_rules! ele_parse {
 ///   interdependencies.
 /// It represents the reification of such a state machine and all of its
 ///   transitions.
-pub trait SuperState: ClosedParseState {}
+pub trait SuperState: ClosedParseState {
+    /// Whether the inner (active child) [`ParseState`] is in an accepting
+    ///   state.
+    ///
+    /// [`ParseState`]: crate::parse::ParseState
+    fn is_inner_accepting(&self, ctx: &<Self as ParseState>::Context) -> bool;
+
+    /// Whether the inner parser is in a state that can tolerate superstate
+    ///   node preemption.
+    ///
+    /// Node preemption allows us (the superstate) to ask for
+    ///   permission from the inner parser to parse some token ourselves,
+    ///     by asking whether the parser is in a state that would cause
+    ///     semantic issues if we were to do so.
+    ///
+    /// For example,
+    ///   if we were to preempt text nodes while an inner parser was still
+    ///   parsing attributes,
+    ///     then we would emit an object associated with that text before
+    ///     the inner parser had a chance to conclude that attribute parsing
+    ///     has completed and emit the opening object for that node;
+    ///       the result would otherwise be an incorrect `Text, Open`
+    ///       instead of the correct `Open, Text`,
+    ///         which would effectively unparent the text.
+    /// Similarly,
+    ///   if we were to parse our own tokens while an inner parser was
+    ///   performing error recovery in such a way as to ignore all child
+    ///   tokens,
+    ///     then we would emit an object in an incorrect context.
+    #[allow(dead_code)] // TODO: Remove when using for tpl apply
+    fn can_preempt_node(&self) -> bool;
+
+    /// Force current state into a non-preemptable expecting state.
+    fn expect_non_preemptable(self) -> Self;
+}
 
 pub trait NtBase: Default
 where
