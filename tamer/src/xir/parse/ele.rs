@@ -352,15 +352,20 @@ macro_rules! ele_parse {
         $(#[$nt_attr])*
         ///
         #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
-        #[derive(Debug, PartialEq, Eq, Default)]
+        #[derive(Debug, PartialEq, Eq)]
         pub struct $nt($crate::xir::parse::NtState<$nt>);
 
         impl $crate::xir::parse::NtBase for $nt {
             type NtSuper = meta::Super;
+            type ParseState = Self;
+
+            fn preemptable() -> Self::ParseState {
+                Self($crate::xir::parse::NtState::Expecting)
+            }
 
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
-            fn non_preemptable() -> Self {
+            fn non_preemptable() -> Self::ParseState {
                 Self($crate::xir::parse::NtState::NonPreemptableExpecting)
             }
 
@@ -370,7 +375,7 @@ macro_rules! ele_parse {
             fn matches(qname: $crate::xir::QName) -> Option<Self::NtSuper> {
                 <Self as $crate::xir::parse::Nt>::matcher()
                     .matches(qname)
-                    .then_some(Self::default().into())
+                    .then_some(Self::preemptable().into())
             }
 
             /// Number of
@@ -608,7 +613,7 @@ macro_rules! ele_parse {
                                 stack,
                                 Self(Jmp($ntnext(meta))),
                                 $ntnext_st,
-                                Transition(<$ntnext_st>::default())
+                                Transition(<$ntnext_st>::preemptable())
                                     .incomplete()
                                     .with_lookahead(tok),
                                 Transition(Self(Jmp($ntnext(meta))))
@@ -725,8 +730,13 @@ macro_rules! ele_parse {
 
         impl $crate::xir::parse::NtBase for $nt {
             type NtSuper = meta::Super;
+            type ParseState = Self;
 
-            fn non_preemptable() -> Self {
+            fn preemptable() -> Self::ParseState {
+                Self($crate::xir::parse::SumNtState::Expecting)
+            }
+
+            fn non_preemptable() -> Self::ParseState {
                 Self($crate::xir::parse::SumNtState::NonPreemptableExpecting)
             }
 
@@ -958,7 +968,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub enum $super {
             $(
-                $nt($nt),
+                $nt(<$nt as $crate::xir::parse::NtBase>::ParseState),
             )*
         }
 
@@ -1206,7 +1216,7 @@ macro_rules! ele_parse {
     }};
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
-        $super::$ntfirst($ntfirst::non_preemptable())
+        $ntfirst::non_preemptable().into()
     }
 }
 
@@ -1256,16 +1266,22 @@ pub trait SuperState: ClosedParseState {
     fn expect_non_preemptable(self) -> Self;
 }
 
-pub trait NtBase: Default
+pub trait NtBase
 where
     Self: ParseState<Super = Self::NtSuper>,
 {
     /// Superstate of all NTs.
-    type NtSuper: From<Self>;
+    type NtSuper: From<Self::ParseState>;
 
-    /// A default state that cannot be preempted by the superstate.
+    /// Parser for this NT.
+    type ParseState: ParseState<Super = Self::NtSuper>;
+
+    /// A default state that can be preempted by [`Self::NtSuper`].
+    fn preemptable() -> Self::ParseState;
+
+    /// A default state that cannot be preempted by [`Self::NtSuper`].
     #[allow(dead_code)] // not utilized for every NT
-    fn non_preemptable() -> Self;
+    fn non_preemptable() -> Self::ParseState;
 
     /// Whether the given QName would be matched by any of the
     ///   NT parsers associated with this type.
