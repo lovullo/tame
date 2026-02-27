@@ -535,28 +535,21 @@ macro_rules! ele_parse {
                         )).incomplete()
                     },
 
-                    // When the [attr] special form is used,
-                    //   we entirely delegate attribute parsing without
-                    //   performing our own explicit mapping.
-                    $(
-                        (
-                            st @ Attrs(..),
-                            XirfToken::Attr(Attr(name, value, attrspan)),
-                        ) => {
-                            let $attr_stream_binding = (name, value, attrspan);
-
-                            Transition(Self(st))
-                                .ok(<Self::Object>::from($attr_stream_map))
-                        },
-                    )?
-
-                    // Explicit attribute parsing.
-                    // This becomes unreachable in practice when the
-                    //   `[attr]` special form is provided,
-                    //     since the above match consumes `Attr` tokens.
-                    // TODO: We want to detect pattern conflicts so that
-                    //   they can be exposed in the macro DSL.
                     (Attrs(meta, sa), tok) => {
+                        // When the [attr] special form is used,
+                        //   we entirely delegate attribute parsing without
+                        //   performing our own explicit mapping.
+                        $(
+                            if let XirfToken::Attr(Attr(name, value, attrspan)) = tok {
+                                let $attr_stream_binding = (name, value, attrspan);
+
+                                return Transition(Self(Attrs(meta, sa)))
+                                    .ok(<Self::Object>::from($attr_stream_map));
+                            }
+                        )?
+
+                        // TODO: We want to detect pattern conflicts so that
+                        //   they can be exposed in the macro DSL.
                         sa.delegate::<Self, _>(
                             tok,
                             EmptyContext,
