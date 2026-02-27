@@ -150,6 +150,18 @@ macro_rules! ele_parse {
         ele_parse!(@!mod $vis $super; $(mod $mod)? {    //   |  |
             use super::*;                               //   |  |
                                                         //   |  |
+            use $crate::{                               //   |  |
+                diagnose::{Diagnostic, AnnotatedSpan},  //   |  |
+                parse::*,                               //   |  |
+                xir::{                                  //   |  |
+                    *,                                  //   |  |
+                    flat::{                             //   |  |
+                        Depth, RefinedText, XirfToken   //   |  |
+                    },                                  //   |  |
+                    parse::*,                           //   |  |
+                },                                      //   |  |
+            };                                          //   |  |
+                                                        //   |  |
             mod meta {                                  //   |  |
                 use super::*;                           //   |  |
                                                         //   |  |
@@ -281,11 +293,11 @@ macro_rules! ele_parse {
     // No explicit Close mapping defaults to doing nothing at all
     //   (so yield Incomplete).
     (@!ele_close) => {
-        $crate::parse::ParseStatus::Incomplete
+        ParseStatus::Incomplete
     };
 
     (@!ele_close $close:expr) => {
-        $crate::parse::ParseStatus::Object($close)
+        ParseStatus::Object($close)
     };
 
     // Delegation when the destination type is `()`,
@@ -338,57 +350,42 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub enum [<$nt ChildNt_>] {
             $(
-                $ntref(
-                    (
-                        $crate::xir::QName,
-                        $crate::xir::OpenSpan,
-                        $crate::xir::flat::Depth
-                    ),
-                ),
+                $ntref((QName, OpenSpan, Depth)),
             )*
-
-            ExpectClose_(
-                (
-                    $crate::xir::QName,
-                    $crate::xir::OpenSpan,
-                    $crate::xir::flat::Depth
-                ),
-            ),
+            ExpectClose_((QName, OpenSpan, Depth)),
         }
 
         $(#[$nt_attr])*
         ///
         #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
         #[derive(Debug, PartialEq, Eq)]
-        pub struct $nt($crate::xir::parse::NtState<$nt>);
+        pub struct $nt(NtState<$nt>);
 
-        impl $crate::xir::parse::NtBase for $nt {
+        impl NtBase for $nt {
             type NtSuper = meta::Super;
             type ParseState = Self;
-            type ParseError = $crate::xir::parse::NtError<$nt>;
+            type ParseError = NtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-                Self($crate::xir::parse::NtState::Expecting)
+                Self(NtState::Expecting)
             }
 
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self::ParseState {
-                Self($crate::xir::parse::NtState::NonPreemptableExpecting)
+                Self(NtState::NonPreemptableExpecting)
             }
 
             /// Whether the given QName would be matched by any of the
             ///   parsers associated with this type.
             #[inline]
-            fn matches(qname: $crate::xir::QName) -> Option<Self::NtSuper> {
-                <Self as $crate::xir::parse::Nt>::matcher()
+            fn matches(qname: QName) -> Option<Self::NtSuper> {
+                <Self as Nt>::matcher()
                     .matches(qname)
                     .then_some(Self::preemptable().into())
             }
 
-            /// Number of
-            ///   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
-            ///   considered by this parser.
+            /// Number of [`NodeMatcher`]s considered by this parser.
             ///
             /// This is always `1` for this parser.
             #[allow(dead_code)] // used by Sum NTs
@@ -414,7 +411,7 @@ macro_rules! ele_parse {
             ) -> std::fmt::Result {
                 use $crate::{
                     fmt::ListDisplayWrapper,
-                    xir::{fmt::EleSumList, parse::Nt},
+                    xir::fmt::EleSumList,
                 };
 
                 let matcher = &<Self as Nt>::matcher();
@@ -438,7 +435,7 @@ macro_rules! ele_parse {
             #[allow(dead_code)] // used only when there are child NTs
             /// Whether the current state represents the last child NT.
             fn is_last_nt(&self) -> bool {
-                use $crate::xir::parse::NtState::*;
+                use NtState::*;
 
                 let Self(st) = self;
 
@@ -460,13 +457,13 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $crate::xir::parse::Nt for $nt {
+        impl Nt for $nt {
             type AttrState = [<$nt AttrState_>];
             type ChildNt = [<$nt ChildNt_>];
 
             #[inline]
-            fn matcher() -> $crate::xir::parse::NodeMatcher {
-                $crate::xir::parse::NodeMatcher::from($qname)
+            fn matcher() -> NodeMatcher {
+                NodeMatcher::from($qname)
             }
         }
 
@@ -478,34 +475,19 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $crate::parse::ParseState for $nt {
-            type Token = <Self::Super as $crate::parse::ParseState>::Token;
-            type Object = <Self::Super as $crate::parse::ParseState>::Object;
-            type Error = $crate::xir::parse::NtError<$nt>;
-            type Context = <Self::Super as $crate::parse::ParseState>::Context;
-            type Super = <Self as $crate::xir::parse::NtBase>::NtSuper;
+        impl ParseState for $nt {
+            type Token = <Self::Super as ParseState>::Token;
+            type Object = <Self::Super as ParseState>::Object;
+            type Error = NtError<$nt>;
+            type Context = <Self::Super as ParseState>::Context;
+            type Super = <Self as NtBase>::NtSuper;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
                 #[allow(unused_variables)] // used only if child NTs
                 stack: &mut Self::Context,
-            ) -> $crate::parse::TransitionResult<Self::Super> {
-                use $crate::{
-                    parse::{
-                        Transition, Transitionable, Token, ParseStatus,
-                        EmptyContext
-                    },
-                    xir::{
-                        EleSpan,
-                        flat::XirfToken,
-                        parse::{parse_attrs, NtBase, NtState},
-                    },
-                };
-
-                #[allow(unused_imports)]  // used for multi-NT
-                use $crate::xir::parse::Nt;
-
+            ) -> TransitionResult<Self::Super> {
                 use NtState::{
                     Attrs, Expecting, NonPreemptableExpecting,
                     RecoverEleIgnore, CloseRecoverIgnore,
@@ -717,7 +699,7 @@ macro_rules! ele_parse {
             }
 
             fn is_accepting(&self, _: &Self::Context) -> bool {
-                use $crate::xir::parse::NtState::*;
+                use NtState::*;
                 matches!(*self, Self(Closed(..) | RecoverEleIgnoreClosed(..)))
             }
         }
@@ -734,22 +716,22 @@ macro_rules! ele_parse {
             "."
         )]
         #[derive(Debug, PartialEq, Eq, Default)]
-        pub struct $nt($crate::xir::parse::SumNtState<$nt>);
+        pub struct $nt(SumNtState<$nt>);
 
-        impl $crate::xir::parse::NtBase for $nt {
+        impl NtBase for $nt {
             type NtSuper = meta::Super;
-            type ParseState = $crate::xir::parse::SumNtState<$nt>;
-            type ParseError = $crate::xir::parse::SumNtError<$nt>;
+            type ParseState = SumNtState<$nt>;
+            type ParseError = SumNtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-               $crate::xir::parse::SumNtState::Expecting
+               SumNtState::Expecting
             }
 
             fn non_preemptable() -> Self::ParseState {
-                $crate::xir::parse::SumNtState::NonPreemptableExpecting
+                SumNtState::NonPreemptableExpecting
             }
 
-            fn matches(qname: $crate::xir::QName) -> Option<Self::NtSuper> {
+            fn matches(qname: QName) -> Option<Self::NtSuper> {
                 None::<Self::NtSuper> $( .or_else(|| $ntref::matches(qname)) )*
             }
 
@@ -804,9 +786,8 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $crate::xir::parse::SumNt for $nt {
+        impl SumNt for $nt {
             fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                use $crate::xir::parse::NtBase;
                 Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
             }
         }
@@ -864,7 +845,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub enum $super {
             $(
-                $nt(<$nt as $crate::xir::parse::NtBase>::ParseState),
+                $nt(<$nt as NtBase>::ParseState),
             )*
         }
 
@@ -878,14 +859,13 @@ macro_rules! ele_parse {
         //     (otherwise we have a chicken-and-egg problem).
         impl Default for $super {
             fn default() -> Self {
-                use $crate::xir::parse::NtBase;
                 ele_parse!(@!ntfirst_init $super, $($nt)*)
             }
         }
 
         $(
-            impl From<<$nt as $crate::xir::parse::NtBase>::ParseState> for $super {
-                fn from(st: <$nt as $crate::xir::parse::NtBase>::ParseState) -> Self {
+            impl From<<$nt as NtBase>::ParseState> for $super {
+                fn from(st: <$nt as NtBase>::ParseState) -> Self {
                     $super::$nt(st)
                 }
             }
@@ -906,15 +886,15 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq)]
         pub enum [<$super Error_>] {
             $(
-                $nt(<<$nt as $crate::xir::parse::NtBase>::ParseState as $crate::parse::ParseState>::Error),
+                $nt(<<$nt as NtBase>::ParseState as ParseState>::Error),
             )*
         }
 
         $(
-            impl From<<<$nt as $crate::xir::parse::NtBase>::ParseState as $crate::parse::ParseState>::Error>
+            impl From<<<$nt as NtBase>::ParseState as ParseState>::Error>
                 for [<$super Error_>]
             {
-                fn from(e: <<$nt as $crate::xir::parse::NtBase>::ParseState as $crate::parse::ParseState>::Error) -> Self {
+                fn from(e: <<$nt as NtBase>::ParseState as ParseState>::Error) -> Self {
                     [<$super Error_>]::$nt(e)
                 }
             }
@@ -937,8 +917,8 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $crate::diagnose::Diagnostic for [<$super Error_>] {
-            fn describe(&self) -> Vec<$crate::diagnose::AnnotatedSpan<'_>> {
+        impl Diagnostic for [<$super Error_>] {
+            fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
                 match self {
                     $(
                         Self::$nt(e) => e.describe(),
@@ -947,29 +927,20 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $crate::parse::ParseState for $super {
-            type Token = $crate::xir::flat::XirfToken<
-                $crate::xir::flat::RefinedText
-            >;
+        impl ParseState for $super {
+            type Token = XirfToken<RefinedText>;
             type Object = meta::Object;
             type Error = [<$super Error_>];
-            type Context = $crate::xir::parse::SuperStateContext<Self>;
+            type Context = SuperStateContext<Self>;
 
             fn parse_token(
                 self,
                 tok: Self::Token,
                 stack: &mut Self::Context,
-            ) -> $crate::parse::TransitionResult<Self> {
-                use $crate::{
-                    parse::Transition,
-                    xir::{
-                        flat::{XirfToken, RefinedText},
-                    },
-                };
-
+            ) -> TransitionResult<Self> {
                 // Used only by _some_ expansions.
                 #[allow(unused_imports)]
-                use $crate::xir::{flat::Text, parse::{NtBase, SuperState}};
+                use $crate::xir::flat::Text;
 
                 match (self, tok) {
                     // [super] {
@@ -1051,8 +1022,6 @@ macro_rules! ele_parse {
             }
 
             fn is_accepting(&self, stack: &Self::Context) -> bool {
-                use $crate::xir::parse::SuperState;
-
                 // This is short-circuiting,
                 //   starting at the _bottom_ of the stack and moving
                 //   upward.
@@ -1074,13 +1043,11 @@ macro_rules! ele_parse {
             }
         }
 
-        impl $crate::xir::parse::SuperState for $super {
+        impl SuperState for $super {
             fn is_inner_accepting(
                 &self,
-                ctx: &<Self as $crate::parse::ParseState>::Context
+                ctx: &<Self as ParseState>::Context
             ) -> bool {
-                use $crate::parse::ParseState;
-
                 match self {
                     $(
                         Self::$nt(st) => st.is_accepting(ctx),
@@ -1090,7 +1057,6 @@ macro_rules! ele_parse {
 
             #[allow(dead_code)] // TODO: Remove when using for tpl apply
             fn can_preempt_node(&self) -> bool {
-                use $crate::xir::parse::NtBase;
                 match self {
                     $(
                         Self::$nt(st) => st.can_preempt_node(),
@@ -1101,7 +1067,6 @@ macro_rules! ele_parse {
             /// Force current state into a non-preemptable expecting state.
             #[allow(dead_code)]  // Only used with sum NTs
             fn expect_non_preemptable(self) -> Self {
-                use $crate::xir::parse::NtBase;
                 match self {
                     $(
                         Self::$nt(_) => $nt::non_preemptable().into(),
