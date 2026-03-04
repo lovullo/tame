@@ -596,10 +596,8 @@ macro_rules! ele_parse {
                             {
                                 let tok = XirfToken::Open(qname, span, depth);
 
-                                ele_parse!(@!ntref_delegate
-                                    stack,
-                                    Self(Jmp($ntprev(meta))),
-                                    $ntprev_st,
+                                stack.transfer_with_ret(
+                                    Transition(Self(Jmp($ntprev(meta)))),
                                     // This NT said it could process this token,
                                     //   so force it to either do so or error,
                                     //   to ensure that bugs don't cause infinite
@@ -607,9 +605,6 @@ macro_rules! ele_parse {
                                     Transition(<$ntprev_st>::non_preemptable())
                                         .incomplete()
                                         .with_lookahead(tok),
-                                    Transition(Self(Jmp($ntprev(meta))))
-                                        .incomplete()
-                                        .with_lookahead(tok)
                                 )
                             } else {
                                 ele_parse!(@!ntref_delegate
