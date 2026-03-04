@@ -498,17 +498,22 @@ macro_rules! ele_parse {
 
                 match (selfst, tok) {
                     (
-                        Expecting | NonPreemptableExpecting | Closed(..),
-                        XirfToken::Open(qname, span, depth)
-                    ) if Self::matches(qname).is_some() => {
-                        let $openpat = (qname, span);
+                        Expecting | Closed(..),
+                        tok @ XirfToken::Open(qname, span, depth)
+                    ) => {
+                        if Self::matches(qname).is_some() {
+                            let $openpat = (qname, span);
 
-                        <Self::Object>::try_from($openmap)
-                            .map(ParseStatus::Object)
-                            .transition(Self(Attrs(
-                                (qname, span, depth),
-                                parse_attrs(qname, span)
-                            )))
+                            // TODO: deduplicate with NonPreemptableExpecting
+                            <Self::Object>::try_from($openmap)
+                                .map(ParseStatus::Object)
+                                .transition(Self(Attrs(
+                                    (qname, span, depth),
+                                    parse_attrs(qname, span)
+                                )))
+                        } else {
+                            Transition(Self(Expecting)).dead(tok)
+                        }
                     },
 
                     // We only attempt recovery when encountering an
@@ -517,13 +522,25 @@ macro_rules! ele_parse {
                         NonPreemptableExpecting,
                         XirfToken::Open(qname, span, depth)
                     ) => {
-                        Transition(Self(
-                            RecoverEleIgnore(qname, span, depth)
-                        )).err(
-                            Self::Error::UnexpectedEle(
-                                qname, span.name_span()
+                        if Self::matches(qname).is_some() {
+                            let $openpat = (qname, span);
+
+                            // TODO: deduplicate with Expecting
+                            <Self::Object>::try_from($openmap)
+                                .map(ParseStatus::Object)
+                                .transition(Self(Attrs(
+                                    (qname, span, depth),
+                                    parse_attrs(qname, span)
+                                )))
+                        } else {
+                            Transition(Self(
+                                RecoverEleIgnore(qname, span, depth)
+                            )).err(
+                                Self::Error::UnexpectedEle(
+                                    qname, span.name_span()
+                                )
                             )
-                        )
+                        }
                     },
 
                     (
