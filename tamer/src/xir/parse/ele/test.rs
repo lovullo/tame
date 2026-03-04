@@ -1848,6 +1848,11 @@ ele_parse_test! {
               // B -> A _not_ OK.
               XirfToken::Open(QN_A, OpenSpan(S6, N), Depth(1)),
               XirfToken::Close(None, CloseSpan::empty(S6), Depth(1)),
+
+              // let's do this again to check our recovery state:
+              // B -> A is still _not_ OK.
+              XirfToken::Open(QN_A, OpenSpan(S7, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S7), Depth(1)),
             XirfToken::Close(Some(QN_ROOT), CloseSpan(S8, N), Depth(0)),
         ];
 
@@ -1872,6 +1877,18 @@ ele_parse_test! {
                       <sut::B as ParseState>::Error::UnexpectedEle(
                           QN_A,
                           OpenSpan(S6, N).name_span()
+                      )
+                  ))),                           // [B!] A Open
+                  // RECOVERY: Ignore close of
+                  //   invalid element.
+                  Ok(Incomplete),                // [B!] A Close
+
+                  // again:
+                  // B -> A is not a valid state transition
+                  Err(ParseError::StateError(<Sut as ParseState>::Error::B(
+                      <sut::B as ParseState>::Error::UnexpectedEle(
+                          QN_A,
+                          OpenSpan(S7, N).name_span()
                       )
                   ))),                           // [B!] A Open
                   // RECOVERY: Ignore close of

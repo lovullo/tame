@@ -630,12 +630,12 @@ macro_rules! ele_parse {
                         //       which completely defeats the purpose of
                         //       having ordered states.
                         (
-                            Jmp(<Self as Nt>::ChildNt::ExpectClose_(meta)),
+                            st @ Jmp(<Self as Nt>::ChildNt::ExpectClose_(meta)),
                             XirfToken::Open(qname, span, depth)
                         ) if Self(Jmp($ntprev(meta))).is_last_nt() => {
                             let tok = XirfToken::Open(qname, span, depth);
                             stack.transfer_with_ret(
-                                Transition(Self(Jmp($ntprev(meta)))),
+                                Transition(Self(st)),
                                 // If this NT cannot handle this element,
                                 //   it should error and enter recovery to
                                 //   ignore it.
