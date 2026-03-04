@@ -604,47 +604,58 @@ macro_rules! ele_parse {
                                     .with_lookahead(tok)
                             )
                         },
-
-                        // Since `ExpectClose_` does not have an `$ntprev`
-                        //   match,
-                        //     we have to handle transitioning back to the
-                        //     previous state as a special case.
-                        // Further,
-                        //   we choose to transition back to this state
-                        //   _no matter what the element_,
-                        //     to force error recovery and diagnostics
-                        //     in that context,
-                        //       which will tell the user what elements were
-                        //       expected in the last NT rather than just
-                        //       telling them a closing tag was expected.
-                        //
-                        // To avoid a bunch of rework of this macro
-                        //   (which can hopefully be done in the future),
-                        //   this match is output for _every_ NT,
-                        //     but takes effect only for the final NT because
-                        //     of the `is_last_nt` predicate.
-                        // _It is important that it only affect the
-                        //   final NT_,
-                        //     otherwise we'll transition back to _any_
-                        //     previous state at the close,
-                        //       which completely defeats the purpose of
-                        //       having ordered states.
-                        (
-                            st @ Jmp(<Self as Nt>::ChildNt::ExpectClose_(meta)),
-                            XirfToken::Open(qname, span, depth)
-                        ) if Self(Jmp($ntprev(meta))).is_last_nt() => {
-                            let tok = XirfToken::Open(qname, span, depth);
-                            stack.transfer_with_ret(
-                                Transition(Self(st)),
-                                // If this NT cannot handle this element,
-                                //   it should error and enter recovery to
-                                //   ignore it.
-                                Transition(<$ntprev_st>::non_preemptable())
-                                    .incomplete()
-                                    .with_lookahead(tok),
-                            )
-                        },
                     )*
+
+                    // Since `ExpectClose_` does not have an `$ntprev`
+                    //   match,
+                    //     we have to handle transitioning back to the
+                    //     previous state (final NT) as a special case.
+                    // Further,
+                    //   we choose to transition back to the final NT
+                    //   _no matter what the element_,
+                    //     to force error recovery and diagnostics
+                    //     in that context,
+                    //       which will tell the user what elements were
+                    //       expected in the last NT rather than just
+                    //       telling them a closing tag was expected.
+                    // If there is no child NT at all,
+                    //   then we must be expecting a closing tag.
+                    (
+                        st @ Jmp(<Self as Nt>::ChildNt::ExpectClose_(
+                            meta @ (mqname, mspan, _)
+                        )),
+                        tok @ XirfToken::Open(..)
+                    ) => {
+                        // (silence dead code warnings of unused `st` if no
+                        //   child NTs)
+                        let _ = st;
+
+                        // TODO: The only purpose of this is to perform a
+                        //   transition using the last NT;
+                        //     we ought to be able to do this without
+                        //     iterating through all NTs here.
+                        $(
+                            if Self(Jmp($ntprev(meta))).is_last_nt() {
+                                return stack.transfer_with_ret(
+                                    Transition(Self(st)),
+                                    // If this NT cannot handle this element,
+                                    //   it should error and enter recovery to
+                                    //   ignore it.
+                                    Transition(<$ntprev_st>::non_preemptable())
+                                        .incomplete()
+                                        .with_lookahead(tok),
+                                )
+                            }
+                        )*
+
+                        // If there are no child NTs,
+                        //   then all we can do is expect a close.
+                        Transition(Self(
+                            CloseRecoverIgnore(meta, tok.span())
+                        )).err(
+                            Self::Error::CloseExpected(mqname, mspan, tok)
+                        )
+                    },
 
                     // XIRF ensures proper nesting,
                     //   so we do not need to check the element name.
