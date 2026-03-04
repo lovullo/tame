@@ -560,49 +560,53 @@ macro_rules! ele_parse {
 
                     $(
                         // We're transitioning from `(ntprev) -> (ntnext)`.
+                        //
                         // If we have a token that matches `ntprev`,
-                        //   we can transition _back_ to that state rather
+                        //   we can transition _back_ to ntprev rather
                         //   than transitioning forward.
                         // We can _only_ do this when we know we are
                         //   transitioning away from this state,
                         //     otherwise we could return to a previous state,
                         //     which violates the semantics of the implied
                         //     DFA.
-                        (
-                            Jmp($ntprev(meta)),
-                            XirfToken::Open(qname, span, depth)
-                        ) if $ntprev_st::matches(qname).is_some() => {
-                            let tok = XirfToken::Open(qname, span, depth);
-
-                            ele_parse!(@!ntref_delegate
-                                stack,
-                                Self(Jmp($ntprev(meta))),
-                                $ntprev_st,
-                                // This NT said it could process this token,
-                                //   so force it to either do so or error,
-                                //   to ensure that bugs don't cause infinite
-                                //     processing of lookahead.
-                                Transition(<$ntprev_st>::non_preemptable())
-                                    .incomplete()
-                                    .with_lookahead(tok),
-                                Transition(Self(Jmp($ntprev(meta))))
-                                    .incomplete()
-                                    .with_lookahead(tok)
-                            )
-                        },
-
+                        //
+                        // We therefore have:  (ntprev)--->(ntnext)
+                        //                        ^     \
+                        //                         `-----'
                         (Jmp($ntprev(meta)), tok) => {
-                            ele_parse!(@!ntref_delegate
-                                stack,
-                                Self(Jmp($ntnext(meta))),
-                                $ntnext_st,
-                                Transition(<$ntnext_st>::preemptable())
-                                    .incomplete()
-                                    .with_lookahead(tok),
-                                Transition(Self(Jmp($ntnext(meta))))
-                                    .incomplete()
-                                    .with_lookahead(tok)
-                            )
+                            if let XirfToken::Open(qname, span, depth) = tok
+                                && $ntprev_st::matches(qname).is_some()
+                            {
+                                let tok = XirfToken::Open(qname, span, depth);
+
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    Self(Jmp($ntprev(meta))),
+                                    $ntprev_st,
+                                    // This NT said it could process this token,
+                                    //   so force it to either do so or error,
+                                    //   to ensure that bugs don't cause infinite
+                                    //     processing of lookahead.
+                                    Transition(<$ntprev_st>::non_preemptable())
+                                        .incomplete()
+                                        .with_lookahead(tok),
+                                    Transition(Self(Jmp($ntprev(meta))))
+                                        .incomplete()
+                                        .with_lookahead(tok)
+                                )
+                            } else {
+                                ele_parse!(@!ntref_delegate
+                                    stack,
+                                    Self(Jmp($ntnext(meta))),
+                                    $ntnext_st,
+                                    Transition(<$ntnext_st>::preemptable())
+                                        .incomplete()
+                                        .with_lookahead(tok),
+                                    Transition(Self(Jmp($ntnext(meta))))
+                                        .incomplete()
+                                        .with_lookahead(tok)
+                                )
+                            }
                         },
                     )*
 
