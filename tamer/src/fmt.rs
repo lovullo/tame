@@ -360,11 +360,11 @@ pub struct QualConjList<
 >(PhantomData<W>);
 
 impl<
-        const QUAL_ONE: &'static str,
-        const QUAL_MANY: &'static str,
-        const CONJ: &'static str,
-        W: DisplayWrapper,
-    > ListDisplayWrapper for QualConjList<QUAL_ONE, QUAL_MANY, CONJ, W>
+    const QUAL_ONE: &'static str,
+    const QUAL_MANY: &'static str,
+    const CONJ: &'static str,
+    W: DisplayWrapper,
+> ListDisplayWrapper for QualConjList<QUAL_ONE, QUAL_MANY, CONJ, W>
 {
     type Single =
         Prefix<QUAL_ONE, Sp<<ConjList<CONJ, W> as ListDisplayWrapper>::Single>>;

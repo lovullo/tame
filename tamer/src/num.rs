@@ -19,7 +19,7 @@
 
 //! General numeric types used throughout the system.
 
-use crate::sym::{st, SymbolId};
+use crate::sym::{SymbolId, st};
 
 /// Value dimensionality.
 ///

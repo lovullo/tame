@@ -108,7 +108,7 @@
 //!   this should have no practical effect on the error type itself.
 
 use crate::{
-    asg::{air::AirAggregate, AsgTreeToXirf},
+    asg::{AsgTreeToXirf, air::AirAggregate},
     diagnose::Diagnostic,
     nir::{
         AbstractBindTranslate, InterpolateNir, NirToAir, TplShortDesugar,
@@ -116,8 +116,8 @@ use crate::{
     },
     obj::xmlo::{XmloReader, XmloToAir, XmloToken},
     parse::{
-        terminal, FinalizeError, Lower, LowerSource, ParseError, ParseState,
-        ParseStateError, Parsed, ParsedObject, UnknownToken,
+        FinalizeError, Lower, LowerSource, ParseError, ParseState,
+        ParseStateError, Parsed, ParsedObject, UnknownToken, terminal,
     },
     xir::{
         autoclose::XirfAutoClose,

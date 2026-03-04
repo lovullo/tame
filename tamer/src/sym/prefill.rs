@@ -843,7 +843,7 @@ mod private {
 
 #[cfg(test)]
 mod test {
-    use super::{st, st16, DecStaticSymbolId};
+    use super::{DecStaticSymbolId, st, st16};
     use crate::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
 
     #[test]

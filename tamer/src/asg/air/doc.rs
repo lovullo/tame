@@ -21,7 +21,7 @@
 //!
 //! See the [parent module](super) for more information.
 
-use super::{super::AsgError, ir::AirDoc, AirAggregate, AirAggregateCtx};
+use super::{super::AsgError, AirAggregate, AirAggregateCtx, ir::AirDoc};
 use crate::{asg::graph::object::ObjectIndexTreeRelTo, parse::prelude::*};
 
 /// Package parsing with support for loaded identifiers.

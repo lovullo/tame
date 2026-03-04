@@ -27,8 +27,8 @@ use super::{
 };
 use crate::{
     asg::{
-        graph::{object::Tpl, AsgRelMut, ProposedRel},
         Asg, AsgError,
+        graph::{AsgRelMut, ProposedRel, object::Tpl},
     },
     f::Map,
     parse::util::SPair,

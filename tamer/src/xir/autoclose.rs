@@ -97,8 +97,8 @@
 //!   will be the span of the respective [`XirfToken::Open`].
 
 use super::{
-    flat::{Depth, Text, XirfToken},
     CloseSpan, OpenSpan, QName,
+    flat::{Depth, Text, XirfToken},
 };
 use crate::{
     f::Map,

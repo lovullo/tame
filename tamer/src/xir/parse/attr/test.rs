@@ -20,13 +20,13 @@
 use super::super::{AttrParseError, AttrParseState};
 use crate::{
     diagnose::{AnnotatedSpan, Diagnostic},
-    parse::{self, util::SPair, ParseError, Parsed, Parser, TokenStream},
+    parse::{self, ParseError, Parsed, Parser, TokenStream, util::SPair},
     span::dummy::*,
     xir::{
+        OpenSpan, QName,
         attr::{Attr, AttrSpan},
         flat::XirfToken,
         st::qname::*,
-        OpenSpan, QName,
     },
 };
 use std::{

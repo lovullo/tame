@@ -21,12 +21,12 @@
 //! It is feature-complete and just needs final refactoring.
 
 use super::xmle::{
-    lower::{sort, SortError},
-    xir::lower_iter,
     XmleSections,
+    lower::{SortError, sort},
+    xir::lower_iter,
 };
 use crate::{
-    asg::{air::AirAggregateCtx, DefaultAsg},
+    asg::{DefaultAsg, air::AirAggregateCtx},
     diagnostic_error_sum,
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
@@ -34,13 +34,13 @@ use crate::{
     },
     ld::xmle::Sections,
     obj::xmlo::XmloAirContext,
-    parse::{lowerable, FinalizeError},
+    parse::{FinalizeError, lowerable},
     pipeline::{self, LoadXmloError},
     sym::{GlobalSymbolResolve, SymbolId},
     xir::{
+        DefaultEscaper, Error as XirError, Escaper,
         reader::XmlXirReader,
         writer::{Error as XirWriterError, XmlWriter},
-        DefaultEscaper, Error as XirError, Escaper,
     },
 };
 use fxhash::FxBuildHasher;

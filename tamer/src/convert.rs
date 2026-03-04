@@ -40,7 +40,7 @@
 //!   these are most useful in writing tests.
 
 use crate::{
-    diagnose::{panic::DiagnosticPanic, NO_DESC},
+    diagnose::{NO_DESC, panic::DiagnosticPanic},
     f::ThunkOrStaticRef,
 };
 use std::{

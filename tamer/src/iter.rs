@@ -283,5 +283,5 @@ pub trait ResultIterator<T, E> = Iterator<Item = Result<T, E>>;
 
 pub use collect::{TryCollect, TryFromIterator};
 pub use trip::{
-    into_iter_while_ok, with_iter_while_ok, TripIter, TrippableIterator,
+    TripIter, TrippableIterator, into_iter_while_ok, with_iter_while_ok,
 };

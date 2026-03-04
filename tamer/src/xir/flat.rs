@@ -41,15 +41,15 @@
 //!   of the caller.
 
 use super::{
+    CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream,
     attr::{Attr, AttrParseError, AttrParseState},
     reader::is_xml_whitespace_char,
-    CloseSpan, OpenSpan, QName, Token as XirToken, TokenStream,
 };
 use crate::{
     f::Map,
     parse::prelude::*,
     span::Span,
-    sym::{st::is_common_whitespace, GlobalSymbolResolve, SymbolId},
+    sym::{GlobalSymbolResolve, SymbolId, st::is_common_whitespace},
     xir::EleSpan,
 };
 use arrayvec::ArrayVec;
@@ -370,12 +370,11 @@ impl From<RefinedText> for Text {
 }
 
 /// XIRF-compatible attribute parser.
-pub trait FlatAttrParseState<const MAX_DEPTH: usize> =
-    ClosedParseState<Token = XirToken, Object = Attr>
-    where
-        Self: Default,
-        <Self as ParseState>::Error: Into<XirToXirfError>,
-        StateContext<MAX_DEPTH>: AsMut<<Self as ParseState>::Context>;
+pub trait FlatAttrParseState<const MAX_DEPTH: usize> = ClosedParseState<Token = XirToken, Object = Attr>
+where
+    Self: Default,
+    <Self as ParseState>::Error: Into<XirToXirfError>,
+    StateContext<MAX_DEPTH>: AsMut<<Self as ParseState>::Context>;
 
 /// Stack of element [`QName`] and [`Span`] pairs,
 ///   representing the current level of nesting.

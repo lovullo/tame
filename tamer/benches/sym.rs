@@ -38,8 +38,8 @@ fn gen_strs(n: usize) -> Vec<String> {
 
 mod interner {
     use super::*;
-    use std::collections::hash_map::RandomState;
     use std::collections::HashSet;
+    use std::collections::hash_map::RandomState;
     use std::hash::BuildHasher;
 
     pub struct HashSetSut<S = RandomState>

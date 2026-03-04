@@ -26,5 +26,5 @@
 mod ontree;
 mod topo;
 
-pub use ontree::{tree_reconstruction, Depth, TreePreOrderDfs, TreeWalkRel};
-pub use topo::{topo_sort, Cycle, TopoPostOrderDfs};
+pub use ontree::{Depth, TreePreOrderDfs, TreeWalkRel, tree_reconstruction};
+pub use topo::{Cycle, TopoPostOrderDfs, topo_sort};

@@ -21,23 +21,23 @@ mod apply;
 
 use super::*;
 use crate::asg::air::test::{
-    as_pkg_body, expect_ident_obj, expect_ident_oi, Sut,
+    Sut, as_pkg_body, expect_ident_obj, expect_ident_oi,
 };
 use crate::convert::ExpectInto;
 use crate::span::dummy::*;
 use crate::{
     asg::{
+        Expr, ExprOp, Ident,
         air::{
+            Air::*,
             expr::test::collect_subexprs,
             test::{
                 air_ctx_from_pkg_body_toks, air_ctx_from_toks,
                 parse_as_pkg_body, pkg_expect_ident_obj, pkg_expect_ident_oi,
                 pkg_lookup,
             },
-            Air::*,
         },
-        graph::object::{expr::MetaState, tpl::TplShape, Doc, Meta, ObjectRel},
-        Expr, ExprOp, Ident,
+        graph::object::{Doc, Meta, ObjectRel, expr::MetaState, tpl::TplShape},
     },
     parse::util::spair,
 };
@@ -1101,10 +1101,12 @@ fn abstract_doc_clause_cannot_bind_to_non_meta_ref() {
     let oi_tpl = pkg_expect_ident_oi::<Tpl>(&ctx, spair("_tpl_", S20));
 
     // We should have kept the expression despite the error.
-    assert!(oi_tpl
-        .edges_filtered::<Ident>(asg)
-        .filter_map(|oi_ident| oi_ident.definition_narrow::<Expr>(asg))
-        .any(|oi| oi.resolve(asg).span() == S7.merge(S11).unwrap()));
+    assert!(
+        oi_tpl
+            .edges_filtered::<Ident>(asg)
+            .filter_map(|oi_ident| oi_ident.definition_narrow::<Expr>(asg))
+            .any(|oi| oi.resolve(asg).span() == S7.merge(S11).unwrap())
+    );
 }
 
 /// All template metavariables (params) must hold at least one reference.

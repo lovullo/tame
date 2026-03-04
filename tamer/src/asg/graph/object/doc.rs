@@ -22,10 +22,10 @@
 //! TODO: Document TAME's stance on documentation and literate programming,
 //!   much of which hasn't been able to be realized over the years.
 
-use super::{ident::IdentDefinition, prelude::*, Ident, Meta};
+use super::{Ident, Meta, ident::IdentDefinition, prelude::*};
 use crate::{
     asg::graph::ProposedRel,
-    parse::{prelude::Annotate, util::SPair, Token},
+    parse::{Token, prelude::Annotate, util::SPair},
     span::Span,
 };
 use std::fmt::Display;

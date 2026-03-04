@@ -24,7 +24,7 @@
 //!
 //! See the [parent module](super) for more information.
 
-use super::{super::AsgError, ir::AirIdent, AirAggregate, AirAggregateCtx};
+use super::{super::AsgError, AirAggregate, AirAggregateCtx, ir::AirIdent};
 use crate::parse::prelude::*;
 
 #[derive(Debug, PartialEq)]

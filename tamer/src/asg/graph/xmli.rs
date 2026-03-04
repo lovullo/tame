@@ -35,22 +35,22 @@ use super::object::{
 };
 use crate::{
     asg::{
-        visit::{Depth, TreeWalkRel},
         Asg, ExprOp, Ident,
+        visit::{Depth, TreeWalkRel},
     },
-    diagnose::{panic::DiagnosticPanic, Annotate},
+    diagnose::{Annotate, panic::DiagnosticPanic},
     diagnostic_panic, diagnostic_todo, diagnostic_unreachable,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{prelude::*, util::SPair, Transitionable},
+    parse::{Transitionable, prelude::*, util::SPair},
     span::{Span, UNKNOWN_SPAN},
     sym::{
-        st::{URI_LV_CALC, URI_LV_RATER, URI_LV_TPL},
         UriStaticSymbolId,
+        st::{URI_LV_CALC, URI_LV_RATER, URI_LV_TPL},
     },
     xir::{
+        CloseSpan, OpenSpan, QName,
         flat::{Text, XirfToken},
         st::qname::*,
-        CloseSpan, OpenSpan, QName,
     },
 };
 use arrayvec::ArrayVec;
@@ -438,9 +438,10 @@ impl<'a> TreeContext<'a> {
 
                 let apply_tpl = ident.diagnostic_expect(
                     || {
-                        vec![tpl
-                            .span()
-                            .internal_error("missing target Tpl Ident")]
+                        vec![
+                            tpl.span()
+                                .internal_error("missing target Tpl Ident"),
+                        ]
                     },
                     "cannot derive name of template for application",
                 );
@@ -666,8 +667,11 @@ impl<'a> TreeContext<'a> {
     fn push(&mut self, tok: Xirf) {
         if self.stack.is_full() {
             diagnostic_panic!(
-                vec![tok
-                    .internal_error("while emitting a token for this object")],
+                vec![
+                    tok.internal_error(
+                        "while emitting a token for this object"
+                    )
+                ],
                 "token stack exhausted (increase TOK_STACK_SIZE)",
             )
         }

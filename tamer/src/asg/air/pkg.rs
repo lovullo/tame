@@ -22,9 +22,9 @@
 //! See the [parent module](super) for more information.
 
 use super::{
-    super::{graph::object::Pkg, AsgError, ObjectIndex},
-    ir::AirPkg,
+    super::{AsgError, ObjectIndex, graph::object::Pkg},
     AirAggregate, AirAggregateCtx,
+    ir::AirPkg,
 };
 use crate::parse::prelude::*;
 

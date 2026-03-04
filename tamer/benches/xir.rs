@@ -120,11 +120,11 @@ mod name {
 mod writer {
     use super::*;
     use quick_xml::{
-        events::{BytesStart, BytesText, Event as XmlEvent},
         Writer as QuickXmlWriter,
+        events::{BytesStart, BytesText, Event as XmlEvent},
     };
     use std::borrow::Cow;
-    use tamer::xir::{writer::XmlWriter, CloseSpan, Escaper, OpenSpan};
+    use tamer::xir::{CloseSpan, Escaper, OpenSpan, writer::XmlWriter};
     use tamer::{span::Span, xir::DefaultEscaper};
 
     const FRAGMENT: &str = r#"<fragment>

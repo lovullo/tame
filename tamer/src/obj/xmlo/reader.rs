@@ -25,16 +25,16 @@ use crate::{
     num::{Dim, Dtype},
     obj::xmlo::SymType,
     parse::{
-        self, util::SPair, NoContext, ParseState, Token, Transition,
-        TransitionResult, Transitionable,
+        self, NoContext, ParseState, Token, Transition, TransitionResult,
+        Transitionable, util::SPair,
     },
     span::Span,
-    sym::{st::raw, GlobalSymbolIntern, GlobalSymbolResolve, SymbolId},
+    sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId, st::raw},
     xir::{
+        EleSpan, QName,
         attr::{Attr, AttrSpan},
         flat::{Text, XirfToken as Xirf},
         st::qname::*,
-        EleSpan, QName,
     },
 };
 

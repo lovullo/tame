@@ -32,9 +32,9 @@ use crate::{
     fmt::{DisplayFn, DisplayWrapper, TtQuote},
     span::Span,
     xir::{
+        EleSpan, OpenSpan, QName,
         attr::Attr,
         flat::{RefinedText, XirfToken},
-        EleSpan, OpenSpan, QName,
     },
 };
 

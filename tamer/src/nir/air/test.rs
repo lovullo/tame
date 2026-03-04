@@ -19,7 +19,7 @@
 
 use super::*;
 use crate::{
-    parse::{util::SPair, Parser},
+    parse::{Parser, util::SPair},
     span::dummy::*,
 };
 

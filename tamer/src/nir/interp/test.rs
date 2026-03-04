@@ -23,8 +23,8 @@ use crate::{
     parse::{Parsed, ParsedResult, Parser},
     span::dummy::{DUMMY_CONTEXT as DC, *},
 };
-use std::assert_matches::assert_matches;
 use Parsed::*;
+use std::assert_matches::assert_matches;
 
 type Sut = InterpState;
 

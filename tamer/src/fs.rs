@@ -36,8 +36,8 @@
 //!   time it encounters a given path,
 //!     and [`VisitOnceFile::Visited`] every time thereafter.
 
-use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
+use std::collections::hash_map::RandomState;
 use std::ffi::OsString;
 use std::fs;
 use std::hash::BuildHasher;

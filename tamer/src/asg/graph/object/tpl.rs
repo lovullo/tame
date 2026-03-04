@@ -21,7 +21,7 @@
 
 use std::fmt::Display;
 
-use super::{ident::IdentDefinition, prelude::*, Doc, Expr, Ident, Meta};
+use super::{Doc, Expr, Ident, Meta, ident::IdentDefinition, prelude::*};
 use crate::{asg::graph::ProposedRel, f::Map, parse::util::SPair, span::Span};
 
 /// Template with associated name.

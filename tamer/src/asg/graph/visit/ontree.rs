@@ -158,8 +158,8 @@
 use std::{fmt::Display, marker::PhantomData};
 
 use super::super::{
-    object::{self, DynObjectRel},
     Asg,
+    object::{self, DynObjectRel},
 };
 use crate::{
     asg::graph::object::ObjectTy,

@@ -32,7 +32,7 @@ use crate::{
 };
 
 use super::{
-    graph::object::pkg::CanonicalNameError, visit::Cycle, TransitionError,
+    TransitionError, graph::object::pkg::CanonicalNameError, visit::Cycle,
 };
 
 /// An error from an ASG operation.
@@ -466,15 +466,18 @@ impl Diagnostic for AsgError {
                 vec![span.error("there is no open template to close here")]
             }
 
-            InvalidBindContext(name) => vec![name
-                .error("an identifier binding is not valid in this context")],
+            InvalidBindContext(name) => {
+                vec![name.error(
+                    "an identifier binding is not valid in this context",
+                )]
+            }
 
             InvalidAbstractBindContext(name, parent_span) => parent_span
                 .map(|span| {
                     span.note(
-                    "this definition context does not support metavariable \
-                       expansion"
-                )
+                        "this definition context does not support \
+                           metavariable expansion",
+                    )
                 })
                 .into_iter()
                 .chain(vec![

@@ -21,12 +21,12 @@
 
 use super::Nir;
 use crate::{
-    asg::{air::Air, ExprOp},
+    asg::{ExprOp, air::Air},
     fmt::TtQuote,
     nir::{Nir::*, NirEntity::*},
     parse::prelude::*,
     span::Span,
-    sym::{st::raw::U_TRUE, SymbolId},
+    sym::{SymbolId, st::raw::U_TRUE},
 };
 use arrayvec::ArrayVec;
 

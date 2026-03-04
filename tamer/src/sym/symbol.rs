@@ -66,7 +66,7 @@ impl<Ix: SymbolIndexSize> SymbolId<Ix> {
     /// This does not verify that `n > 0` and so must only be used in
     ///   contexts where this invariant is guaranteed to hold.
     pub(super) unsafe fn from_int_unchecked(n: Ix) -> SymbolId<Ix> {
-        SymbolId(Ix::new_unchecked(n))
+        SymbolId(unsafe { Ix::new_unchecked(n) })
     }
 
     pub fn as_usize(self) -> usize {
@@ -156,7 +156,7 @@ macro_rules! supported_symbol_index {
             }
 
             unsafe fn new_unchecked(n: Self) -> Self::NonZero {
-                Self::NonZero::new_unchecked(n)
+                unsafe { Self::NonZero::new_unchecked(n) }
             }
 
             fn as_usize(self) -> usize {
@@ -410,13 +410,13 @@ impl<Ix: SymbolIndexSize> GlobalSymbolInternBytes<Ix> for &[u8] {
 
 impl<Ix: SymbolIndexSize> GlobalSymbolInternUnchecked<Ix> for &[u8] {
     unsafe fn intern_utf8_unchecked(self) -> SymbolId<Ix> {
-        Ix::with_static_interner(|interner| {
+        Ix::with_static_interner(|interner| unsafe {
             interner.intern_utf8_unchecked(self)
         })
     }
 
     unsafe fn clone_uninterned_utf8_unchecked(self) -> SymbolId<Ix> {
-        Ix::with_static_interner(|interner| {
+        Ix::with_static_interner(|interner| unsafe {
             interner.clone_uninterned_utf8_unchecked(self)
         })
     }

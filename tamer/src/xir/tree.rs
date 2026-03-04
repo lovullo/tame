@@ -174,8 +174,8 @@
 //! [state machine]: https://en.wikipedia.org/wiki/Finite-state_machine
 
 use super::{
-    attr::{Attr, AttrList, AttrParseError, AttrParseState},
     QName, Token, Token as XirToken, TokenStream,
+    attr::{Attr, AttrList, AttrParseError, AttrParseState},
 };
 
 use crate::{
@@ -397,13 +397,13 @@ impl ElementStack {
         // Note that self-closing with children is syntactically
         // invalid and is expected to never make it into a XIR
         // stream to begin with, so we don't check for it.
-        if let Some(name) = close_name {
-            if name != ele_name {
-                return Err(StackError::UnbalancedTag {
-                    open: (ele_name, open_span),
-                    close: (name, close_span),
-                });
-            }
+        if let Some(name) = close_name
+            && name != ele_name
+        {
+            return Err(StackError::UnbalancedTag {
+                open: (ele_name, open_span),
+                close: (name, close_span),
+            });
         }
 
         Ok(Self {
@@ -503,12 +503,11 @@ where
     Done,
 }
 
-pub trait StackAttrParseState =
-    ClosedParseState<Token = XirToken, Object = Attr>
-    where
-        Self: Default,
-        <Self as ParseState>::Error: Into<StackError>,
-        EmptyContext: AsMut<<Self as ParseState>::Context>;
+pub trait StackAttrParseState = ClosedParseState<Token = XirToken, Object = Attr>
+where
+    Self: Default,
+    <Self as ParseState>::Error: Into<StackError>,
+    EmptyContext: AsMut<<Self as ParseState>::Context>;
 
 impl<SA: StackAttrParseState> Default for Stack<SA> {
     fn default() -> Self {

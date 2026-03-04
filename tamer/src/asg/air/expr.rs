@@ -23,14 +23,14 @@
 
 use super::{
     super::{
-        graph::object::{Expr, Object},
         Asg, AsgError, ObjectIndex,
+        graph::object::{Expr, Object},
     },
-    ir::AirBindableExpr,
     AirAggregate, AirAggregateCtx,
+    ir::AirBindableExpr,
 };
 use crate::{
-    asg::{graph::object::ObjectIndexToTree, ObjectKind},
+    asg::{ObjectKind, graph::object::ObjectIndexToTree},
     parse::prelude::*,
 };
 

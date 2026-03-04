@@ -19,16 +19,16 @@
 
 //! Identifiers (a type of [object](super)).
 
-use super::{prelude::*, Expr, Meta, Pkg, Tpl};
+use super::{Expr, Meta, Pkg, Tpl, prelude::*};
 use crate::{
-    diagnose::{panic::DiagnosticPanic, Annotate, Diagnostic},
+    diagnose::{Annotate, Diagnostic, panic::DiagnosticPanic},
     diagnostic_todo,
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},
-    parse::{util::SPair, Token},
+    parse::{Token, util::SPair},
     span::Span,
-    sym::{st, GlobalSymbolResolve, SymbolId},
+    sym::{GlobalSymbolResolve, SymbolId, st},
 };
 use std::fmt::Display;
 
@@ -434,7 +434,7 @@ impl Ident {
         match self {
             Missing(name) => Err(UnresolvedError::Missing(*name)),
 
-            Extern(name, ref kind, _) => {
+            Extern(name, kind, _) => {
                 Err(UnresolvedError::Extern(*name, kind.clone()))
             }
 
@@ -628,7 +628,7 @@ impl std::fmt::Display for TransitionError {
 
             BadFragmentDest(name) => {
                 write!(fmt, "bad fragment destination: {}", TtQuote::wrap(name))
-            },
+            }
 
             ResolveAbstract(_, _) => {
                 write!(fmt, "cannot resolve abstract identifier")
@@ -636,7 +636,7 @@ impl std::fmt::Display for TransitionError {
 
             AbstractFragmentDest(_) => {
                 write!(fmt, "cannot attach fragment to abstract identifier")
-            },
+            }
         }
     }
 }

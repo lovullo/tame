@@ -20,10 +20,10 @@
 use super::*;
 use crate::{
     asg::{
-        air::{test::asg_from_toks, Air},
         AsgError, FragmentText, Ident, IdentKind, Source,
+        air::{Air, test::asg_from_toks},
     },
-    ld::xmle::{section::PushResult, Sections},
+    ld::xmle::{Sections, section::PushResult},
     parse::util::SPair,
     span::dummy::*,
     sym::SymbolId,

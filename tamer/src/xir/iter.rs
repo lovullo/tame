@@ -27,7 +27,7 @@
 
 use super::{CloseSpan, OpenSpan, QName, Token, TokenStream};
 use crate::span::Span;
-use std::iter::{once, Chain, Once};
+use std::iter::{Chain, Once, once};
 
 /// Wrap an inner [`Token`] stream iterator in an element.
 ///

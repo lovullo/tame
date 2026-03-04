@@ -32,11 +32,11 @@
 use super::{super::LSPAN, section::XmleSections};
 use crate::{
     asg::{Ident, IdentKind},
-    sym::{st::raw, SymbolId},
+    sym::{SymbolId, st::raw},
     xir::{
-        iter::{elem_wrap, ElemWrapIter},
-        st::qname::*,
         CloseSpan, OpenSpan, QName, Token,
+        iter::{ElemWrapIter, elem_wrap},
+        st::qname::*,
     },
 };
 use arrayvec::ArrayVec;

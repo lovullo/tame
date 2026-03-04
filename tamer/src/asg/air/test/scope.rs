@@ -47,9 +47,9 @@
 use super::*;
 use crate::{
     asg::{
-        graph::object::{self, ObjectTy},
-        visit::{tree_reconstruction, TreeWalkRel},
         ExprOp,
+        graph::object::{self, ObjectTy},
+        visit::{TreeWalkRel, tree_reconstruction},
     },
     parse::util::spair,
     span::UNKNOWN_SPAN,

@@ -36,7 +36,7 @@
 //! Do not try to use the human-readable traces in that way since the format
 //!   is subject to change without notice.
 
-use super::{state::TransitionData, ParseState, Token};
+use super::{ParseState, Token, state::TransitionData};
 
 pub(super) trait ParserTrace: Default {
     /// Output the upper portion of a token trace.

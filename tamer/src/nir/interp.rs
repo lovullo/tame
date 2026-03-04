@@ -107,14 +107,14 @@ use memchr::memchr2;
 
 use super::{Nir, NirEntity};
 use crate::{
-    diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan, Diagnostic},
+    diagnose::{Annotate, AnnotatedSpan, Diagnostic, panic::DiagnosticPanic},
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{prelude::*, util::SPair, NoContext},
+    parse::{NoContext, prelude::*, util::SPair},
     span::Span,
     sym::{
-        st::{quick_contains_byte, raw::S_GEN_FROM_INTERP},
         GlobalSymbolIntern, GlobalSymbolResolve, SymbolId,
+        st::{quick_contains_byte, raw::S_GEN_FROM_INTERP},
     },
 };
 use std::{error::Error, fmt::Display};
@@ -223,12 +223,12 @@ impl Display for InterpState {
                 fmt_spec = TtQuote::wrap(spec),
             ),
 
-            FinishSym(spec, GenIdentSymbolId(gen)) => write!(
+            FinishSym(spec, GenIdentSymbolId(gen_)) => write!(
                 f,
                 "ready to replace specification {fmt_spec} \
                     with expanded metavariable reference {fmt_gen}",
                 fmt_spec = TtQuote::wrap(spec),
-                fmt_gen = TtQuote::wrap(gen),
+                fmt_gen = TtQuote::wrap(gen_),
             ),
         }
     }

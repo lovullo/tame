@@ -42,16 +42,16 @@ use crate::{
     convert::ExpectInto,
     diagnose::{AnnotatedSpan, Diagnostic},
     parse::{
-        util::SPair, FinalizeError, Object, ParseError, ParseState, Parsed,
-        ParsedResult,
+        FinalizeError, Object, ParseError, ParseState, Parsed, ParsedResult,
+        util::SPair,
     },
-    span::{dummy::*, Span},
+    span::{Span, dummy::*},
     sym::SymbolId,
     xir::{
+        CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
         attr::{Attr, AttrSpan},
         flat::{Depth, RefinedText, Text, Whitespace, XirfToken},
         st::{prefix::*, qname::*},
-        CloseSpan, EleNameLen, EleSpan, OpenSpan, QName,
     },
 };
 

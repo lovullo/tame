@@ -31,11 +31,11 @@
 //     rather than using both.
 
 use super::{
+    AnnotatedSpan, Diagnostic, Label, Level,
     resolve::{
         Column, ResolvedSpan, ResolvedSpanData, SourceLine, SpanResolver,
         SpanResolverError,
     },
-    AnnotatedSpan, Diagnostic, Label, Level,
 };
 use crate::span::{Context, Span, UNKNOWN_SPAN};
 use std::{
@@ -73,7 +73,7 @@ pub trait Reporter {
     ///     and that we're not inadvertently suppressing the actual
     ///       diagnostic messages that were requested.
     fn render<'d, D: Diagnostic>(&mut self, diagnostic: &'d D)
-        -> Report<'d, D>;
+    -> Report<'d, D>;
 
     /// Whether any reports have been rendered with an error level or higher.
     fn has_errors(&self) -> bool;

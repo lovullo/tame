@@ -29,15 +29,15 @@
 use super::*;
 use crate::{
     asg::{
-        air::{
-            test::{parse_as_pkg_body, pkg_lookup},
-            Air::{self, *},
-        },
-        graph::object::{meta::MetaRel, Meta, Tpl},
         ExprOp,
+        air::{
+            Air::{self, *},
+            test::{parse_as_pkg_body, pkg_lookup},
+        },
+        graph::object::{Meta, Tpl, meta::MetaRel},
     },
-    parse::{util::spair, Parser},
-    span::{dummy::*, Span},
+    parse::{Parser, util::spair},
+    span::{Span, dummy::*},
     sym::SymbolId,
 };
 

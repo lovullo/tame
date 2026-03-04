@@ -20,15 +20,15 @@
 //! High-level parsing abstraction.
 
 use super::{
-    state::ClosedParseState,
-    trace::{self, ParserTrace},
     FinalizeError, ParseError, ParseResult, ParseState, ParseStatus,
     TokenStream, Transition, TransitionResult,
+    state::ClosedParseState,
+    trace::{self, ParserTrace},
 };
 use crate::{
     parse::{
-        state::{Lookahead, TransitionData},
         Token,
+        state::{Lookahead, TransitionData},
     },
     span::Span,
 };

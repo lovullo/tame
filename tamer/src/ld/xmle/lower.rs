@@ -23,7 +23,7 @@
 
 use super::section::{SectionsError, XmleSections};
 use crate::{
-    asg::{visit::topo_sort, Asg, AsgError, Ident, Object},
+    asg::{Asg, AsgError, Ident, Object, visit::topo_sort},
     diagnose::{Annotate, Diagnostic},
     diagnostic_unreachable,
     span::UNKNOWN_SPAN,

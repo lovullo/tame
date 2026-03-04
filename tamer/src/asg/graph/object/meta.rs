@@ -32,14 +32,14 @@
 
 use arrayvec::ArrayVec;
 
-use super::{prelude::*, Doc, Ident};
+use super::{Doc, Ident, prelude::*};
 use crate::{
     asg::graph::ProposedRel,
     diagnose::Annotate,
     diagnostic_todo,
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{util::SPair, Token},
+    parse::{Token, util::SPair},
     span::Span,
 };
 use std::fmt::Display;

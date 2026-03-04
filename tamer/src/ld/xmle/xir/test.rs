@@ -20,7 +20,7 @@
 use super::*;
 use crate::{
     asg::{IdentKind, Source},
-    ld::xmle::{section::PushResult, Sections},
+    ld::xmle::{Sections, section::PushResult},
     num::{Dim, Dtype},
     parse::util::SPair,
     span::dummy::*,

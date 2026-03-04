@@ -23,8 +23,8 @@
 
 use super::{
     super::{AsgError, ObjectIndex},
-    ir::AirBindableMeta,
     AirAggregate, AirAggregateCtx,
+    ir::AirBindableMeta,
 };
 use crate::{asg::graph::object::Meta, diagnostic_todo, parse::prelude::*};
 

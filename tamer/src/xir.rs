@@ -36,7 +36,7 @@
 use crate::fmt::DisplayWrapper;
 use crate::span::{Span, SpanLenSize};
 use crate::sym::{
-    st_as_sym, GlobalSymbolIntern, GlobalSymbolInternBytes, SymbolId,
+    GlobalSymbolIntern, GlobalSymbolInternBytes, SymbolId, st_as_sym,
 };
 use memchr::memchr;
 use std::convert::{TryFrom, TryInto};

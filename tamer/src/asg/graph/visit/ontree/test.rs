@@ -20,16 +20,16 @@
 use super::*;
 use crate::{
     asg::{
+        ExprOp,
         air::{Air, AirAggregate},
         graph::object::ObjectRelTy,
-        ExprOp,
     },
     f::Map,
     parse::{
-        util::{spair, SPair},
         ParseState,
+        util::{SPair, spair},
     },
-    span::{dummy::*, Span},
+    span::{Span, dummy::*},
 };
 use std::fmt::Debug;
 

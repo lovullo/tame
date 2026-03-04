@@ -20,15 +20,15 @@
 use super::*;
 use crate::{
     asg::{
+        ExprOp, IdentKind,
         air::{Air, AirAggregate},
         graph::object::{
             self, ObjectKind, ObjectRelFrom, ObjectRelatable, ObjectTy, Root,
         },
-        ExprOp, IdentKind,
     },
     num::{Dim, Dtype},
-    parse::{util::SPair, ParseState},
-    span::{dummy::*, Span, UNKNOWN_SPAN},
+    parse::{ParseState, util::SPair},
+    span::{Span, UNKNOWN_SPAN, dummy::*},
 };
 use std::fmt::Debug;
 

@@ -27,11 +27,11 @@ use std::{
 use fxhash::FxHashSet;
 
 use crate::{
-    asg::{air::Air, IdentKind, Source},
+    asg::{IdentKind, Source, air::Air},
     diagnose::{AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
     obj::xmlo::{SymAttrs, SymType},
-    parse::{util::SPair, ParseState, ParseStatus, Transition, Transitionable},
+    parse::{ParseState, ParseStatus, Transition, Transitionable, util::SPair},
     span::Span,
     sym::SymbolId,
 };

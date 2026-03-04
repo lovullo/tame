@@ -54,7 +54,7 @@
 
 use crate::span::Context;
 
-use super::super::super::{resolve::BufSpanResolver, Annotate};
+use super::super::super::{Annotate, resolve::BufSpanResolver};
 use super::*;
 use std::{
     collections::HashMap,

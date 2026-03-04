@@ -59,12 +59,12 @@ use crate::{
     diagnose::{Annotate, Diagnostic},
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{util::SPair, Object, Token},
+    parse::{Object, Token, util::SPair},
     span::Span,
     sym::SymbolId,
     xir::{
-        attr::{Attr, AttrSpan},
         QName,
+        attr::{Attr, AttrSpan},
     },
 };
 use std::{

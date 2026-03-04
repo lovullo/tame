@@ -22,19 +22,18 @@
 //! This uses [`quick_xml`] as the parser.
 
 use super::{
-    error::SpanlessError, CloseSpan, DefaultEscaper, Error, Escaper, OpenSpan,
-    Token,
+    CloseSpan, DefaultEscaper, Error, Escaper, OpenSpan, Token,
+    error::SpanlessError,
 };
 use crate::{
     span::Context,
-    sym::{st::raw::WS_EMPTY, GlobalSymbolInternBytes},
+    sym::{GlobalSymbolInternBytes, st::raw::WS_EMPTY},
 };
 use quick_xml::{
-    self,
+    self, Error as QuickXmlError,
     events::{
-        attributes::Attributes, BytesDecl, BytesStart, Event as QuickXmlEvent,
+        BytesDecl, BytesStart, Event as QuickXmlEvent, attributes::Attributes,
     },
-    Error as QuickXmlError,
 };
 use std::{borrow::Cow, collections::VecDeque, io::BufRead};
 

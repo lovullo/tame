@@ -185,7 +185,7 @@
 
 use crate::{
     debug_diagnostic_panic, global,
-    sym::{st16, ContextStaticSymbolId, GlobalSymbolResolve, SymbolId},
+    sym::{ContextStaticSymbolId, GlobalSymbolResolve, SymbolId, st16},
 };
 use std::{convert::TryInto, fmt::Display, path::Path};
 
@@ -702,7 +702,7 @@ assert_eq_size!(ClosedByteInterval, u64);
 /// Dummy spans for testing.
 #[cfg(test)]
 pub mod dummy {
-    use super::{st16, Context, Span};
+    use super::{Context, Span, st16};
 
     /// A dummy span that can be used in contexts where a span is expected
     ///   but is not important.

@@ -21,7 +21,7 @@ use super::*;
 use crate::{
     convert::ExpectInto,
     span::dummy::*,
-    xir::{attr, CloseSpan, OpenSpan},
+    xir::{CloseSpan, OpenSpan, attr},
 };
 
 use XirfToken::*;

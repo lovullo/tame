@@ -72,13 +72,13 @@
 //! ```
 
 use super::{
-    ident::IdentDefinition, prelude::*, Doc, Ident, ObjectIndexToTree, Tpl,
+    Doc, Ident, ObjectIndexToTree, Tpl, ident::IdentDefinition, prelude::*,
 };
 use crate::{
     asg::graph::ProposedRel,
     diagnose::panic::DiagnosticPanic,
     num::Dim,
-    parse::{prelude::Annotate, Token},
+    parse::{Token, prelude::Annotate},
     span::Span,
 };
 use std::{fmt::Display, num::NonZeroU16};

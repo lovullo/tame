@@ -28,15 +28,15 @@ use self::object::{
 
 use super::{AsgError, Object, ObjectIndex, ObjectKind};
 use crate::{
-    diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
+    diagnose::{Annotate, AnnotatedSpan, panic::DiagnosticPanic},
     f::Map,
     global,
     span::Span,
 };
 use petgraph::{
+    Direction,
     graph::{DiGraph, Graph, NodeIndex},
     visit::EdgeRef,
-    Direction,
 };
 use std::{fmt::Debug, result::Result};
 

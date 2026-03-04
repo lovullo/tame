@@ -22,20 +22,20 @@ use crate::convert::ExpectInto;
 use crate::span::dummy::*;
 use crate::{
     asg::{
+        ExprOp, Ident,
         air::{
+            Air::*,
+            AirAggregate,
             test::{
                 air_ctx_from_pkg_body_toks, air_ctx_from_toks,
                 parse_as_pkg_body, pkg_expect_ident_obj, pkg_expect_ident_oi,
                 pkg_lookup,
             },
-            Air::*,
-            AirAggregate,
         },
         graph::object::{
-            expr::{ExprRel, MetaState},
             Doc, ObjectRel,
+            expr::{ExprRel, MetaState},
         },
-        ExprOp, Ident,
     },
     parse::util::spair,
 };

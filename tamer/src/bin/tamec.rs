@@ -46,9 +46,9 @@ use tamer::{
     },
     diagnostic_error_sum,
     nir::NirToAirParseType,
-    parse::{lowerable, FinalizeError},
-    pipeline::{parse_package_xml, LowerXmliError, ParsePackageXmlError},
-    xir::{self, reader::XmlXirReader, writer::XmlWriter, DefaultEscaper},
+    parse::{FinalizeError, lowerable},
+    pipeline::{LowerXmliError, ParsePackageXmlError, parse_package_xml},
+    xir::{self, DefaultEscaper, reader::XmlXirReader, writer::XmlWriter},
 };
 
 /// Types of commands

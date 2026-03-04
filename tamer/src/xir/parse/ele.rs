@@ -30,7 +30,7 @@ use crate::{
     fmt::{DisplayWrapper, TtQuote},
     parse::{ClosedParseState, Context, ParseState, StateStack},
     span::Span,
-    xir::{flat::Depth, CloseSpan, OpenSpan, Prefix, QName},
+    xir::{CloseSpan, OpenSpan, Prefix, QName, flat::Depth},
 };
 use std::{
     fmt::{Debug, Display, Formatter},

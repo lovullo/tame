@@ -76,7 +76,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::hash::BuildHasher;
-use std::str::{from_utf8, from_utf8_unchecked, Utf8Error};
+use std::str::{Utf8Error, from_utf8, from_utf8_unchecked};
 
 /// Create, store, compare, and retrieve interned values.
 ///
@@ -197,7 +197,7 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
     ///
     /// [object files]: crate::obj
     unsafe fn intern_utf8_unchecked(&self, value: &[u8]) -> SymbolId<Ix> {
-        self.intern(from_utf8_unchecked(value))
+        self.intern(unsafe { from_utf8_unchecked(value) })
     }
 
     /// Copy the provided assumed-UTF-8 slice of bytes into the intern pool
@@ -219,7 +219,7 @@ pub trait Interner<'i, Ix: SymbolIndexSize> {
         &self,
         value: &[u8],
     ) -> SymbolId<Ix> {
-        self.clone_uninterned(from_utf8_unchecked(value))
+        self.clone_uninterned(unsafe { from_utf8_unchecked(value) })
     }
 }
 

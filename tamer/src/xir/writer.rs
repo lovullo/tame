@@ -341,12 +341,12 @@ mod test {
     use super::*;
     use crate::{
         convert::ExpectInto,
-        span::{dummy::DUMMY_SPAN, Span},
+        span::{Span, dummy::DUMMY_SPAN},
         sym::GlobalSymbolIntern,
         xir::{
+            QName,
             error::SpanlessError,
             test::{close, close_empty, open},
-            QName,
         },
     };
 

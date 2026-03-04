@@ -24,11 +24,11 @@
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
     fmt::{DisplayWrapper, TtQuote},
-    parse::{util::SPair, Token},
+    parse::{Token, util::SPair},
     span::Span,
     sym::{
-        st::raw::{FW_SLASH, FW_SLASH_DOT},
         GlobalSymbolIntern, GlobalSymbolInternBytes, GlobalSymbolResolve,
+        st::raw::{FW_SLASH, FW_SLASH_DOT},
     },
 };
 use std::{error::Error, fmt::Display};
@@ -229,7 +229,7 @@ impl CanonicalName {
                 )?;
 
                 rm_bytes += 3; // "../"
-                               //    ^ this is a lie if we've ended `rel_parts`
+                //                   ^ this is a lie if we've ended `rel_parts`
             }
 
             let mut new = String::from(parent_parts.remainder().unwrap_or(""));

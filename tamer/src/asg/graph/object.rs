@@ -121,7 +121,7 @@
 
 use super::{Asg, AsgError};
 use crate::{
-    diagnose::{panic::DiagnosticPanic, Annotate, AnnotatedSpan},
+    diagnose::{Annotate, AnnotatedSpan, panic::DiagnosticPanic},
     diagnostic_panic,
     f::{Map, TryMap},
     parse::util::SPair,
@@ -340,7 +340,7 @@ macro_rules! object_gen {
             impl AsRef<$kind> for Object {
                 fn as_ref(&self) -> &$kind {
                     match self {
-                        Object::$kind(ref x) => x,
+                        Object::$kind(x) => x,
                         _ => self.narrowing_panic(stringify!($kind)),
                     }
                 }

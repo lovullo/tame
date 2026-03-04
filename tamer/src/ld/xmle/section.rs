@@ -349,7 +349,7 @@ mod test {
             Default::default(),
         );
 
-        let gen = Ident::Opaque(
+        let gen_ = Ident::Opaque(
             SPair("gen".into(), S2),
             IdentKind::Gen(Dim::Vector, Dtype::Integer),
             Default::default(),
@@ -362,11 +362,11 @@ mod test {
         );
 
         sut.push(&cgen)?;
-        sut.push(&gen)?;
+        sut.push(&gen_)?;
         sut.push(&lparam)?;
 
         // They should be added as deps...
-        assert_eq!(sut.take_deps(), vec![&cgen, &gen, &lparam]);
+        assert_eq!(sut.take_deps(), vec![&cgen, &gen_, &lparam]);
 
         // ...but not added to any sections.
         assert!(sut.take_map_froms().is_empty());
@@ -456,7 +456,7 @@ mod test {
             class: IdentKind::Class(Dim::Matrix),
             const_: IdentKind::Const(Dim::Scalar, Dtype::Boolean),
             func: IdentKind::Func(Dim::Vector, Dtype::Integer),
-            gen: IdentKind::Gen(Dim::Vector, Dtype::Boolean),
+            r#gen: IdentKind::Gen(Dim::Vector, Dtype::Boolean),
             lparam: IdentKind::Lparam(Dim::Matrix, Dtype::Float),
             param: IdentKind::Param(Dim::Scalar, Dtype::Integer),
             rate: IdentKind::Rate(Dtype::Integer),

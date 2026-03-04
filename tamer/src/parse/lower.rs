@@ -20,9 +20,9 @@
 //! IR lowering operation between [`Parser`]s.
 
 use super::{
-    state::ClosedParseState, FinalizeError, FinalizedParser, NoContext, Object,
-    ParseError, ParseState, Parsed, ParsedResult, Parser, Token,
-    TransitionResult,
+    FinalizeError, FinalizedParser, NoContext, Object, ParseError, ParseState,
+    Parsed, ParsedResult, Parser, Token, TransitionResult,
+    state::ClosedParseState,
 };
 use crate::diagnose::Diagnostic;
 use std::{fmt::Display, iter, marker::PhantomData};
@@ -383,8 +383,8 @@ impl<T: Token, O: Object, E: Diagnostic + PartialEq> ParseState
 #[cfg(test)]
 mod test {
     use super::super::{
-        parser::test::{StubError, StubObject, StubParseState, StubToken},
         Transition,
+        parser::test::{StubError, StubObject, StubParseState, StubToken},
     };
     use super::*;
 

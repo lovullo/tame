@@ -57,8 +57,8 @@
 use fxhash::FxHashMap;
 
 use crate::sym::{
-    st::ST_COUNT, GlobalSymbolInternBytes, GlobalSymbolInternUnchecked,
-    GlobalSymbolResolve, SymbolId,
+    GlobalSymbolInternBytes, GlobalSymbolInternUnchecked, GlobalSymbolResolve,
+    SymbolId, st::ST_COUNT,
 };
 use std::{borrow::Cow, cell::RefCell, collections::hash_map::Entry};
 

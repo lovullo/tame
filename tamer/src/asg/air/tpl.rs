@@ -22,9 +22,9 @@
 //! See the [parent module](super) for more information.
 
 use super::{
-    super::{graph::object::Tpl, Asg, AsgError, ObjectIndex},
-    ir::AirBindableTpl,
+    super::{Asg, AsgError, ObjectIndex, graph::object::Tpl},
     AirAggregate, AirAggregateCtx,
+    ir::AirBindableTpl,
 };
 use crate::{fmt::TtQuote, parse::prelude::*, span::Span};
 

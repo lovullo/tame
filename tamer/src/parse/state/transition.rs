@@ -381,8 +381,9 @@ impl<S: ParseState> TransitionData<S> {
         &self,
     ) -> Option<&Lookahead<S::Token>> {
         match self {
-            TransitionData::Dead(ref la)
-            | TransitionData::Result(_, Some(ref la)) => Some(la),
+            TransitionData::Dead(la) | TransitionData::Result(_, Some(la)) => {
+                Some(la)
+            }
             _ => None,
         }
     }
@@ -427,10 +428,10 @@ impl<S: ParseState> TransitionData<S> {
     pub fn reflexivity<SB>(self) -> TransitionData<SB>
     where
         SB: ParseState<
-            Token = <S as ParseState>::Token,
-            Object = <S as ParseState>::Object,
-            Error = <S as ParseState>::Error,
-        >,
+                Token = <S as ParseState>::Token,
+                Object = <S as ParseState>::Object,
+                Error = <S as ParseState>::Error,
+            >,
     {
         use TransitionData::*;
 

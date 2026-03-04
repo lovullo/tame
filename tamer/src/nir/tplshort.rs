@@ -84,8 +84,8 @@ use crate::{
     parse::prelude::*,
     span::Span,
     sym::{
-        st::raw::L_TPLP_VALUES, GlobalSymbolIntern, GlobalSymbolResolve,
-        SymbolId,
+        GlobalSymbolIntern, GlobalSymbolResolve, SymbolId,
+        st::raw::L_TPLP_VALUES,
     },
 };
 

@@ -25,14 +25,14 @@ use crate::{
     num::Dtype,
     obj::xmlo::SymType,
     parse::{ParseError, ParseState, Parsed},
-    span::{dummy::*, Span},
+    span::{Span, dummy::*},
     sym::GlobalSymbolIntern,
     xir::{
-        flat::{
-            test::{attr, close, close_empty, open},
-            Depth, XirfToken as Xirf,
-        },
         QName,
+        flat::{
+            Depth, XirfToken as Xirf,
+            test::{attr, close, close_empty, open},
+        },
     },
 };
 

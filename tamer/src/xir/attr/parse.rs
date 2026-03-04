@@ -24,7 +24,7 @@ use crate::{
     fmt::{DisplayWrapper, Tt},
     parse::{NoContext, ParseState, Token, Transition, TransitionResult},
     span::Span,
-    xir::{fmt::XmlAttr, QName, Token as XirToken},
+    xir::{QName, Token as XirToken, fmt::XmlAttr},
 };
 use std::{error::Error, fmt::Display};
 

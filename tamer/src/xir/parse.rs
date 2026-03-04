@@ -26,7 +26,7 @@ mod attr;
 mod ele;
 mod error;
 
-pub use attr::{parse_attrs, AttrParseState};
+pub use attr::{AttrParseState, parse_attrs};
 pub use ele::{
     EleParseState, NodeMatcher, Nt, NtState, SumNt, SumNtState, SuperState,
     SuperStateContext,

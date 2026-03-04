@@ -64,18 +64,18 @@ pub mod air;
 
 pub use error::AsgError;
 pub use graph::{
+    Asg, AsgResult, IndexType,
     object::{
+        Object, ObjectIndex, ObjectIndexRelTo, ObjectIndexResolvedSpan,
+        ObjectKind,
         expr::{Expr, ExprDim, ExprOp},
         ident::{
             FragmentText, Ident, IdentKind, Source, TransitionError,
             TransitionResult, UnresolvedError,
         },
-        Object, ObjectIndex, ObjectIndexRelTo, ObjectIndexResolvedSpan,
-        ObjectKind,
     },
     visit,
     xmli::{AsgTreeToXirf, AsgTreeToXirfError},
-    Asg, AsgResult, IndexType,
 };
 
 /// Default concrete ASG implementation.

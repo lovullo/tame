@@ -19,7 +19,7 @@
 
 //! Root node of the ASG.
 
-use super::{prelude::*, Ident, Pkg};
+use super::{Ident, Pkg, prelude::*};
 use std::fmt::Display;
 
 #[cfg(doc)]

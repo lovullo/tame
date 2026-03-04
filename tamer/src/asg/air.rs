@@ -27,17 +27,17 @@
 //!     and allows for multiple such parsers to be joined.
 
 use super::{
+    Asg, AsgError, Expr, Ident, ObjectIndex,
     graph::object::{
         Doc, Object, ObjectIndexRelTo, ObjectIndexTo, ObjectIndexToTree,
         ObjectRelTy, ObjectRelatable, Pkg, Root, Tpl,
     },
-    Asg, AsgError, Expr, Ident, ObjectIndex,
 };
 use crate::{
     diagnose::Annotate,
     diagnostic_unreachable,
     f::Map,
-    parse::{prelude::*, StateStack},
+    parse::{StateStack, prelude::*},
     span::Span,
     sym::SymbolId,
 };
@@ -190,8 +190,8 @@ impl ParseState for AirAggregate {
         tok: Self::Token,
         ctx: &mut Self::Context,
     ) -> crate::parse::TransitionResult<Self> {
-        use ir::{AirSubsets::*, AirTodo::*};
         use AirAggregate::*;
+        use ir::{AirSubsets::*, AirTodo::*};
 
         match (self, tok.into()) {
             // Initialize the parser with the graph root,

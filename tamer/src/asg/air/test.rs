@@ -23,10 +23,10 @@
 use super::{super::Ident, *};
 use crate::{
     asg::{
-        graph::object::{ObjectRel, ObjectRelFrom, ObjectRelatable},
         IdentKind, ObjectIndexRelTo, Source, TransitionError,
+        graph::object::{ObjectRel, ObjectRelFrom, ObjectRelatable},
     },
-    parse::{util::spair, ParseError, Parsed, Parser},
+    parse::{ParseError, Parsed, Parser, util::spair},
     span::dummy::*,
 };
 

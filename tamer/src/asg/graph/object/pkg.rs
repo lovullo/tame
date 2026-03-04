@@ -19,11 +19,11 @@
 
 //! Package object on the ASG.
 
-use super::{prelude::*, Doc, Ident, Tpl};
+use super::{Doc, Ident, Tpl, prelude::*};
 use crate::{
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
-    parse::{util::SPair, Token},
+    parse::{Token, util::SPair},
     span::Span,
 };
 use std::fmt::Display;

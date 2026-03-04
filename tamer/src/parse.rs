@@ -31,14 +31,14 @@ pub mod util;
 
 pub use error::{FinalizeError, ParseError};
 pub use lower::{
-    lowerable, terminal, FromParseError, Lower, LowerIter, LowerSource,
-    ParseStateError, ParsedObject,
+    FromParseError, Lower, LowerIter, LowerSource, ParseStateError,
+    ParsedObject, lowerable, terminal,
 };
 pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{
-    context::{Context, Empty as EmptyContext, NoContext},
     ClosedParseState, ParseResult, ParseState, ParseStatus, StateStack,
     Transition, TransitionResult, Transitionable,
+    context::{Context, Empty as EmptyContext, NoContext},
 };
 
 use crate::span::{Span, UNKNOWN_SPAN};
@@ -53,9 +53,9 @@ use std::{
 ///   parser.
 pub mod prelude {
     pub use super::{
-        util::SPair, ClosedParseState, Context, NoContext, Object, ParseError,
-        ParseState, ParseStatus, Parsed, ParsedResult, Token, Transition,
-        TransitionResult, Transitionable,
+        ClosedParseState, Context, NoContext, Object, ParseError, ParseState,
+        ParseStatus, Parsed, ParsedResult, Token, Transition, TransitionResult,
+        Transitionable, util::SPair,
     };
 
     // Every `Token`.
@@ -146,7 +146,7 @@ pub mod test {
     use super::*;
     use crate::{
         diagnose::{AnnotatedSpan, Diagnostic},
-        span::{dummy::DUMMY_SPAN as DS, UNKNOWN_SPAN},
+        span::{UNKNOWN_SPAN, dummy::DUMMY_SPAN as DS},
         sym::GlobalSymbolIntern,
     };
     use std::{assert_matches::assert_matches, iter::once};

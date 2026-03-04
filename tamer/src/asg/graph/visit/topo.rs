@@ -72,8 +72,8 @@
 
 use crate::{
     asg::{
-        graph::object::DynObjectRel, Asg, Object, ObjectIndex,
-        ObjectIndexResolvedSpan, ObjectKind,
+        Asg, Object, ObjectIndex, ObjectIndexResolvedSpan, ObjectKind,
+        graph::object::DynObjectRel,
     },
     diagnose::{Annotate, AnnotatedSpan, Diagnostic},
 };
