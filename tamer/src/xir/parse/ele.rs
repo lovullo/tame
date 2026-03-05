@@ -300,30 +300,6 @@ macro_rules! ele_parse {
         ParseStatus::Object($close)
     };
 
-    // Delegation when the destination type is `()`,
-    //   indicating that the next state is not a child NT
-    //   (it is likely the state expecting a closing tag).
-    (@!ntref_delegate
-        $stack:ident, $ret:expr, (), $_target:expr, $done:expr
-    ) => {
-        $done
-    };
-
-    // Delegate to a child parser by pushing self onto the stack and
-    //   yielding to one of the child's states.
-    // This uses a trampoline,
-    //   which avoids recursive data structures
-    //     (due to `ParseState` composition/stitching)
-    //   and does not grow the call stack.
-    (@!ntref_delegate
-        $stack:ident, $ret:expr, $ntnext_st:ty, $target:expr, $_done:expr
-    ) => {
-        $stack.transfer_with_ret(
-            Transition($ret),
-            $target,
-        )
-    };
-
     (@!ele_dfn_body
         $(#[$nt_attr:meta])* $nt:ident $qname:ident
 
@@ -591,16 +567,11 @@ macro_rules! ele_parse {
                         //                        ^     \
                         //                         `-----'
                         (Jmp($ntprev(meta)), tok) => {
-                            ele_parse!(@!ntref_delegate
-                                stack,
-                                Self(Jmp($ntnext(meta))),
-                                $ntnext_st,
+                            stack.transfer_with_ret(
+                                Transition(Self(Jmp($ntnext(meta)))),
                                 Transition(<$ntprev_st>::preemptable())
                                     .incomplete()
                                     .with_lookahead(tok),
-                                Transition(Self(Jmp($ntnext(meta))))
-                                    .incomplete()
-                                    .with_lookahead(tok)
                             )
                         },
                     )*
