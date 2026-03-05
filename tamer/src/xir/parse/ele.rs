@@ -397,13 +397,13 @@ macro_rules! ele_parse {
             type ParseError = NtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-                Self(NtState::Expecting)
+                Self(NtState::Expecting(NtExpectKind::Preemptable))
             }
 
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self::ParseState {
-                Self(NtState::NonPreemptableExpecting)
+                Self(NtState::Expecting(NtExpectKind::NonPreemptable))
             }
 
             /// Whether the given QName would be matched by any of the
@@ -495,17 +495,16 @@ macro_rules! ele_parse {
                 stack: &mut Self::Context,
             ) -> TransitionResult<Self::Super> {
                 use NtState::{
-                    Attrs, Expecting, NonPreemptableExpecting,
-                    RecoverEleIgnore, CloseRecoverIgnore,
-                    RecoverEleIgnoreClosed, Closed, Jmp,
-                    ExpectCloseOrLast,
+                    Attrs, Expecting, RecoverEleIgnore, CloseRecoverIgnore,
+                    RecoverEleIgnoreClosed, Closed, Jmp, ExpectCloseOrLast,
                 };
+                use NtExpectKind::*;
 
                 let Self(selfst) = self;
 
                 match (selfst, tok) {
                     (
-                        Expecting | Closed(..),
+                        Expecting(Preemptable) | Closed(..),
                         tok @ XirfToken::Open(qname, span, depth)
                     ) => {
                         if Self::matches(qname).is_some() {
@@ -519,14 +518,14 @@ macro_rules! ele_parse {
                                     parse_attrs(qname, span)
                                 )))
                         } else {
-                            Transition(Self(Expecting)).dead(tok)
+                            Transition(Self(Expecting(Preemptable))).dead(tok)
                         }
                     },
 
                     // We only attempt recovery when encountering an
                     //   unknown token if we're forced to accept that token.
                     (
-                        NonPreemptableExpecting,
+                        Expecting(NonPreemptable),
                         XirfToken::Open(qname, span, depth)
                     ) => {
                         if Self::matches(qname).is_some() {
@@ -677,8 +676,7 @@ macro_rules! ele_parse {
                     //     (see `is_accepting`).
                     (
                         st @ (
-                            Expecting
-                            | NonPreemptableExpecting
+                            Expecting(..)
                             | Closed(..)
                             | RecoverEleIgnoreClosed(..)
                         ),
@@ -706,7 +704,7 @@ macro_rules! ele_parse {
             $("[`", stringify!($ntref), "`], ",)*
             "."
         )]
-        #[derive(Debug, PartialEq, Eq, Default)]
+        #[derive(Debug, PartialEq, Eq)]
         pub struct $nt(SumNtState<$nt>);
 
         impl NtBase for $nt {
@@ -715,11 +713,11 @@ macro_rules! ele_parse {
             type ParseError = SumNtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-               SumNtState::Expecting
+               SumNtState::Expecting(NtExpectKind::Preemptable)
             }
 
             fn non_preemptable() -> Self::ParseState {
-                SumNtState::NonPreemptableExpecting
+                SumNtState::Expecting(NtExpectKind::NonPreemptable)
             }
 
             fn matches(qname: QName) -> Option<Self::NtSuper> {
@@ -1192,14 +1190,47 @@ pub trait Nt: Debug {
     fn matcher() -> NodeMatcher;
 }
 
+/// Preemption status of the next expected node.
+#[derive(Debug, PartialEq, Eq, Default)]
+pub enum NtExpectKind {
+    /// Another NT's parser can preempt our own,
+    ///   taking a token from us.
+    /// If we cannot parse a token that we have been given,
+    ///   we are also permitted to hand off the token to another parser
+    ///     (dead state)
+    ///     rather than failing outright.
+    #[default] // TODO: remove; be explicit
+    Preemptable,
+
+    /// This parser _must_ handle the next token,
+    ///   otherwise it must produce an error and initiate recovery.
+    /// No other parser is permitted to preempt.
+    NonPreemptable,
+}
+
+impl NtExpectKind {
+    fn can_preempt_node(&self) -> bool {
+        match self {
+            Self::Preemptable => true,
+            Self::NonPreemptable => false,
+        }
+    }
+}
+
+impl Display for NtExpectKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Preemptable => write!(f, "preemptable"),
+            Self::NonPreemptable => write!(f, "non-preemptable"),
+        }
+    }
+}
+
 /// States for nonterminals (NTs).
 #[derive(Debug, PartialEq, Eq)]
 pub enum NtState<NT: Nt> {
     /// Expecting opening tag for element.
-    Expecting,
-
-    /// Non-preemptable [`Self::Expecting`].
-    NonPreemptableExpecting,
+    Expecting(NtExpectKind),
 
     /// Recovery state ignoring all remaining tokens for this
     ///   element.
@@ -1235,7 +1266,7 @@ pub enum NtState<NT: Nt> {
 
 impl<NT: Nt> Default for NtState<NT> {
     fn default() -> Self {
-        Self::Expecting
+        Self::Expecting(NtExpectKind::default())
     }
 }
 
@@ -1246,11 +1277,7 @@ impl<NT: Nt> NtState<NT> {
         match self {
             // Preemption before the opening tag is safe,
             //   since we haven't started processing yet.
-            Expecting => true,
-
-            // The name says it all.
-            // Instantiated by the superstate.
-            NonPreemptableExpecting => false,
+            Expecting(preempt) => preempt.can_preempt_node(),
 
             // Preemption during recovery would cause tokens to be parsed
             //   when they ought to be ignored,
@@ -1292,9 +1319,9 @@ impl<NT: Nt> Display for NtState<NT> {
         use NtState::*;
 
         match self {
-            Expecting | NonPreemptableExpecting => write!(
+            Expecting(preempt) => write!(
                 f,
-                "expecting opening tag {}",
+                "expecting {preempt} opening tag {}",
                 TtOpenXmlEle::wrap(NT::matcher()),
             ),
             RecoverEleIgnore(name, _, _) | RecoverEleIgnoreClosed(name, _) => {
@@ -1388,14 +1415,10 @@ pub trait SumNt: NtBase {
 ///
 /// This is expected to be wrapped by a newtype for each Sum NT,
 ///   and does not implement [`ParseState`] itself.
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SumNtState<NT: SumNt> {
     /// Expecting an opening tag for an element.
-    #[default]
-    Expecting,
-
-    /// Non-preemptable [`Self::Expecting`].
-    NonPreemptableExpecting,
+    Expecting(NtExpectKind),
 
     /// Recovery state ignoring all remaining tokens for this
     ///   element.
@@ -1409,13 +1432,7 @@ impl<NT: SumNt> SumNtState<NT> {
         use SumNtState::*;
 
         match self {
-            // Preemption before the opening tag is safe,
-            //   since we haven't started processing yet.
-            Expecting => true,
-
-            // The name says it all.
-            // Instantiated by the superstate.
-            NonPreemptableExpecting => false,
+            Expecting(preempt) => preempt.can_preempt_node(),
 
             // Preemption during recovery would cause tokens to
             //   be parsed when they ought to be ignored,
@@ -1430,8 +1447,8 @@ impl<NT: SumNt> Display for SumNtState<NT> {
         use SumNtState::*;
 
         match self {
-            Expecting | NonPreemptableExpecting => {
-                write!(f, "expecting ")?;
+            Expecting(preempt) => {
+                write!(f, "expecting {preempt} ")?;
                 NT::fmt_matches_top(f)
             }
 
@@ -1467,17 +1484,18 @@ where
         tok: Self::Token,
         stack: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
+        use NtExpectKind::*;
         use SumNtState::*;
 
         match (self, tok) {
             (
-                NonPreemptableExpecting,
+                Expecting(NonPreemptable),
                 tok @ XirfToken::Open(qname, span, depth),
             ) => {
                 NT::matches(qname)
                     .map(|nt| {
                         stack.transfer_with_ret(
-                            Transition(Expecting),
+                            Transition(Expecting(Preemptable)),
                             // Propagate non-preemption status,
                             //   otherwise we'll provide a lookback of
                             //   the original token and end up recursing
@@ -1511,11 +1529,11 @@ where
                     })
             }
 
-            (Expecting, tok @ XirfToken::Open(qname, ..)) => {
+            (Expecting(Preemptable), tok @ XirfToken::Open(qname, ..)) => {
                 NT::matches(qname)
                     .map(|nt| {
                         stack.transfer_with_ret(
-                            Transition(Expecting),
+                            Transition(Expecting(Preemptable)),
                             // note: this clone is just because the
                             //   borrow checker can't prove a single use
                             //   between this closure and below; it should
@@ -1528,14 +1546,14 @@ where
                     .unwrap_or_else(
                         // An unexpected token ends repetition
                         //   and should not result in an error.
-                        || Transition(Expecting).dead(tok),
+                        || Transition(Expecting(Preemptable)).dead(tok),
                     )
             }
 
             // An unexpected token when repeating ends repetition
             //   and should not result in an error.
-            (Expecting | NonPreemptableExpecting, tok) => {
-                Transition(Expecting).dead(tok)
+            (Expecting(..), tok) => {
+                Transition(Expecting(Preemptable)).dead(tok)
             }
 
             // XIRF ensures that the closing tag matches the opening,
@@ -1544,7 +1562,7 @@ where
                 RecoverEleIgnore(_, _, depth_open, _),
                 XirfToken::Close(_, _, depth_close),
             ) if depth_open == depth_close => {
-                Transition(Expecting).incomplete()
+                Transition(Expecting(Preemptable)).incomplete()
             }
 
             (st @ RecoverEleIgnore(..), _) => Transition(st).incomplete(),
@@ -1552,7 +1570,7 @@ where
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        matches!(self, SumNtState::Expecting)
+        matches!(self, SumNtState::Expecting(..))
     }
 }
 
