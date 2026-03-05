@@ -591,34 +591,17 @@ macro_rules! ele_parse {
                         //                        ^     \
                         //                         `-----'
                         (Jmp($ntprev(meta)), tok) => {
-                            if let XirfToken::Open(qname, span, depth) = tok
-                                && $ntprev_st::matches(qname).is_some()
-                            {
-                                let tok = XirfToken::Open(qname, span, depth);
-
-                                stack.transfer_with_ret(
-                                    Transition(Self(Jmp($ntprev(meta)))),
-                                    // This NT said it could process this token,
-                                    //   so force it to either do so or error,
-                                    //   to ensure that bugs don't cause infinite
-                                    //     processing of lookahead.
-                                    Transition(<$ntprev_st>::non_preemptable())
-                                        .incomplete()
-                                        .with_lookahead(tok),
-                                )
-                            } else {
-                                ele_parse!(@!ntref_delegate
-                                    stack,
-                                    Self(Jmp($ntnext(meta))),
-                                    $ntnext_st,
-                                    Transition(<$ntnext_st>::preemptable())
-                                        .incomplete()
-                                        .with_lookahead(tok),
-                                    Transition(Self(Jmp($ntnext(meta))))
-                                        .incomplete()
-                                        .with_lookahead(tok)
-                                )
-                            }
+                            ele_parse!(@!ntref_delegate
+                                stack,
+                                Self(Jmp($ntnext(meta))),
+                                $ntnext_st,
+                                Transition(<$ntprev_st>::preemptable())
+                                    .incomplete()
+                                    .with_lookahead(tok),
+                                Transition(Self(Jmp($ntnext(meta))))
+                                    .incomplete()
+                                    .with_lookahead(tok)
+                            )
                         },
                     )*
 
