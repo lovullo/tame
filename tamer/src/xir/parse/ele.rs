@@ -276,7 +276,7 @@ macro_rules! ele_parse {
                 $(
                     ([<$nt ChildNt_>]::$ntref, $ntref, false),
                     ([<$nt ChildNt_>]::$ntref, $ntref) ->
-                )* ([<$nt ChildNt_>]::ExpectClose_, (), true),
+                )* (NtState::<$nt>::ExpectCloseOrLast, (), true),
             }
         }
     } };
@@ -323,12 +323,19 @@ macro_rules! ele_parse {
             )*
         }
     ) => { paste::paste! {
+        // Clippy complains when all child NTs have a common prefix
+        #[allow(clippy::enum_variant_names)]
         #[derive(Debug, PartialEq, Eq)]
         pub enum [<$nt ChildNt_>] {
             $(
                 $ntref(ChildNtMeta),
             )*
-            ExpectClose_(ChildNtMeta),
+        }
+
+        impl From<[<$nt ChildNt_>]> for meta::Super {
+            fn from(child_nt: [<$nt ChildNt_>]) -> Self {
+                $nt::from(child_nt).into()
+            }
         }
 
         impl From<[<$nt ChildNt_>]> for $nt {
@@ -343,24 +350,16 @@ macro_rules! ele_parse {
             fn jmp_next_child_nt(self) -> Self::NtSuper {
                 match self {
                     $(
-                        $ntprev(meta) => $nt::from($ntnext(meta)).into(),
+                        $ntprev(meta) => $ntnext(meta).into(),
                     )*
-                    // TODO: This is unreachable in the context in which it
-                    //   is used,
-                    //     but `ExpectClose_` will be hoisted into `NtState`
-                    Self::ExpectClose_(..) => todo!("next_child_nt ExpectClose_"),
                 }
             }
 
             fn as_nt_preemptable(&self) -> Self::NtSuper {
-                match self {
+                match *self {
                     $(
                         Self::$ntref(..) => <$ntref>::preemptable().into(),
                     )*
-                    // TODO: This is unreachable in the context in which it
-                    //   is used,
-                    //     but `ExpectClose_` will be hoisted into `NtState`
-                    Self::ExpectClose_(..) => todo!("as_nt_preemptable ExpectClose_"),
                 }
             }
 
@@ -379,6 +378,18 @@ macro_rules! ele_parse {
         #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
         #[derive(Debug, PartialEq, Eq)]
         pub struct $nt(NtState<$nt>);
+
+        impl From<NtState<$nt>> for meta::Super {
+            fn from(st: NtState<$nt>) -> Self {
+                $nt::from(st).into()
+            }
+        }
+
+        impl From<NtState<$nt>> for $nt {
+            fn from(st: NtState<$nt>) -> Self {
+                $nt(st)
+            }
+        }
 
         impl NtBase for $nt {
             type NtSuper = meta::Super;
@@ -487,6 +498,7 @@ macro_rules! ele_parse {
                     Attrs, Expecting, NonPreemptableExpecting,
                     RecoverEleIgnore, CloseRecoverIgnore,
                     RecoverEleIgnoreClosed, Closed, Jmp,
+                    ExpectCloseOrLast,
                 };
 
                 let Self(selfst) = self;
@@ -566,56 +578,49 @@ macro_rules! ele_parse {
                             tok,
                             EmptyContext,
                             |sa| Transition(Self(Attrs(meta, sa))),
-                            || Transition(Self(Jmp($ntfirst(meta)))),
+                            || Transition($ntfirst(meta).into()),
                         )
                     },
 
-                    $(
-                        // We're transitioning from `(ntprev) -> (ntnext)`.
-                        //
-                        // If we have a token that matches `ntprev`,
-                        //   we can transition _back_ to ntprev rather
-                        //   than transitioning forward.
-                        // We can _only_ do this when we know we are
-                        //   transitioning away from this state,
-                        //     otherwise we could return to a previous state,
-                        //     which violates the semantics of the implied
-                        //     DFA.
-                        //
-                        // We therefore have:  (ntprev)--->(ntnext)
-                        //                        ^     \
-                        //                         `-----'
-                        (Jmp(ntprev @ $ntprev(..)), tok) => {
-                            let ntprev_st = ntprev.as_nt_preemptable();
-                            let jmp_ntnext = ntprev.jmp_next_child_nt();
+                    // We're transitioning from `(ntprev) -> (ntnext)`.
+                    //
+                    // If we have a token that matches `ntprev`,
+                    //   we can transition _back_ to ntprev rather
+                    //   than transitioning forward.
+                    // We can _only_ do this when we know we are
+                    //   transitioning away from this state,
+                    //     otherwise we could return to a previous state,
+                    //     which violates the semantics of the implied
+                    //     DFA.
+                    //
+                    // We therefore have:  (ntprev)--->(ntnext)
+                    //                        ^     \
+                    //                         `-----'
+                    (Jmp(ntprev), tok) => {
+                        let ntprev_st = ntprev.as_nt_preemptable();
+                        let jmp_ntnext = ntprev.jmp_next_child_nt();
 
-                            stack.transfer_with_ret(
-                                Transition(jmp_ntnext),
-                                Transition(ntprev_st)
-                                    .incomplete()
-                                    .with_lookahead(tok)
-                            )
-                        },
-                    )*
+                        stack.transfer_with_ret(
+                            Transition(jmp_ntnext),
+                            Transition(ntprev_st)
+                                .incomplete()
+                                .with_lookahead(tok)
+                        )
+                    },
 
-                    // Since `ExpectClose_` does not have an `$ntprev`
-                    //   match,
-                    //     we have to handle transitioning back to the
-                    //     previous state (final NT) as a special case.
-                    // Further,
-                    //   we choose to transition back to the final NT
+                    // This is similar to the NT transitions above:
+                    //   we can either close,
+                    //     or we can open more elements belonging to the
+                    //     final child NT.
+                    // We choose to transition back to the final NT
                     //   _no matter what the element_,
                     //     to force error recovery and diagnostics
                     //     in that context,
                     //       which will tell the user what elements were
                     //       expected in the last NT rather than just
                     //       telling them a closing tag was expected.
-                    // If there is no child NT at all,
-                    //   then we must be expecting a closing tag.
                     (
-                        st @ Jmp(<Self as Nt>::ChildNt::ExpectClose_(
-                            meta @ (mqname, mspan, _)
-                        )),
+                        st @ ExpectCloseOrLast(meta @ (mqname, mspan, _)),
                         tok @ XirfToken::Open(..)
                     ) => {
                         if let Some(child_nt) = <Self as Nt>::ChildNt::last_nt(meta) {
@@ -642,8 +647,8 @@ macro_rules! ele_parse {
                     // XIRF ensures proper nesting,
                     //   so we do not need to check the element name.
                     (
-                        Jmp(<Self as Nt>::ChildNt::ExpectClose_((qname, _, depth)))
-                        | CloseRecoverIgnore((qname, _, depth), _),
+                        ExpectCloseOrLast((qname, _, depth))
+                            | CloseRecoverIgnore((qname, _, depth), _),
                          XirfToken::Close(_, span, tok_depth)
                     ) if tok_depth == depth => {
                         $(let $closepat = (qname, span);)?
@@ -651,7 +656,7 @@ macro_rules! ele_parse {
                     },
 
                     (
-                        Jmp(<Self as Nt>::ChildNt::ExpectClose_(meta @ (qname, otspan, _))),
+                        ExpectCloseOrLast(meta @ (qname, otspan, _)),
                         unexpected_tok
                     ) => {
                         Transition(Self(
@@ -1219,6 +1224,10 @@ pub enum NtState<NT: Nt> {
     /// Preparing to pass control (jump) to a child NT's parser.
     Jmp(NT::ChildNt),
 
+    /// Expecting a closing tag for this element,
+    ///   or another child element matching the last [`Nt::ChildNt`].
+    ExpectCloseOrLast((QName, OpenSpan, Depth)),
+
     /// Closing tag found and parsing of the element is
     ///   complete.
     Closed(Option<QName>, Span),
@@ -1260,15 +1269,14 @@ impl<NT: Nt> NtState<NT> {
             //   transition to the next child parser.
             // It's safe to preempt here,
             //   since we're not in the middle of parsing.
-            //
-            // Note that this includes `ExpectClose_` because of the macro
-            //   preprocessing,
-            //     and Rust's exhaustiveness check will ensure that it is
-            //     accounted for if that changes.
-            // If we're expecting that the next token is a `Close`,
-            //     then it must be safe to preempt other nodes that may
-            //     appear in this context as children.
             Jmp(..) => true,
+
+            // Same situation as Jmp,
+            //  since we are expecting either another child NT or a close.
+            // If we're expecting that the next token is a `Close`,
+            //   then it must be safe to preempt other nodes that may
+            //   appear in this context as children.
+            ExpectCloseOrLast(..) => true,
 
             // If we're done,
             //   we want to be able to yield a dead state so that we can
@@ -1308,6 +1316,22 @@ impl<NT: Nt> Display for NtState<NT> {
             ),
 
             Attrs(_, sa) => Display::fmt(sa, f),
+            ExpectCloseOrLast(_) => {
+                write!(
+                    f,
+                    "expecting either close of element {} \
+                        or an opening of the last child NT",
+                    TtQuote::wrap(NT::matcher())
+                )
+            }
+            // TODO: A better description.
+            Jmp(_) => {
+                write!(
+                    f,
+                    "preparing to transition to \
+                        parser for next child element(s)"
+                )
+            }
             Closed(Some(qname), _) => {
                 write!(f, "done parsing element {}", TtQuote::wrap(qname),)
             }
@@ -1317,14 +1341,6 @@ impl<NT: Nt> Display for NtState<NT> {
                 "skipped parsing element {}",
                 TtQuote::wrap(NT::matcher()),
             ),
-            // TODO: A better description.
-            Jmp(_) => {
-                write!(
-                    f,
-                    "preparing to transition to \
-                        parser for next child element(s)"
-                )
-            }
         }
     }
 }
