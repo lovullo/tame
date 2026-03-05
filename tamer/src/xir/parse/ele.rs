@@ -504,41 +504,24 @@ macro_rules! ele_parse {
 
                 match (selfst, tok) {
                     (
-                        Expecting(Preemptable) | Closed(..),
+                        st @ (Expecting(..) | Closed(..)),
                         tok @ XirfToken::Open(qname, span, depth)
                     ) => {
                         if Self::matches(qname).is_some() {
                             let $openpat = (qname, span);
 
-                            // TODO: deduplicate with NonPreemptableExpecting
                             <Self::Object>::try_from($openmap)
                                 .map(ParseStatus::Object)
                                 .transition(Self(Attrs(
                                     (qname, span, depth),
                                     parse_attrs(qname, span)
                                 )))
-                        } else {
+                        } else if st.can_preempt_node() || matches!(st, Closed(..)) {
+                            // Maybe someone else can handle this for us
                             Transition(Self(Expecting(Preemptable))).dead(tok)
-                        }
-                    },
-
-                    // We only attempt recovery when encountering an
-                    //   unknown token if we're forced to accept that token.
-                    (
-                        Expecting(NonPreemptable),
-                        XirfToken::Open(qname, span, depth)
-                    ) => {
-                        if Self::matches(qname).is_some() {
-                            let $openpat = (qname, span);
-
-                            // TODO: deduplicate with Expecting
-                            <Self::Object>::try_from($openmap)
-                                .map(ParseStatus::Object)
-                                .transition(Self(Attrs(
-                                    (qname, span, depth),
-                                    parse_attrs(qname, span)
-                                )))
                         } else {
+                            // We must do something with this token,
+                            //   so the only option is to enter recovery.
                             Transition(Self(
                                 RecoverEleIgnore(qname, span, depth)
                             )).err(
