@@ -364,13 +364,13 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn is_last_nt(&self) -> bool {
-                match (self) {
-                    $(
-                        $ntprev(..) => $ntnext_last,
-                    )*
-                    Self::ExpectClose_(..) => false,
-                }
+            fn last_nt(meta: ChildNtMeta) -> Option<Self> {
+                let _ = meta; // not used if there are no child NTs
+
+                None::<Self>
+                $(
+                    .or($ntnext_last.then_some($ntprev(meta)))
+                )*
             }
         }
 
@@ -618,37 +618,25 @@ macro_rules! ele_parse {
                         )),
                         tok @ XirfToken::Open(..)
                     ) => {
-                        // (silence dead code warnings of unused `st` if no
-                        //   child NTs)
-                        let _ = st;
-
-                        // TODO: The only purpose of this is to perform a
-                        //   transition using the last NT;
-                        //     we ought to be able to do this without
-                        //     iterating through all NTs here.
-                        $(
-                            let child_nt = $ntprev(meta);
-
-                            if child_nt.is_last_nt() {
-                                return stack.transfer_with_ret(
-                                    Transition(Self(st)),
-                                    // If this NT cannot handle this element,
-                                    //   it should error and enter recovery to
-                                    //   ignore it.
-                                    Transition(child_nt.as_nt_non_preemptable())
-                                        .incomplete()
-                                        .with_lookahead(tok),
-                                )
-                            }
-                        )*
-
-                        // If there are no child NTs,
-                        //   then all we can do is expect a close.
-                        Transition(Self(
-                            CloseRecoverIgnore(meta, tok.span())
-                        )).err(
-                            Self::Error::CloseExpected(mqname, mspan, tok)
-                        )
+                        if let Some(child_nt) = <Self as Nt>::ChildNt::last_nt(meta) {
+                            stack.transfer_with_ret(
+                                Transition(Self(st)),
+                                // If this NT cannot handle this element,
+                                //   it should error and enter recovery to
+                                //   ignore it.
+                                Transition(child_nt.as_nt_non_preemptable())
+                                    .incomplete()
+                                    .with_lookahead(tok),
+                            )
+                        } else {
+                            // If there are no child NTs,
+                            //   then all we can do is expect a close.
+                            Transition(Self(
+                                CloseRecoverIgnore(meta, tok.span())
+                            )).err(
+                                Self::Error::CloseExpected(mqname, mspan, tok)
+                            )
+                        }
                     },
 
                     // XIRF ensures proper nesting,
@@ -1345,7 +1333,7 @@ impl<NT: Nt> Display for NtState<NT> {
 pub type ChildNtMeta = (QName, OpenSpan, Depth);
 
 /// Set of possible child NTs for some parent [`Nt`].
-pub trait ChildNt {
+pub trait ChildNt: Sized {
     /// Superstate of the parent [`Nt`].
     type NtSuper: SuperState;
 
@@ -1362,8 +1350,9 @@ pub trait ChildNt {
         self.as_nt_preemptable().expect_non_preemptable()
     }
 
-    /// Whether the current child is the last child NT.
-    fn is_last_nt(&self) -> bool;
+    /// The final child NT in the parent's sequence,
+    ///   if any.
+    fn last_nt(meta: ChildNtMeta) -> Option<Self>;
 }
 
 /// Sum nonterminal.
