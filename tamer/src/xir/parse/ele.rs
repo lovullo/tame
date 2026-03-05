@@ -34,8 +34,10 @@ use crate::{
         TransitionResult,
     },
     span::Span,
+    sym::SymbolId,
     xir::{
         CloseSpan, EleSpan, OpenSpan, Prefix, QName,
+        attr::AttrSpan,
         flat::{Depth, RefinedText, XirfToken},
     },
 };
@@ -260,7 +262,7 @@ macro_rules! ele_parse {
             $(#[$nt_attr])* $nt $qname
 
             ($openpat) => $openmap,
-            ($($closepat)?) => ele_parse!(@!ele_close $($closemap)?),
+            $(Close($closepat) => $closemap,)?
 
             $(($attrpat) => $attrmap,)?
 
@@ -290,21 +292,11 @@ macro_rules! ele_parse {
         );
     };
 
-    // No explicit Close mapping defaults to doing nothing at all
-    //   (so yield Incomplete).
-    (@!ele_close) => {
-        ParseStatus::Incomplete
-    };
-
-    (@!ele_close $close:expr) => {
-        ParseStatus::Object($close)
-    };
-
     (@!ele_dfn_body
         $(#[$nt_attr:meta])* $nt:ident $qname:ident
 
         ($openpat:pat) => $openmap:expr,
-        ($($closepat:pat)?) => $closemap:expr,
+        $(Close($closepat:pat) => $closemap:expr,)?
 
         // Attribute delegation special form.
         $(($attr_stream_binding:pat) => $attr_stream_map:expr,)?
@@ -467,9 +459,52 @@ macro_rules! ele_parse {
             type AttrState = [<$nt AttrState_>];
             type ChildNt = [<$nt ChildNt_>];
 
-            #[inline]
             fn matcher() -> NodeMatcher {
                 NodeMatcher::from($qname)
+            }
+
+            fn try_open_from(
+                qname: QName,
+                span: OpenSpan,
+            ) -> NtParseResult<Self> {
+                let $openpat = (qname, span);
+                TryFrom::try_from($openmap).map_err(Into::into)
+            }
+
+            fn try_attr_stream_from(
+                qname: QName,
+                value: SymbolId,
+                attrspan: AttrSpan,
+            ) -> Option<NtParseResult<Self>> {
+                let _ = (qname, value, &attrspan);
+
+                None
+                $(
+                    // Attr special form
+                    .or_else(|| {
+                        let $attr_stream_binding = (qname, value, attrspan);
+                        Some(
+                            $attr_stream_map.try_into()
+                                .map_err(Into::into)
+                        )
+                    })
+                )?
+            }
+
+            fn try_close_from(
+                qname: QName,
+                span: CloseSpan,
+            ) -> Option<NtParseResult<Self>> {
+                let _ = (qname, span); // only used if Close form provided
+
+                None
+                $(
+                    .or_else(|| {
+                        let $closepat = (qname, span);
+                        // TODO: We ought to support errors here
+                        Some(Ok($closemap))
+                    })
+                )?
             }
         }
 
@@ -508,9 +543,7 @@ macro_rules! ele_parse {
                         tok @ XirfToken::Open(qname, span, depth)
                     ) => {
                         if Self::matches(qname).is_some() {
-                            let $openpat = (qname, span);
-
-                            <Self::Object>::try_from($openmap)
+                            Self::try_open_from(qname, span)
                                 .map(ParseStatus::Object)
                                 .transition(Self(Attrs(
                                     (qname, span, depth),
@@ -542,26 +575,27 @@ macro_rules! ele_parse {
                     },
 
                     (Attrs(meta, sa), tok) => {
-                        // When the [attr] special form is used,
+                        // When the Attr special form is used,
                         //   we entirely delegate attribute parsing without
                         //   performing our own explicit mapping.
-                        $(
-                            if let XirfToken::Attr(Attr(name, value, attrspan)) = tok {
-                                let $attr_stream_binding = (name, value, attrspan);
-
-                                return Transition(Self(Attrs(meta, sa)))
-                                    .ok(<Self::Object>::from($attr_stream_map));
-                            }
-                        )?
-
-                        // TODO: We want to detect pattern conflicts so that
-                        //   they can be exposed in the macro DSL.
-                        sa.delegate::<Self, _>(
-                            tok,
-                            EmptyContext,
-                            |sa| Transition(Self(Attrs(meta, sa))),
-                            || Transition($ntfirst(meta).into()),
-                        )
+                        if let XirfToken::Attr(Attr(qname, value, attrspan)) = tok.clone()
+                            && let Some(attr_stream) = Self::try_attr_stream_from(
+                                qname, value, attrspan
+                            )
+                        {
+                            attr_stream
+                                .map(ParseStatus::Object)
+                                .transition(Self(Attrs(meta, sa)))
+                        } else {
+                            // TODO: We want to detect pattern conflicts so that
+                            //   they can be exposed in the macro DSL.
+                            sa.delegate::<Self, _>(
+                                tok,
+                                EmptyContext,
+                                |sa| Transition(Self(Attrs(meta, sa))),
+                                || Transition($ntfirst(meta).into()),
+                            )
+                        }
                     },
 
                     // We're transitioning from `(ntprev) -> (ntnext)`.
@@ -633,8 +667,11 @@ macro_rules! ele_parse {
                             | CloseRecoverIgnore((qname, _, depth), _),
                          XirfToken::Close(_, span, tok_depth)
                     ) if tok_depth == depth => {
-                        $(let $closepat = (qname, span);)?
-                        $closemap.transition(Self(Closed(Some(qname), span.tag_span())))
+                        if let Some(close) = Self::try_close_from(qname, span) {
+                            close.map(ParseStatus::Object)
+                        } else {
+                            Ok(ParseStatus::Incomplete)
+                        }.transition(Self(Closed(Some(qname), span.tag_span())))
                     },
 
                     (
@@ -1160,10 +1197,16 @@ where
     fn can_preempt_node(&self) -> bool;
 }
 
+/// Result of parsing an NT.
+pub type NtParseResult<NT> = Result<
+    <<NT as NtBase>::ParseState as ParseState>::Object,
+    <NT as NtBase>::ParseError,
+>;
+
 /// Nonterminal.
 ///
 /// This trait is used internally by the [`ele_parse!`] parser-generator.
-pub trait Nt: Debug {
+pub trait Nt: NtBase {
     /// Attribute parser for this element.
     type AttrState: AttrParseState;
     /// [`NtState::Jmp`] states for child NTs.
@@ -1171,6 +1214,24 @@ pub trait Nt: Debug {
 
     /// Matcher describing the node recognized by this parser.
     fn matcher() -> NodeMatcher;
+
+    /// Attempt to produce an object from the NT's `Open` mapping.
+    fn try_open_from(qname: QName, span: OpenSpan) -> NtParseResult<Self>;
+
+    /// Attempt to produce an object from the NT's `Attr` mapping,
+    ///   if any.
+    fn try_attr_stream_from(
+        qname: QName,
+        value: SymbolId,
+        attrspan: AttrSpan,
+    ) -> Option<NtParseResult<Self>>;
+
+    /// Attempt to produce an object from the NT's `Close` mapping,
+    ///   if any.
+    fn try_close_from(
+        qname: QName,
+        span: CloseSpan,
+    ) -> Option<NtParseResult<Self>>;
 }
 
 /// Preemption status of the next expected node.
