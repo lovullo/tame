@@ -156,7 +156,7 @@ macro_rules! ele_parse {
                 xir::{                                  //   |  |
                     *,                                  //   |  |
                     flat::{                             //   |  |
-                        Depth, RefinedText, XirfToken   //   |  |
+                        RefinedText, XirfToken          //   |  |
                     },                                  //   |  |
                     parse::*,                           //   |  |
                 },                                      //   |  |
@@ -274,9 +274,9 @@ macro_rules! ele_parse {
             -> {
                 @ ->
                 $(
-                    ([<$nt ChildNt_>]::$ntref, $ntref),
+                    ([<$nt ChildNt_>]::$ntref, $ntref, false),
                     ([<$nt ChildNt_>]::$ntref, $ntref) ->
-                )* ([<$nt ChildNt_>]::ExpectClose_, ()),
+                )* ([<$nt ChildNt_>]::ExpectClose_, (), true),
             }
         }
     } };
@@ -317,18 +317,61 @@ macro_rules! ele_parse {
         }
 
         -> {
-            @ -> ($ntfirst:path, $ntfirst_st:ty),
+            @ -> ($ntfirst:path, $ntfirst_st:ty, $_ntfirst_last:expr),
             $(
-                ($ntprev:path, $ntprev_st:ty) -> ($ntnext:path, $ntnext_st:ty),
+                ($ntprev:path, $ntprev_st:ty) -> ($ntnext:path, $ntnext_st:ty, $ntnext_last:expr),
             )*
         }
     ) => { paste::paste! {
         #[derive(Debug, PartialEq, Eq)]
         pub enum [<$nt ChildNt_>] {
             $(
-                $ntref((QName, OpenSpan, Depth)),
+                $ntref(ChildNtMeta),
             )*
-            ExpectClose_((QName, OpenSpan, Depth)),
+            ExpectClose_(ChildNtMeta),
+        }
+
+        impl From<[<$nt ChildNt_>]> for $nt {
+            fn from(child_nt: [<$nt ChildNt_>]) -> Self {
+                Self(NtState::Jmp(child_nt))
+            }
+        }
+
+        impl ChildNt for [<$nt ChildNt_>] {
+            type NtSuper = <$nt as NtBase>::NtSuper;
+
+            fn jmp_next_child_nt(self) -> Self::NtSuper {
+                match self {
+                    $(
+                        $ntprev(meta) => $nt::from($ntnext(meta)).into(),
+                    )*
+                    // TODO: This is unreachable in the context in which it
+                    //   is used,
+                    //     but `ExpectClose_` will be hoisted into `NtState`
+                    Self::ExpectClose_(..) => todo!("next_child_nt ExpectClose_"),
+                }
+            }
+
+            fn as_nt_preemptable(&self) -> Self::NtSuper {
+                match self {
+                    $(
+                        Self::$ntref(..) => <$ntref>::preemptable().into(),
+                    )*
+                    // TODO: This is unreachable in the context in which it
+                    //   is used,
+                    //     but `ExpectClose_` will be hoisted into `NtState`
+                    Self::ExpectClose_(..) => todo!("as_nt_preemptable ExpectClose_"),
+                }
+            }
+
+            fn is_last_nt(&self) -> bool {
+                match (self) {
+                    $(
+                        $ntprev(..) => $ntnext_last,
+                    )*
+                    Self::ExpectClose_(..) => false,
+                }
+            }
         }
 
         $(#[$nt_attr])*
@@ -405,30 +448,6 @@ macro_rules! ele_parse {
             fn can_preempt_node(&self) -> bool {
                 match self {
                     Self(st) => st.can_preempt_node(),
-                }
-            }
-
-            #[allow(dead_code)] // used only when there are child NTs
-            /// Whether the current state represents the last child NT.
-            fn is_last_nt(&self) -> bool {
-                use NtState::*;
-
-                let Self(st) = self;
-
-                // This results in `Self::$ntref(..) => true,` for the
-                //   _last_ NT,
-                //     and `=> false` for all others.
-                // If there are no NTs,
-                //   it results in `Self::Attrs(..) => true,`,
-                //     which is technically true but will never be called in
-                //     that context.
-                match st {
-                    Attrs(..) => $(
-                        false,
-                        Jmp([<$nt ChildNt_>]::$ntref(..)) =>
-                    )* true,
-
-                    _ => false,
                 }
             }
         }
@@ -566,12 +585,15 @@ macro_rules! ele_parse {
                         // We therefore have:  (ntprev)--->(ntnext)
                         //                        ^     \
                         //                         `-----'
-                        (Jmp($ntprev(meta)), tok) => {
+                        (Jmp(ntprev @ $ntprev(..)), tok) => {
+                            let ntprev_st = ntprev.as_nt_preemptable();
+                            let jmp_ntnext = ntprev.jmp_next_child_nt();
+
                             stack.transfer_with_ret(
-                                Transition(Self(Jmp($ntnext(meta)))),
-                                Transition(<$ntprev_st>::preemptable())
+                                Transition(jmp_ntnext),
+                                Transition(ntprev_st)
                                     .incomplete()
-                                    .with_lookahead(tok),
+                                    .with_lookahead(tok)
                             )
                         },
                     )*
@@ -605,13 +627,15 @@ macro_rules! ele_parse {
                         //     we ought to be able to do this without
                         //     iterating through all NTs here.
                         $(
-                            if Self(Jmp($ntprev(meta))).is_last_nt() {
+                            let child_nt = $ntprev(meta);
+
+                            if child_nt.is_last_nt() {
                                 return stack.transfer_with_ret(
                                     Transition(Self(st)),
                                     // If this NT cannot handle this element,
                                     //   it should error and enter recovery to
                                     //   ignore it.
-                                    Transition(<$ntprev_st>::non_preemptable())
+                                    Transition(child_nt.as_nt_non_preemptable())
                                         .incomplete()
                                         .with_lookahead(tok),
                                 )
@@ -753,10 +777,6 @@ macro_rules! ele_parse {
                 match self {
                     Self(st) => st.can_preempt_node(),
                 }
-            }
-
-            fn is_last_nt(&self) -> bool {
-                false
             }
         }
 
@@ -1164,9 +1184,6 @@ where
     /// For more information,
     ///   see the superstate.
     fn can_preempt_node(&self) -> bool;
-
-    /// Whether the current state represents the last child NT.
-    fn is_last_nt(&self) -> bool;
 }
 
 /// Nonterminal.
@@ -1322,6 +1339,31 @@ impl<NT: Nt> Display for NtState<NT> {
             }
         }
     }
+}
+
+/// Metadata used to track active element for reporting and debugging.
+pub type ChildNtMeta = (QName, OpenSpan, Depth);
+
+/// Set of possible child NTs for some parent [`Nt`].
+pub trait ChildNt {
+    /// Superstate of the parent [`Nt`].
+    type NtSuper: SuperState;
+
+    /// Request a jump to the parser of the next child.
+    fn jmp_next_child_nt(self) -> Self::NtSuper;
+
+    /// Parser of the current child,
+    ///   able to be preempted and may ignore input.
+    fn as_nt_preemptable(&self) -> Self::NtSuper;
+
+    /// Parser of current child,
+    ///   not able to be preempted and must handle next token of input.
+    fn as_nt_non_preemptable(&self) -> Self::NtSuper {
+        self.as_nt_preemptable().expect_non_preemptable()
+    }
+
+    /// Whether the current child is the last child NT.
+    fn is_last_nt(&self) -> bool;
 }
 
 /// Sum nonterminal.
