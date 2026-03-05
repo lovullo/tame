@@ -337,7 +337,7 @@ macro_rules! ele_parse {
         }
 
         impl ChildNt for [<$nt ChildNt_>] {
-            type NtSuper = <$nt as NtBase>::NtSuper;
+            type Nt = $nt;
 
             fn jmp_next_child_nt(self) -> Self::NtSuper {
                 match self {
@@ -353,6 +353,10 @@ macro_rules! ele_parse {
                         Self::$ntref(..) => <$ntref>::preemptable().into(),
                     )*
                 }
+            }
+
+            fn first_nt_or_close(meta: ChildNtMeta) -> Self::Nt {
+                $ntfirst(meta).into()
             }
 
             fn last_nt(meta: ChildNtMeta) -> Option<Self> {
@@ -593,7 +597,9 @@ macro_rules! ele_parse {
                                 tok,
                                 EmptyContext,
                                 |sa| Transition(Self(Attrs(meta, sa))),
-                                || Transition($ntfirst(meta).into()),
+                                || Transition(
+                                    <Self as Nt>::ChildNt::first_nt_or_close(meta)
+                                ),
                             )
                         }
                     },
@@ -1421,8 +1427,10 @@ pub type ChildNtMeta = (QName, OpenSpan, Depth);
 
 /// Set of possible child NTs for some parent [`Nt`].
 pub trait ChildNt: Sized {
+    type Nt: NtBase;
+
     /// Superstate of the parent [`Nt`].
-    type NtSuper: SuperState;
+    type NtSuper: SuperState = <Self::Nt as NtBase>::NtSuper;
 
     /// Request a jump to the parser of the next child.
     fn jmp_next_child_nt(self) -> Self::NtSuper;
@@ -1436,6 +1444,11 @@ pub trait ChildNt: Sized {
     fn as_nt_non_preemptable(&self) -> Self::NtSuper {
         self.as_nt_preemptable().expect_non_preemptable()
     }
+
+    /// Parser of the first child NT in the sequence.
+    /// Otherwise,
+    ///   [`NtState::ExpectCloseOrLast`].
+    fn first_nt_or_close(meta: ChildNtMeta) -> Self::Nt;
 
     /// The final child NT in the parent's sequence,
     ///   if any.
