@@ -38,7 +38,10 @@ use crate::{
     },
 };
 
-use super::{AttrParseState, Nt, SumNt};
+use super::{Nt, NtBase, SumNt, SuperState};
+
+type NtAttrValueError<NT> =
+    <<NT as NtBase>::NtSuper as SuperState>::AttrValueError;
 
 #[derive(Debug, PartialEq)]
 pub enum NtError<NT: Nt> {
@@ -52,15 +55,14 @@ pub enum NtError<NT: Nt> {
     /// The span corresponds to the opening tag.
     CloseExpected(QName, OpenSpan, XirfToken<RefinedText>),
 
-    Attrs(AttrParseError<NT::AttrState>, PhantomData<NT>),
+    Attrs(AttrParseError<NtAttrValueError<NT>>, PhantomData<NT>),
 }
 
-impl<NT, A> From<AttrParseError<A>> for NtError<NT>
+impl<NT: Nt, EV: Diagnostic> From<AttrParseError<EV>> for NtError<NT>
 where
-    NT: Nt<AttrState = A>,
-    A: AttrParseState,
+    <NT as NtBase>::NtSuper: SuperState<AttrValueError = EV>,
 {
-    fn from(e: AttrParseError<A>) -> Self {
+    fn from(e: AttrParseError<EV>) -> Self {
         Self::Attrs(e, PhantomData)
     }
 }
@@ -176,7 +178,7 @@ pub type ElementQName = QName;
 
 /// Error while parsing element attributes.
 #[derive(Debug, PartialEq)]
-pub enum AttrParseError<S: AttrParseState> {
+pub enum AttrParseError<EV: Diagnostic> {
     /// An attribute was encountered that was not expected by this parser.
     ///
     /// Parsing may recover by simply ignoring this attribute.
@@ -184,10 +186,10 @@ pub enum AttrParseError<S: AttrParseState> {
 
     /// An error occurred while parsing an attribute value into the
     ///   declared type.
-    InvalidValue(S::ValueError, ElementQName),
+    InvalidValue(EV, ElementQName),
 }
 
-impl<S: AttrParseState> Display for AttrParseError<S> {
+impl<EV: Diagnostic> Display for AttrParseError<EV> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::UnexpectedAttr(attr, ele_name) => {
@@ -206,13 +208,9 @@ impl<S: AttrParseState> Display for AttrParseError<S> {
     }
 }
 
-impl<S: AttrParseState> Error for AttrParseError<S> {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
-}
+impl<EV: Diagnostic> Error for AttrParseError<EV> {}
 
-impl<S: AttrParseState> Diagnostic for AttrParseError<S> {
+impl<EV: Diagnostic> Diagnostic for AttrParseError<EV> {
     fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
         match self {
             // TODO: help stating attributes that can appear instead

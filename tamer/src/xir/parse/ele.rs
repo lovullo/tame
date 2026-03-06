@@ -851,6 +851,8 @@ macro_rules! ele_parse {
         }
 
         impl SuperState for $super {
+            type AttrValueError = meta::AttrValueError;
+
             fn is_inner_accepting(
                 &self,
                 ctx: &<Self as ParseState>::Context
@@ -904,6 +906,8 @@ pub trait SuperState:
         Context = SuperStateContext<Self>,
     > + Default
 {
+    type AttrValueError: Diagnostic + PartialEq;
+
     /// Whether the inner (active child) [`ParseState`] is in an accepting
     ///   state.
     ///

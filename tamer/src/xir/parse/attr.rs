@@ -152,7 +152,7 @@ macro_rules! attr_parse_stream {
                 $crate::xir::flat::RefinedText
             >;
             type Object = $objty;
-            type Error = $crate::xir::parse::AttrParseError<Self>;
+            type Error = $crate::xir::parse::AttrParseError<$evty>;
 
             fn parse_token(
                 #[allow(unused_mut)]
