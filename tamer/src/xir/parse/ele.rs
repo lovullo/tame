@@ -25,19 +25,20 @@
 //!   this module has extensive test cases that illustrate its behavior and
 //!   can serve as examples.
 
-use super::{AttrParseState, SumNtError};
+use super::{AttrParseState, NtError, SumNtError, parse_attrs};
 use crate::{
     diagnose::Diagnostic,
     fmt::{DisplayWrapper, TtQuote},
     parse::{
-        ClosedParseState, Context, ParseState, StateStack, Transition,
-        TransitionResult,
+        ClosedParseState, Context, EmptyContext, ParseState, ParseStatus,
+        StateStack, StitchableParseState, Token, Transition, TransitionResult,
+        Transitionable,
     },
     span::Span,
     sym::SymbolId,
     xir::{
         CloseSpan, EleSpan, OpenSpan, Prefix, QName,
-        attr::AttrSpan,
+        attr::{Attr, AttrSpan},
         flat::{Depth, RefinedText, XirfToken},
     },
 };
@@ -326,20 +327,20 @@ macro_rules! ele_parse {
 
         impl From<[<$nt ChildNt_>]> for meta::Super {
             fn from(child_nt: [<$nt ChildNt_>]) -> Self {
-                $nt::from(child_nt).into()
+                NtState::<$nt>::from(child_nt).into()
             }
         }
 
-        impl From<[<$nt ChildNt_>]> for $nt {
+        impl From<[<$nt ChildNt_>]> for NtState<$nt> {
             fn from(child_nt: [<$nt ChildNt_>]) -> Self {
-                Self(NtState::Jmp(child_nt))
+                NtState::Jmp(child_nt)
             }
         }
 
         impl ChildNt for [<$nt ChildNt_>] {
             type Nt = $nt;
 
-            fn jmp_next_child_nt(self) -> Self::NtSuper {
+            fn jmp_next_child_nt(self) -> <Self::Nt as NtBase>::NtSuper {
                 match self {
                     $(
                         $ntprev(meta) => $ntnext(meta).into(),
@@ -347,7 +348,7 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn as_nt_preemptable(&self) -> Self::NtSuper {
+            fn as_nt_preemptable(&self) -> <Self::Nt as NtBase>::NtSuper {
                 match *self {
                     $(
                         Self::$ntref(..) => <$ntref>::preemptable().into(),
@@ -355,7 +356,7 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn first_nt_or_close(meta: ChildNtMeta) -> Self::Nt {
+            fn first_nt_or_close(meta: ChildNtMeta) -> NtState<Self::Nt> {
                 $ntfirst(meta).into()
             }
 
@@ -375,12 +376,6 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub struct $nt(NtState<$nt>);
 
-        impl From<NtState<$nt>> for meta::Super {
-            fn from(st: NtState<$nt>) -> Self {
-                $nt::from(st).into()
-            }
-        }
-
         impl From<NtState<$nt>> for $nt {
             fn from(st: NtState<$nt>) -> Self {
                 $nt(st)
@@ -389,17 +384,17 @@ macro_rules! ele_parse {
 
         impl NtBase for $nt {
             type NtSuper = meta::Super;
-            type ParseState = Self;
+            type ParseState = NtState<$nt>;
             type ParseError = NtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-                Self(NtState::Expecting(NtExpectKind::Preemptable))
+                NtState::Expecting(NtExpectKind::Preemptable)
             }
 
             /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self::ParseState {
-                Self(NtState::Expecting(NtExpectKind::NonPreemptable))
+                NtState::Expecting(NtExpectKind::NonPreemptable)
             }
 
             /// Whether the given QName would be matched by any of the
@@ -517,205 +512,6 @@ macro_rules! ele_parse {
                 match self {
                     Self(st) => std::fmt::Display::fmt(st, f),
                 }
-            }
-        }
-
-        impl ParseState for $nt {
-            type Token = <Self::Super as ParseState>::Token;
-            type Object = <Self::Super as ParseState>::Object;
-            type Error = NtError<$nt>;
-            type Context = <Self::Super as ParseState>::Context;
-            type Super = <Self as NtBase>::NtSuper;
-
-            fn parse_token(
-                self,
-                tok: Self::Token,
-                #[allow(unused_variables)] // used only if child NTs
-                stack: &mut Self::Context,
-            ) -> TransitionResult<Self::Super> {
-                use NtState::{
-                    Attrs, Expecting, RecoverEleIgnore, CloseRecoverIgnore,
-                    RecoverEleIgnoreClosed, Closed, Jmp, ExpectCloseOrLast,
-                };
-                use NtExpectKind::*;
-
-                let Self(selfst) = self;
-
-                match (selfst, tok) {
-                    (
-                        st @ (Expecting(..) | Closed(..)),
-                        tok @ XirfToken::Open(qname, span, depth)
-                    ) => {
-                        if Self::matches(qname).is_some() {
-                            Self::try_open_from(qname, span)
-                                .map(ParseStatus::Object)
-                                .transition(Self(Attrs(
-                                    (qname, span, depth),
-                                    parse_attrs(qname, span)
-                                )))
-                        } else if st.can_preempt_node() || matches!(st, Closed(..)) {
-                            // Maybe someone else can handle this for us
-                            Transition(Self(Expecting(Preemptable))).dead(tok)
-                        } else {
-                            // We must do something with this token,
-                            //   so the only option is to enter recovery.
-                            Transition(Self(
-                                RecoverEleIgnore(qname, span, depth)
-                            )).err(
-                                Self::Error::UnexpectedEle(
-                                    qname, span.name_span()
-                                )
-                            )
-                        }
-                    },
-
-                    (
-                        RecoverEleIgnore(qname, _, depth_open),
-                        XirfToken::Close(_, span, depth_close)
-                    ) if depth_open == depth_close => {
-                        Transition(Self(
-                            RecoverEleIgnoreClosed(qname, span)
-                        )).incomplete()
-                    },
-
-                    (Attrs(meta, sa), tok) => {
-                        // When the Attr special form is used,
-                        //   we entirely delegate attribute parsing without
-                        //   performing our own explicit mapping.
-                        if let XirfToken::Attr(Attr(qname, value, attrspan)) = tok.clone()
-                            && let Some(attr_stream) = Self::try_attr_stream_from(
-                                qname, value, attrspan
-                            )
-                        {
-                            attr_stream
-                                .map(ParseStatus::Object)
-                                .transition(Self(Attrs(meta, sa)))
-                        } else {
-                            // TODO: We want to detect pattern conflicts so that
-                            //   they can be exposed in the macro DSL.
-                            sa.delegate::<Self, _>(
-                                tok,
-                                EmptyContext,
-                                |sa| Transition(Self(Attrs(meta, sa))),
-                                || Transition(
-                                    <Self as Nt>::ChildNt::first_nt_or_close(meta)
-                                ),
-                            )
-                        }
-                    },
-
-                    // We're transitioning from `(ntprev) -> (ntnext)`.
-                    //
-                    // If we have a token that matches `ntprev`,
-                    //   we can transition _back_ to ntprev rather
-                    //   than transitioning forward.
-                    // We can _only_ do this when we know we are
-                    //   transitioning away from this state,
-                    //     otherwise we could return to a previous state,
-                    //     which violates the semantics of the implied
-                    //     DFA.
-                    //
-                    // We therefore have:  (ntprev)--->(ntnext)
-                    //                        ^     \
-                    //                         `-----'
-                    (Jmp(ntprev), tok) => {
-                        let ntprev_st = ntprev.as_nt_preemptable();
-                        let jmp_ntnext = ntprev.jmp_next_child_nt();
-
-                        stack.transfer_with_ret(
-                            Transition(jmp_ntnext),
-                            Transition(ntprev_st)
-                                .incomplete()
-                                .with_lookahead(tok)
-                        )
-                    },
-
-                    // This is similar to the NT transitions above:
-                    //   we can either close,
-                    //     or we can open more elements belonging to the
-                    //     final child NT.
-                    // We choose to transition back to the final NT
-                    //   _no matter what the element_,
-                    //     to force error recovery and diagnostics
-                    //     in that context,
-                    //       which will tell the user what elements were
-                    //       expected in the last NT rather than just
-                    //       telling them a closing tag was expected.
-                    (
-                        st @ ExpectCloseOrLast(meta @ (mqname, mspan, _)),
-                        tok @ XirfToken::Open(..)
-                    ) => {
-                        if let Some(child_nt) = <Self as Nt>::ChildNt::last_nt(meta) {
-                            stack.transfer_with_ret(
-                                Transition(Self(st)),
-                                // If this NT cannot handle this element,
-                                //   it should error and enter recovery to
-                                //   ignore it.
-                                Transition(child_nt.as_nt_non_preemptable())
-                                    .incomplete()
-                                    .with_lookahead(tok),
-                            )
-                        } else {
-                            // If there are no child NTs,
-                            //   then all we can do is expect a close.
-                            Transition(Self(
-                                CloseRecoverIgnore(meta, tok.span())
-                            )).err(
-                                Self::Error::CloseExpected(mqname, mspan, tok)
-                            )
-                        }
-                    },
-
-                    // XIRF ensures proper nesting,
-                    //   so we do not need to check the element name.
-                    (
-                        ExpectCloseOrLast((qname, _, depth))
-                            | CloseRecoverIgnore((qname, _, depth), _),
-                         XirfToken::Close(_, span, tok_depth)
-                    ) if tok_depth == depth => {
-                        if let Some(close) = Self::try_close_from(qname, span) {
-                            close.map(ParseStatus::Object)
-                        } else {
-                            Ok(ParseStatus::Incomplete)
-                        }.transition(Self(Closed(Some(qname), span.tag_span())))
-                    },
-
-                    (
-                        ExpectCloseOrLast(meta @ (qname, otspan, _)),
-                        unexpected_tok
-                    ) => {
-                        Transition(Self(
-                            CloseRecoverIgnore(meta, unexpected_tok.span())
-                        )).err(
-                            Self::Error::CloseExpected(qname, otspan, unexpected_tok)
-                        )
-                    }
-
-                    // We're still in recovery,
-                    //   so this token gets thrown out.
-                    (st @ (RecoverEleIgnore(..) | CloseRecoverIgnore(..)), _) => {
-                        Transition(Self(st)).incomplete()
-                    },
-
-                    // Note that this does not necessarily represent an
-                    //   accepting state
-                    //     (see `is_accepting`).
-                    (
-                        st @ (
-                            Expecting(..)
-                            | Closed(..)
-                            | RecoverEleIgnoreClosed(..)
-                        ),
-                        tok
-                    ) => {
-                        Transition(Self(st)).dead(tok)
-                    }
-                }
-            }
-
-            fn is_accepting(&self, _: &Self::Context) -> bool {
-                use NtState::*;
-                matches!(*self, Self(Closed(..) | RecoverEleIgnoreClosed(..)))
             }
         }
     }};
@@ -1149,8 +945,14 @@ where
 {
     // Superstate of all NTs.
     type NtSuper: From<Self::ParseState> + SuperState;
+
     /// Parser for this NT.
-    type ParseState: ParseState<Super = Self::NtSuper, Error = Self::ParseError>;
+    type ParseState: ParseState<
+            Super = Self::NtSuper,
+            Error = Self::ParseError,
+            Object = <Self::NtSuper as ParseState>::Object,
+        >;
+
     /// Errors emitted by [`Self::ParseState`].
     type ParseError: Diagnostic + Debug + PartialEq;
 
@@ -1214,9 +1016,15 @@ pub type NtParseResult<NT> = Result<
 /// This trait is used internally by the [`ele_parse!`] parser-generator.
 pub trait Nt: NtBase {
     /// Attribute parser for this element.
-    type AttrState: AttrParseState;
+    ///
+    /// The expected [`ParseState`] here is very rigid to simplify trait
+    ///   bounds.
+    type AttrState: AttrParseState
+        + StitchableParseState<<Self as NtBase>::ParseState>
+        + ParseState<Token = XirfToken<RefinedText>, Context = EmptyContext>;
+
     /// [`NtState::Jmp`] states for child NTs.
-    type ChildNt: Debug + PartialEq + Eq;
+    type ChildNt: ChildNt<Nt = Self> + Debug + PartialEq + Eq;
 
     /// Matcher describing the node recognized by this parser.
     fn matcher() -> NodeMatcher;
@@ -1422,33 +1230,212 @@ impl<NT: Nt> Display for NtState<NT> {
     }
 }
 
+impl<NT: Nt> ParseState for NtState<NT>
+where
+    Self: Into<NT::NtSuper>,
+    NT: NtBase<ParseError = NtError<NT>>, // TODO: could use an abstraction
+{
+    type Token = XirfToken<RefinedText>;
+    type Object = <Self::Super as ParseState>::Object;
+    type Error = <NT as NtBase>::ParseError;
+    type Context = SuperStateContext<NT::NtSuper>;
+    type Super = <NT as NtBase>::NtSuper;
+
+    fn parse_token(
+        self,
+        tok: Self::Token,
+        #[allow(unused_variables)] // used only if child NTs
+        stack: &mut Self::Context,
+    ) -> TransitionResult<Self::Super> {
+        use NtExpectKind::*;
+        use NtState::{
+            Attrs, CloseRecoverIgnore, Closed, ExpectCloseOrLast, Expecting,
+            Jmp, RecoverEleIgnore, RecoverEleIgnoreClosed,
+        };
+
+        match (self, tok) {
+            (
+                st @ (Expecting(..) | Closed(..)),
+                tok @ XirfToken::Open(qname, span, depth),
+            ) => {
+                if NT::matches(qname).is_some() {
+                    NT::try_open_from(qname, span)
+                        .map(ParseStatus::Object)
+                        .transition(Attrs(
+                            (qname, span, depth),
+                            parse_attrs(qname, span),
+                        ))
+                } else if st.can_preempt_node() || matches!(st, Closed(..)) {
+                    // Maybe someone else can handle this for us
+                    Transition(Expecting(Preemptable)).dead(tok)
+                } else {
+                    // We must do something with this token,
+                    //   so the only option is to enter recovery.
+                    Transition(RecoverEleIgnore(qname, span, depth)).err(
+                        Self::Error::UnexpectedEle(qname, span.name_span()),
+                    )
+                }
+            }
+
+            (
+                RecoverEleIgnore(qname, _, depth_open),
+                XirfToken::Close(_, span, depth_close),
+            ) if depth_open == depth_close => {
+                Transition(RecoverEleIgnoreClosed(qname, span)).incomplete()
+            }
+
+            (Attrs(meta, sa), tok) => {
+                // When the Attr special form is used,
+                //   we entirely delegate attribute parsing without
+                //   performing our own explicit mapping.
+                if let XirfToken::Attr(Attr(qname, value, attrspan)) =
+                    tok.clone()
+                    && let Some(attr_stream) =
+                        NT::try_attr_stream_from(qname, value, attrspan)
+                {
+                    attr_stream
+                        .map(ParseStatus::Object)
+                        .transition(Attrs(meta, sa))
+                } else {
+                    // TODO: We want to detect pattern conflicts so that
+                    //   they can be exposed in the macro DSL.
+                    sa.delegate::<Self, _>(
+                        tok,
+                        EmptyContext,
+                        |sa| Transition(Attrs(meta, sa)),
+                        || {
+                            Transition(<NT as Nt>::ChildNt::first_nt_or_close(
+                                meta,
+                            ))
+                        },
+                    )
+                }
+            }
+
+            // We're transitioning from `(ntprev) -> (ntnext)`.
+            //
+            // If we have a token that matches `ntprev`,
+            //   we can transition _back_ to ntprev rather
+            //   than transitioning forward.
+            // We can _only_ do this when we know we are
+            //   transitioning away from this state,
+            //     otherwise we could return to a previous state,
+            //     which violates the semantics of the implied
+            //     DFA.
+            //
+            // We therefore have:  (ntprev)--->(ntnext)
+            //                        ^     \
+            //                         `-----'
+            (Jmp(ntprev), tok) => {
+                let ntprev_st = ntprev.as_nt_preemptable();
+                let jmp_ntnext = ntprev.jmp_next_child_nt();
+
+                stack.transfer_with_ret(
+                    Transition(jmp_ntnext),
+                    Transition(ntprev_st).incomplete().with_lookahead(tok),
+                )
+            }
+
+            // This is similar to the NT transitions above:
+            //   we can either close,
+            //     or we can open more elements belonging to the
+            //     final child NT.
+            // We choose to transition back to the final NT
+            //   _no matter what the element_,
+            //     to force error recovery and diagnostics
+            //     in that context,
+            //       which will tell the user what elements were
+            //       expected in the last NT rather than just
+            //       telling them a closing tag was expected.
+            (
+                st @ ExpectCloseOrLast(meta @ (mqname, mspan, _)),
+                tok @ XirfToken::Open(..),
+            ) => {
+                if let Some(child_nt) = <NT as Nt>::ChildNt::last_nt(meta) {
+                    stack.transfer_with_ret(
+                        Transition(st),
+                        // If this NT cannot handle this element,
+                        //   it should error and enter recovery to
+                        //   ignore it.
+                        Transition(child_nt.as_nt_non_preemptable())
+                            .incomplete()
+                            .with_lookahead(tok),
+                    )
+                } else {
+                    // If there are no child NTs,
+                    //   then all we can do is expect a close.
+                    Transition(CloseRecoverIgnore(meta, tok.span()))
+                        .err(Self::Error::CloseExpected(mqname, mspan, tok))
+                }
+            }
+
+            // XIRF ensures proper nesting,
+            //   so we do not need to check the element name.
+            (
+                ExpectCloseOrLast((qname, _, depth))
+                | CloseRecoverIgnore((qname, _, depth), _),
+                XirfToken::Close(_, span, tok_depth),
+            ) if tok_depth == depth => {
+                if let Some(close) = NT::try_close_from(qname, span) {
+                    close.map(ParseStatus::Object)
+                } else {
+                    Ok(ParseStatus::Incomplete)
+                }
+                .transition(Closed(Some(qname), span.tag_span()))
+            }
+
+            (ExpectCloseOrLast(meta @ (qname, otspan, _)), unexpected_tok) => {
+                Transition(CloseRecoverIgnore(meta, unexpected_tok.span())).err(
+                    Self::Error::CloseExpected(qname, otspan, unexpected_tok),
+                )
+            }
+
+            // We're still in recovery,
+            //   so this token gets thrown out.
+            (st @ (RecoverEleIgnore(..) | CloseRecoverIgnore(..)), _) => {
+                Transition(st).incomplete()
+            }
+
+            // Note that this does not necessarily represent an
+            //   accepting state
+            //     (see `is_accepting`).
+            (
+                st @ (Expecting(..) | Closed(..) | RecoverEleIgnoreClosed(..)),
+                tok,
+            ) => Transition(st).dead(tok),
+        }
+    }
+
+    fn is_accepting(&self, _: &Self::Context) -> bool {
+        use NtState::*;
+        matches!(*self, Closed(..) | RecoverEleIgnoreClosed(..))
+    }
+}
+
 /// Metadata used to track active element for reporting and debugging.
 pub type ChildNtMeta = (QName, OpenSpan, Depth);
 
 /// Set of possible child NTs for some parent [`Nt`].
 pub trait ChildNt: Sized {
-    type Nt: NtBase;
-
-    /// Superstate of the parent [`Nt`].
-    type NtSuper: SuperState = <Self::Nt as NtBase>::NtSuper;
+    type Nt: Nt;
 
     /// Request a jump to the parser of the next child.
-    fn jmp_next_child_nt(self) -> Self::NtSuper;
+    fn jmp_next_child_nt(self) -> <Self::Nt as NtBase>::NtSuper;
 
     /// Parser of the current child,
     ///   able to be preempted and may ignore input.
-    fn as_nt_preemptable(&self) -> Self::NtSuper;
+    fn as_nt_preemptable(&self) -> <Self::Nt as NtBase>::NtSuper;
 
     /// Parser of current child,
     ///   not able to be preempted and must handle next token of input.
-    fn as_nt_non_preemptable(&self) -> Self::NtSuper {
+    fn as_nt_non_preemptable(&self) -> <Self::Nt as NtBase>::NtSuper {
         self.as_nt_preemptable().expect_non_preemptable()
     }
 
     /// Parser of the first child NT in the sequence.
     /// Otherwise,
     ///   [`NtState::ExpectCloseOrLast`].
-    fn first_nt_or_close(meta: ChildNtMeta) -> Self::Nt;
+    fn first_nt_or_close(meta: ChildNtMeta) -> NtState<Self::Nt>;
 
     /// The final child NT in the parent's sequence,
     ///   if any.

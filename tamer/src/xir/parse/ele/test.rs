@@ -276,7 +276,7 @@ ele_parse_test! {
         assert_eq!(
             vec![
                 Err(ParseError::StateError(<Sut as ParseState>::Error::Root(
-                    <sut::Root as ParseState>::Error::UnexpectedEle(
+                    <sut::Root as NtBase>::ParseError::UnexpectedEle(
                         unexpected,
                         span.name_span()
                     )
@@ -337,7 +337,7 @@ ele_parse_test! {
                 // But then consuming the LA will produce an error,
                 //   since we were not expecting a child.
                 Err(ParseError::StateError(<Sut as ParseState>::Error::Root(
-                    <sut::Root as ParseState>::Error::CloseExpected(
+                    <sut::Root as NtBase>::ParseError::CloseExpected(
                         // Verify that the error includes the QName that actually matched.
                         QN_C_EQ,
                         OpenSpan(S1, N),
@@ -534,7 +534,7 @@ ele_parse_test! {
         assert_matches!(
             err,
             ParseError::StateError(<Sut as ParseState>::Error::Root(
-                <sut::Root as ParseState>::Error::Attrs(..)
+                <sut::Root as NtBase>::ParseError::Attrs(..)
             )),
         ); // [Root@] QN_NAME
 
@@ -698,7 +698,7 @@ ele_parse_test! {
         let err = sut.next().unwrap().unwrap_err();
         assert_eq!(
             ParseError::StateError(<Sut as ParseState>::Error::Root(
-                <sut::Root as ParseState>::Error::UnexpectedEle(
+                <sut::Root as NtBase>::ParseError::UnexpectedEle(
                     unexpected,
                     span.name_span()
                 )
@@ -1128,7 +1128,7 @@ ele_parse_test! {
         assert_eq!(
             err,
             ParseError::StateError(<Sut as ParseState>::Error::ChildB(
-                <sut::ChildB as ParseState>::Error::UnexpectedEle(
+                <sut::ChildB as NtBase>::ParseError::UnexpectedEle(
                     unexpected,
                     span.name_span(),
                 )
@@ -1245,7 +1245,7 @@ ele_parse_test! {
         let err = sut.next().unwrap().unwrap_err();
         assert_eq!(
             ParseError::StateError(<Sut as ParseState>::Error::Root(
-                <sut::Root as ParseState>::Error::CloseExpected(
+                <sut::Root as NtBase>::ParseError::CloseExpected(
                     QN_PACKAGE,
                     OpenSpan(S1, N),
                     XirfToken::Open(unexpected_a, span_a, Depth(1)),
@@ -1874,7 +1874,7 @@ ele_parse_test! {
 
                   // B -> A is not a valid state transition
                   Err(ParseError::StateError(<Sut as ParseState>::Error::B(
-                      <sut::B as ParseState>::Error::UnexpectedEle(
+                      <sut::B as NtBase>::ParseError::UnexpectedEle(
                           QN_A,
                           OpenSpan(S6, N).name_span()
                       )
@@ -1886,7 +1886,7 @@ ele_parse_test! {
                   // again:
                   // B -> A is not a valid state transition
                   Err(ParseError::StateError(<Sut as ParseState>::Error::B(
-                      <sut::B as ParseState>::Error::UnexpectedEle(
+                      <sut::B as NtBase>::ParseError::UnexpectedEle(
                           QN_A,
                           OpenSpan(S7, N).name_span()
                       )
@@ -1979,7 +1979,7 @@ ele_parse_test! {
                 //     and so the error will occur on `Child`.
                 Err(ParseError::StateError(
                     <Sut as ParseState>::Error::Child(
-                        <sut::Child as ParseState>::Error::UnexpectedEle(
+                        <sut::Child as NtBase>::ParseError::UnexpectedEle(
                             unexpected,
                             OpenSpan(S2, N).name_span()
                         )

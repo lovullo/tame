@@ -36,7 +36,8 @@ pub use lower::{
 };
 pub use parser::{FinalizedParser, Parsed, ParsedResult, Parser};
 pub use state::{
-    ClosedParseState, ParseResult, ParseState, ParseStatus, StateStack,
+    ClosedParseState, ParseResult, ParseState, ParseStatus,
+    PartiallyStitchableParseState, StateStack, StitchableParseState,
     Transition, TransitionResult, Transitionable,
     context::{Context, Empty as EmptyContext, NoContext},
 };
