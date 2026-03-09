@@ -149,7 +149,7 @@ macro_rules! ele_parse {
             $( ($($sum:tt)*) )?                         // --.  |
           ;                                             //   |  |
         )*                                              //   |  |
-    ) => {paste::paste!{                                //   |  |
+    ) => {                                              //   |  |
         ele_parse!(@!mod $vis $super; $(mod $mod)? {    //   |  |
             use super::*;                               //   |  |
                                                         //   |  |
@@ -189,16 +189,16 @@ macro_rules! ele_parse {
                 $($nt),*
             );
         });
-    }};
+    };
 
     // `mod $ident;` form was provided by the user.
-    (@!mod $vis:vis $super:ident; mod $mod:ident { $($body:tt)* }) => {paste::paste!{
+    (@!mod $vis:vis $super:ident; mod $mod:ident { $($body:tt)* }) => {
         mod $mod {
             $($body)*
         }
 
         $vis use $mod::$super;
-    }};
+    };
 
     // `mod $ident;` form was _not_ provided, and so we must generate one.
     (@!mod $vis:vis $super:ident; { $($body:tt)* }) => {paste::paste!{
@@ -518,7 +518,7 @@ macro_rules! ele_parse {
 
     (@!ele_dfn_sum
         $(#[$nt_attr:meta])* $nt:ident [$($ntref:ident)*]
-    ) => {paste::paste! {
+    ) => {
         $(#[$nt_attr])*
         ///
         #[doc=concat!(
@@ -606,7 +606,7 @@ macro_rules! ele_parse {
                 }
             }
         }
-    }};
+    };
 
     // Generate superstate sum type.
     //
