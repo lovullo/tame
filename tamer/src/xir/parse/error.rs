@@ -43,6 +43,7 @@ use super::{Nt, NtBase, SumNt, SuperState};
 type NtAttrValueError<NT> =
     <<NT as NtBase>::NtSuper as SuperState>::AttrValueError;
 
+// TODO: Move to nt::node
 #[derive(Debug, PartialEq)]
 pub enum NtError<NT: Nt> {
     /// An element was expected,
@@ -127,6 +128,7 @@ impl<NT: Nt> Diagnostic for NtError<NT> {
     }
 }
 
+// TODO: Move to nt::sum
 /// Error during parsing of a sum nonterminal.
 #[derive(Debug, PartialEq)]
 pub enum SumNtError<NT: SumNt> {

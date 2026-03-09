@@ -28,7 +28,7 @@ mod error;
 
 pub use attr::{AttrParseState, parse_attrs};
 pub use ele::{
-    ChildNt, ChildNtMeta, EleParseState, NodeMatcher, Nt, NtBase, NtExpectKind,
-    NtParseResult, NtState, SumNt, SumNtState, SuperState, SuperStateContext,
+    ChildNt, ChildNtMeta, NodeMatcher, Nt, NtBase, NtExpectKind, NtParseResult,
+    NtState, SumNt, SumNtState, SuperState, SuperStateContext,
 };
 pub use error::{AttrParseError, NtError, SumNtError};
