@@ -391,14 +391,11 @@ macro_rules! ele_parse {
                 NtState::Expecting(NtExpectKind::Preemptable)
             }
 
-            /// A default state that cannot be preempted by the superstate.
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self::ParseState {
                 NtState::Expecting(NtExpectKind::NonPreemptable)
             }
 
-            /// Whether the given QName would be matched by any of the
-            ///   parsers associated with this type.
             #[inline]
             fn matches(qname: QName) -> Option<Self::NtSuper> {
                 <Self as Nt>::matcher()
@@ -406,24 +403,11 @@ macro_rules! ele_parse {
                     .then_some(Self::preemptable().into())
             }
 
-            /// Number of [`NodeMatcher`]s considered by this parser.
-            ///
-            /// This is always `1` for this parser.
             #[allow(dead_code)] // used by Sum NTs
             fn matches_n() -> usize {
                 1
             }
 
-            /// Format matcher for display.
-            ///
-            /// This value may be rendered singularly or as part of a list of
-            ///   values joined together by Sum NTs.
-            /// This function receives the number of values to be formatted
-            ///   as `n` and the current 0-indexed offset within that list
-            ///   as `i`.
-            /// This allows for zero-copy rendering of composable NTs.
-            ///
-            /// `i` must be incremented after the operation.
             #[allow(dead_code)] // used by Sum NTs
             fn fmt_matches(
                 n: usize,
@@ -442,11 +426,6 @@ macro_rules! ele_parse {
                 Ok(())
             }
 
-            /// Whether the parser is in a state that can tolerate superstate
-            ///   node preemption.
-            ///
-            /// For more information,
-            ///   see the superstate.
             fn can_preempt_node(&self) -> bool {
                 match self {
                     Self(st) => st.can_preempt_node(),
@@ -546,29 +525,10 @@ macro_rules! ele_parse {
                 None::<Self::NtSuper> $( .or_else(|| $ntref::matches(qname)) )*
             }
 
-            // Number of
-            //   [`NodeMatcher`](crate::xir::parse::NodeMatcher)s
-            //   considered by this parser.
-            //
-            // This is the sum of the number of matches of each
-            //   constituent NT.
             fn matches_n() -> usize {
-                // Count the number of NTs by adding the number of
-                //   matches in each.
                 0 $(+ $ntref::matches_n())*
             }
 
-            /// Format constituent NTs for display.
-            ///
-            /// This function receives the number of values to be
-            ///   formatted as `n` and the current 0-indexed offset within
-            ///   that list as `i`.
-            /// This allows for zero-copy rendering of composable NTs.
-            ///
-            /// See also [`SumNt::fmt_matches_top`] to initialize the
-            ///   formatting process with the correct values.
-            ///
-            /// [`SumNt::fmt_matches_top`]: crate::xir::parse::SumNt
             fn fmt_matches(
                 n: usize,
                 i: &mut usize,
@@ -581,11 +541,6 @@ macro_rules! ele_parse {
                 Ok(())
             }
 
-            /// Whether the parser is in a state that can tolerate
-            ///   superstate node preemption.
-            ///
-            /// For more information,
-            ///   see the superstate.
             fn can_preempt_node(&self) -> bool {
                 match self {
                     Self(st) => st.can_preempt_node(),
@@ -981,8 +936,6 @@ where
 
     /// Number of
     ///   [`NodeMatcher`]s considered by this parser.
-    ///
-    /// This is always `1` for this parser.
     fn matches_n() -> usize;
 
     /// Format matcher for display.
