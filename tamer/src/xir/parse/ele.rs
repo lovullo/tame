@@ -67,46 +67,46 @@ macro_rules! ele_parse {
           $(#[$nt_attr:meta])*
           $nt:ident :=
             // normal NT: QNAME(args...) { ... }
-            $( $qname:ident {                           // \
-              $($matches:tt)*                           //  }---.
-            } )?                                        // /    |
-                                                        //      |
-            // sum NT: (N₀ | N₁ | ... | Nₙ)             //      |
-            $( ($($sum:tt)*) )?                         // --.  |
-          ;                                             //   |  |
-        )*                                              //   |  |
-    ) => {                                              //   |  |
-        ele_parse!(@!mod $vis $super; $(mod $mod)? {    //   |  |
-            use super::*;                               //   |  |
-                                                        //   |  |
-            use $crate::{                               //   |  |
-                diagnose::{Diagnostic, AnnotatedSpan},  //   |  |
-                parse::*,                               //   |  |
-                xir::{                                  //   |  |
-                    *,                                  //   |  |
-                    flat::{                             //   |  |
-                        RefinedText, XirfToken          //   |  |
-                    },                                  //   |  |
-                    parse::*,                           //   |  |
-                },                                      //   |  |
-            };                                          //   |  |
-                                                        //   |  |
-            mod meta {                                  //   |  |
-                use super::*;                           //   |  |
-                                                        //   |  |
-                pub type Super = $super;                //   |  |
-                pub type AttrValueError = $avety;       //   |  |
-                pub type Object = $objty;               //   |  |
-            }                                           //   |  |
-                                                        //   |  |
-            // Dispatch to a parser for either the      //   |  |
-            // "normal" or the sum NT grammar.          //   |  |
-            $(                                          //   |  |
-                ele_parse!(@!define_nt                  //   |  |
-                  $(#[$nt_attr])*                       //   |  |
-                  $nt                                   //   |  |
-                  $(( $($sum)*            ))?           // <-'  |
-                  $({ $qname $($matches)* })?           // <----'
+            $( $qname:ident {
+              $($matches:tt)*
+            } )?
+
+            // sum NT: (N₀ | N₁ | ... | Nₙ)
+            $( ($($sum:tt)*) )?
+          ;
+        )*
+    ) => {
+        ele_parse!(@!mod $vis $super; $(mod $mod)? {
+            use super::*;
+
+            use $crate::{
+                diagnose::{Diagnostic, AnnotatedSpan},
+                parse::*,
+                xir::{
+                    *,
+                    flat::{
+                        RefinedText, XirfToken
+                    },
+                    parse::*,
+                },
+            };
+
+            mod meta {
+                use super::*;
+
+                pub type Super = $super;
+                pub type AttrValueError = $avety;
+                pub type Object = $objty;
+            }
+
+            // Dispatch to a parser for either the
+            // "normal" or the sum NT grammar.
+            $(
+                ele_parse!(@!define_nt
+                  $(#[$nt_attr])*
+                  $nt
+                  $(( $($sum)*            ))?
+                  $({ $qname $($matches)* })?
                 );
             )*
 
