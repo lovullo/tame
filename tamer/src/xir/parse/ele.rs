@@ -34,7 +34,7 @@ mod superst;
 // TODO: We can encapsulate further once more is extracted from the
 //   `ele_parse` macro.
 pub use nt::{
-    ChildNt, ChildNtMeta, NodeMatcher, NodeNt, NodeNtState, NtBase, NtError,
+    ChildNt, ChildNtMeta, NodeMatcher, NodeNt, NodeNtState, Nt, NtError,
     NtExpectKind, NtParseResult, SumNt, SumNtError, SumNtState,
 };
 pub use superst::{SuperState, SuperStateContext};
@@ -266,7 +266,7 @@ macro_rules! ele_parse {
         impl ChildNt for [<$nt ChildNt_>] {
             type Nt = $nt;
 
-            fn jmp_next_child_nt(self) -> <Self::Nt as NtBase>::NtSuper {
+            fn jmp_next_child_nt(self) -> <Self::Nt as Nt>::NtSuper {
                 match self {
                     $(
                         $ntprev(meta) => $ntnext(meta).into(),
@@ -274,7 +274,7 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn as_nt_preemptable(&self) -> <Self::Nt as NtBase>::NtSuper {
+            fn as_nt_preemptable(&self) -> <Self::Nt as Nt>::NtSuper {
                 match *self {
                     $(
                         Self::$ntref(..) => <$ntref>::preemptable().into(),
@@ -308,7 +308,7 @@ macro_rules! ele_parse {
             }
         }
 
-        impl NtBase for $nt {
+        impl Nt for $nt {
             type NtSuper = meta::Super;
             type ParseState = NodeNtState<$nt>;
             type ParseError = NtError<$nt>;
@@ -434,7 +434,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub struct $nt(SumNtState<$nt>);
 
-        impl NtBase for $nt {
+        impl Nt for $nt {
             type NtSuper = meta::Super;
             type ParseState = SumNtState<$nt>;
             type ParseError = SumNtError<$nt>;
@@ -533,7 +533,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub enum $super {
             $(
-                $nt(<$nt as NtBase>::ParseState),
+                $nt(<$nt as Nt>::ParseState),
             )*
         }
 
@@ -552,8 +552,8 @@ macro_rules! ele_parse {
         }
 
         $(
-            impl From<<$nt as NtBase>::ParseState> for $super {
-                fn from(st: <$nt as NtBase>::ParseState) -> Self {
+            impl From<<$nt as Nt>::ParseState> for $super {
+                fn from(st: <$nt as Nt>::ParseState) -> Self {
                     $super::$nt(st)
                 }
             }
@@ -574,15 +574,15 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq)]
         pub enum [<$super Error_>] {
             $(
-                $nt(<<$nt as NtBase>::ParseState as ParseState>::Error),
+                $nt(<<$nt as Nt>::ParseState as ParseState>::Error),
             )*
         }
 
         $(
-            impl From<<<$nt as NtBase>::ParseState as ParseState>::Error>
+            impl From<<<$nt as Nt>::ParseState as ParseState>::Error>
                 for [<$super Error_>]
             {
-                fn from(e: <<$nt as NtBase>::ParseState as ParseState>::Error) -> Self {
+                fn from(e: <<$nt as Nt>::ParseState as ParseState>::Error) -> Self {
                     [<$super Error_>]::$nt(e)
                 }
             }

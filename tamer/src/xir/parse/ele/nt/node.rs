@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{NtBase, NtExpectKind, NtParseResult};
+use super::{Nt, NtExpectKind, NtParseResult};
 
 use crate::{
     fmt::TtQuote,
@@ -44,13 +44,13 @@ use std::{
 /// Nonterminal representing an XML node.
 ///
 /// This matches against a single [`QName`] one or more times.
-pub trait NodeNt: NtBase {
+pub trait NodeNt: Nt {
     /// Attribute parser for this element.
     ///
     /// The expected [`ParseState`] here is very rigid to simplify trait
     ///   bounds.
     type AttrState: AttrParseState
-        + StitchableParseState<<Self as NtBase>::ParseState>
+        + StitchableParseState<<Self as Nt>::ParseState>
         + ParseState<Token = XirfToken<RefinedText>, Context = EmptyContext>;
 
     /// [`NodeNtState::Jmp`] states for child NTs.
@@ -227,13 +227,13 @@ impl<NT: NodeNt> Display for NodeNtState<NT> {
 impl<NT: NodeNt> ParseState for NodeNtState<NT>
 where
     Self: Into<NT::NtSuper>,
-    NT: NtBase<ParseError = NtError<NT>>, // TODO: could use an abstraction
+    NT: Nt<ParseError = NtError<NT>>, // TODO: could use an abstraction
 {
     type Token = XirfToken<RefinedText>;
     type Object = <Self::Super as ParseState>::Object;
-    type Error = <NT as NtBase>::ParseError;
+    type Error = <NT as Nt>::ParseError;
     type Context = SuperStateContext<NT::NtSuper>;
-    type Super = <NT as NtBase>::NtSuper;
+    type Super = <NT as Nt>::NtSuper;
 
     fn parse_token(
         self,
@@ -416,15 +416,15 @@ pub trait ChildNt: Sized {
     type Nt: NodeNt;
 
     /// Request a jump to the parser of the next child.
-    fn jmp_next_child_nt(self) -> <Self::Nt as NtBase>::NtSuper;
+    fn jmp_next_child_nt(self) -> <Self::Nt as Nt>::NtSuper;
 
     /// Parser of the current child,
     ///   able to be preempted and may ignore input.
-    fn as_nt_preemptable(&self) -> <Self::Nt as NtBase>::NtSuper;
+    fn as_nt_preemptable(&self) -> <Self::Nt as Nt>::NtSuper;
 
     /// Parser of current child,
     ///   not able to be preempted and must handle next token of input.
-    fn as_nt_non_preemptable(&self) -> <Self::Nt as NtBase>::NtSuper {
+    fn as_nt_non_preemptable(&self) -> <Self::Nt as Nt>::NtSuper {
         self.as_nt_preemptable().expect_non_preemptable()
     }
 
@@ -481,8 +481,7 @@ impl Display for NodeMatcher {
     }
 }
 
-type NtAttrValueError<NT> =
-    <<NT as NtBase>::NtSuper as SuperState>::AttrValueError;
+type NtAttrValueError<NT> = <<NT as Nt>::NtSuper as SuperState>::AttrValueError;
 
 #[derive(Debug, PartialEq)]
 pub enum NtError<NT: NodeNt> {
@@ -501,7 +500,7 @@ pub enum NtError<NT: NodeNt> {
 
 impl<NT: NodeNt, EV: Diagnostic> From<AttrParseError<EV>> for NtError<NT>
 where
-    <NT as NtBase>::NtSuper: SuperState<AttrValueError = EV>,
+    <NT as Nt>::NtSuper: SuperState<AttrValueError = EV>,
 {
     fn from(e: AttrParseError<EV>) -> Self {
         Self::Attrs(e, PhantomData)

@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{NtBase, NtExpectKind};
+use super::{Nt, NtExpectKind};
 
 use crate::{
     fmt::{DisplayFn, TtQuote},
@@ -33,7 +33,7 @@ use crate::{
 use std::{fmt::Display, marker::PhantomData};
 
 /// Sum nonterminal.
-pub trait SumNt: NtBase {
+pub trait SumNt: Nt {
     fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result;
 }
 
@@ -103,13 +103,13 @@ impl<NT: SumNt> Display for SumNtState<NT> {
 impl<NT: SumNt> ParseState for SumNtState<NT>
 where
     Self: Into<NT::NtSuper>,
-    <NT as NtBase>::ParseError: From<SumNtError<NT>>,
+    <NT as Nt>::ParseError: From<SumNtError<NT>>,
 {
     type Token = XirfToken<RefinedText>;
     type Object = <Self::Super as ParseState>::Object;
-    type Error = <NT as NtBase>::ParseError;
+    type Error = <NT as Nt>::ParseError;
     type Context = SuperStateContext<NT::NtSuper>;
-    type Super = <NT as NtBase>::NtSuper;
+    type Super = <NT as Nt>::NtSuper;
 
     fn parse_token(
         self,
