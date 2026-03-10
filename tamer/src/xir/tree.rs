@@ -468,12 +468,13 @@ impl ElementStack {
 ///
 /// For more information,
 ///   see the [module-level documentation](self).
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub enum Stack<SA = AttrParseState>
 where
     SA: StackAttrParseState,
 {
     /// Empty stack.
+    #[default]
     Empty,
 
     /// An [`Element`] that is still under construction.
@@ -508,12 +509,6 @@ where
     Self: Default,
     <Self as ParseState>::Error: Into<StackError>,
     EmptyContext: AsMut<<Self as ParseState>::Context>;
-
-impl<SA: StackAttrParseState> Default for Stack<SA> {
-    fn default() -> Self {
-        Self::Empty
-    }
-}
 
 impl<SA: StackAttrParseState> ParseState for Stack<SA> {
     type Token = XirToken;

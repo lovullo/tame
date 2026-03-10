@@ -38,8 +38,9 @@ use super::Attr;
 ///       they do not influence the automaton's state transitions.
 /// The actual parsing operation is therefore a FSM,
 ///   not a PDA.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub enum AttrParseState {
+    #[default]
     Empty,
     Name(QName, Span),
 }
@@ -79,12 +80,6 @@ impl ParseState for AttrParseState {
     #[inline]
     fn is_accepting(&self, _: &Self::Context) -> bool {
         *self == Self::Empty
-    }
-}
-
-impl Default for AttrParseState {
-    fn default() -> Self {
-        Self::Empty
     }
 }
 

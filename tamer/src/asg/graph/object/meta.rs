@@ -36,7 +36,6 @@ use super::{Doc, Ident, prelude::*};
 use crate::{
     asg::graph::ProposedRel,
     diagnose::Annotate,
-    diagnostic_todo,
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
     parse::{Token, util::SPair},

@@ -39,7 +39,6 @@ use crate::{
         visit::{Depth, TreeWalkRel},
     },
     diagnose::{Annotate, panic::DiagnosticPanic},
-    diagnostic_panic, diagnostic_todo, diagnostic_unreachable,
     fmt::{DisplayWrapper, TtQuote},
     parse::{Transitionable, prelude::*, util::SPair},
     span::{Span, UNKNOWN_SPAN},

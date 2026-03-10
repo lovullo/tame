@@ -109,9 +109,10 @@ impl From<XirError> for Error {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum WriterState {
     /// A node is expected to be output next.
+    #[default]
     NodeExpected,
     /// A node is currently being output and has not yet been closed.
     NodeOpen,
@@ -119,12 +120,6 @@ pub enum WriterState {
     AttrNameAdjacent,
     /// Cursor is adjacent to an attribute fragment within an element.
     AttrFragmentAdjacent,
-}
-
-impl Default for WriterState {
-    fn default() -> Self {
-        Self::NodeExpected
-    }
 }
 
 impl WriterState {

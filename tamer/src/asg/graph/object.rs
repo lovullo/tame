@@ -122,7 +122,6 @@
 use super::{Asg, AsgError};
 use crate::{
     diagnose::{Annotate, AnnotatedSpan, panic::DiagnosticPanic},
-    diagnostic_panic,
     f::{Map, TryMap},
     parse::util::SPair,
     span::{Span, UNKNOWN_SPAN},

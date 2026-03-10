@@ -439,17 +439,20 @@ pub mod test {
 
         use super::*;
 
+        #[allow(dead_code)] // used only for type (see module doc)
         #[derive(Debug, PartialEq, Eq)]
         enum Sup {
             SubA(SubA),
             SubB(SubB),
         }
 
+        #[allow(dead_code)] // used only for type (see module doc)
         #[derive(Debug, PartialEq, Eq)]
         enum SubA {
             A,
         }
 
+        #[allow(dead_code)] // used only for type (see module doc)
         #[derive(Debug, PartialEq, Eq)]
         enum SubB {
             B,

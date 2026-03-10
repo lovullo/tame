@@ -35,7 +35,6 @@ use super::{
 };
 use crate::{
     diagnose::Annotate,
-    diagnostic_unreachable,
     f::Map,
     parse::{StateStack, prelude::*},
     span::Span,

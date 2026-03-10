@@ -184,7 +184,7 @@
 //! [rustc-span]: https://doc.rust-lang.org/stable/nightly-rustc/rustc_span/struct.Span.html
 
 use crate::{
-    debug_diagnostic_panic, global,
+    global,
     sym::{ContextStaticSymbolId, GlobalSymbolResolve, SymbolId, st16},
 };
 use std::{convert::TryInto, fmt::Display, path::Path};

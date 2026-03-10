@@ -22,7 +22,6 @@
 use super::{Expr, Meta, Pkg, Tpl, prelude::*};
 use crate::{
     diagnose::{Annotate, Diagnostic, panic::DiagnosticPanic},
-    diagnostic_todo,
     f::Map,
     fmt::{DisplayWrapper, TtQuote},
     num::{Dim, Dtype},

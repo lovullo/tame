@@ -27,7 +27,6 @@ use super::xmle::{
 };
 use crate::{
     asg::{DefaultAsg, air::AirAggregateCtx},
-    diagnostic_error_sum,
     fs::{
         Filesystem, FsCanonicalizer, PathFile, VisitOnceFile,
         VisitOnceFilesystem,

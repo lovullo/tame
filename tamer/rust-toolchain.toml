@@ -36,7 +36,7 @@
 # you will need to modify `configure.ac` / `Makefile.am` to do your bidding.
 
 [toolchain]
-channel = "nightly-2025-06-24"
+channel = "nightly-2026-01-01"
 
 # The components should be checked in `configure.ac`
 #   - Note that `cargo-fmt` is `rustfmt`.

@@ -22,7 +22,7 @@
 //! See the [parent module](super) for more information.
 
 use super::{DefaultInterner, Interner};
-use crate::{diagnostic_panic, global};
+use crate::global;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;

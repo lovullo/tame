@@ -26,7 +26,7 @@ use super::{
     AirAggregate, AirAggregateCtx,
     ir::AirBindableMeta,
 };
-use crate::{asg::graph::object::Meta, diagnostic_todo, parse::prelude::*};
+use crate::{asg::graph::object::Meta, parse::prelude::*};
 
 /// Metalinguistic variable (metavariable) parser.
 #[derive(Debug, PartialEq)]

@@ -22,7 +22,7 @@
 mod transition;
 
 use super::{Object, ParseError, Parser, Token, TokenStream};
-use crate::{diagnose::Diagnostic, diagnostic_panic};
+use crate::diagnose::Diagnostic;
 use std::fmt::{Debug, Display};
 pub use transition::*;
 

@@ -23,7 +23,7 @@ use super::{
     ClosedParseState, ParseState, ParseStateResult, ParseStatus,
     PartiallyStitchableParseState, StitchableParseState, Token,
 };
-use crate::{diagnose::Annotate, diagnostic_panic};
+use crate::diagnose::Annotate;
 use std::{
     convert::Infallible,
     hint::unreachable_unchecked,
