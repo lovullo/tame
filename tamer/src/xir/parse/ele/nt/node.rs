@@ -41,8 +41,10 @@ use std::{
     marker::PhantomData,
 };
 
-/// Nonterminal.
-pub trait Nt: NtBase {
+/// Nonterminal representing an XML node.
+///
+/// This matches against a single [`QName`] one or more times.
+pub trait NodeNt: NtBase {
     /// Attribute parser for this element.
     ///
     /// The expected [`ParseState`] here is very rigid to simplify trait
@@ -51,7 +53,7 @@ pub trait Nt: NtBase {
         + StitchableParseState<<Self as NtBase>::ParseState>
         + ParseState<Token = XirfToken<RefinedText>, Context = EmptyContext>;
 
-    /// [`NtState::Jmp`] states for child NTs.
+    /// [`NodeNtState::Jmp`] states for child NTs.
     type ChildNt: ChildNt<Nt = Self> + Debug + PartialEq + Eq;
 
     /// Matcher describing the node recognized by this parser.
@@ -78,7 +80,7 @@ pub trait Nt: NtBase {
 
 /// States for nonterminals (NTs).
 #[derive(Debug, PartialEq, Eq)]
-pub enum NtState<NT: Nt> {
+pub enum NodeNtState<NT: NodeNt> {
     /// Expecting opening tag for element.
     Expecting(NtExpectKind),
 
@@ -106,7 +108,7 @@ pub enum NtState<NT: Nt> {
     Jmp(NT::ChildNt),
 
     /// Expecting a closing tag for this element,
-    ///   or another child element matching the last [`Nt::ChildNt`].
+    ///   or another child element matching the last [`NodeNt::ChildNt`].
     ExpectCloseOrLast((QName, OpenSpan, Depth)),
 
     /// Closing tag found and parsing of the element is
@@ -114,15 +116,15 @@ pub enum NtState<NT: Nt> {
     Closed(Option<QName>, Span),
 }
 
-impl<NT: Nt> Default for NtState<NT> {
+impl<NT: NodeNt> Default for NodeNtState<NT> {
     fn default() -> Self {
         Self::Expecting(NtExpectKind::default())
     }
 }
 
-impl<NT: Nt> NtState<NT> {
+impl<NT: NodeNt> NodeNtState<NT> {
     pub fn can_preempt_node(&self) -> bool {
-        use NtState::*;
+        use NodeNtState::*;
 
         match self {
             // Preemption before the opening tag is safe,
@@ -163,10 +165,10 @@ impl<NT: Nt> NtState<NT> {
     }
 }
 
-impl<NT: Nt> Display for NtState<NT> {
+impl<NT: NodeNt> Display for NodeNtState<NT> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use crate::xir::fmt::{TtCloseXmlEle, TtOpenXmlEle};
-        use NtState::*;
+        use NodeNtState::*;
 
         match self {
             Expecting(preempt) => write!(
@@ -222,7 +224,7 @@ impl<NT: Nt> Display for NtState<NT> {
     }
 }
 
-impl<NT: Nt> ParseState for NtState<NT>
+impl<NT: NodeNt> ParseState for NodeNtState<NT>
 where
     Self: Into<NT::NtSuper>,
     NT: NtBase<ParseError = NtError<NT>>, // TODO: could use an abstraction
@@ -239,11 +241,11 @@ where
         #[allow(unused_variables)] // used only if child NTs
         stack: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use NtExpectKind::*;
-        use NtState::{
+        use NodeNtState::{
             Attrs, CloseRecoverIgnore, Closed, ExpectCloseOrLast, Expecting,
             Jmp, RecoverEleIgnore, RecoverEleIgnoreClosed,
         };
+        use NtExpectKind::*;
 
         match (self, tok) {
             (
@@ -296,9 +298,11 @@ where
                         EmptyContext,
                         |sa| Transition(Attrs(meta, sa)),
                         || {
-                            Transition(<NT as Nt>::ChildNt::first_nt_or_close(
-                                meta,
-                            ))
+                            Transition(
+                                <NT as NodeNt>::ChildNt::first_nt_or_close(
+                                    meta,
+                                ),
+                            )
                         },
                     )
                 }
@@ -343,7 +347,7 @@ where
                 st @ ExpectCloseOrLast(meta @ (mqname, mspan, _)),
                 tok @ XirfToken::Open(..),
             ) => {
-                if let Some(child_nt) = <NT as Nt>::ChildNt::last_nt(meta) {
+                if let Some(child_nt) = <NT as NodeNt>::ChildNt::last_nt(meta) {
                     stack.transfer_with_ret(
                         Transition(st),
                         // If this NT cannot handle this element,
@@ -399,7 +403,7 @@ where
     }
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
-        use NtState::*;
+        use NodeNtState::*;
         matches!(*self, Closed(..) | RecoverEleIgnoreClosed(..))
     }
 }
@@ -407,9 +411,9 @@ where
 /// Metadata used to track active element for reporting and debugging.
 pub type ChildNtMeta = (QName, OpenSpan, Depth);
 
-/// Set of possible child NTs for some parent [`Nt`].
+/// Set of possible child NTs for some parent [`NodeNt`].
 pub trait ChildNt: Sized {
-    type Nt: Nt;
+    type Nt: NodeNt;
 
     /// Request a jump to the parser of the next child.
     fn jmp_next_child_nt(self) -> <Self::Nt as NtBase>::NtSuper;
@@ -426,8 +430,8 @@ pub trait ChildNt: Sized {
 
     /// Parser of the first child NT in the sequence.
     /// Otherwise,
-    ///   [`NtState::ExpectCloseOrLast`].
-    fn first_nt_or_close(meta: ChildNtMeta) -> NtState<Self::Nt>;
+    ///   [`NodeNtState::ExpectCloseOrLast`].
+    fn first_nt_or_close(meta: ChildNtMeta) -> NodeNtState<Self::Nt>;
 
     /// The final child NT in the parent's sequence,
     ///   if any.
@@ -481,7 +485,7 @@ type NtAttrValueError<NT> =
     <<NT as NtBase>::NtSuper as SuperState>::AttrValueError;
 
 #[derive(Debug, PartialEq)]
-pub enum NtError<NT: Nt> {
+pub enum NtError<NT: NodeNt> {
     /// An element was expected,
     ///   but the name of the element was unexpected.
     UnexpectedEle(QName, Span),
@@ -495,7 +499,7 @@ pub enum NtError<NT: Nt> {
     Attrs(AttrParseError<NtAttrValueError<NT>>, PhantomData<NT>),
 }
 
-impl<NT: Nt, EV: Diagnostic> From<AttrParseError<EV>> for NtError<NT>
+impl<NT: NodeNt, EV: Diagnostic> From<AttrParseError<EV>> for NtError<NT>
 where
     <NT as NtBase>::NtSuper: SuperState<AttrValueError = EV>,
 {
@@ -504,20 +508,20 @@ where
     }
 }
 
-impl<NT: Nt> Error for NtError<NT> {
+impl<NT: NodeNt> Error for NtError<NT> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         // TODO
         None
     }
 }
 
-impl<NT: Nt> From<Infallible> for NtError<NT> {
+impl<NT: NodeNt> From<Infallible> for NtError<NT> {
     fn from(_value: Infallible) -> Self {
         unreachable!("From<Infallible>")
     }
 }
 
-impl<NT: Nt> Display for NtError<NT> {
+impl<NT: NodeNt> Display for NtError<NT> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use crate::xir::fmt::{TtCloseXmlEle, TtOpenXmlEle};
 
@@ -541,7 +545,7 @@ impl<NT: Nt> Display for NtError<NT> {
     }
 }
 
-impl<NT: Nt> Diagnostic for NtError<NT> {
+impl<NT: NodeNt> Diagnostic for NtError<NT> {
     fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
         use crate::{parse::Token, xir::fmt::TtCloseXmlEle};
 

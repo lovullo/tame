@@ -34,8 +34,8 @@ mod superst;
 // TODO: We can encapsulate further once more is extracted from the
 //   `ele_parse` macro.
 pub use nt::{
-    ChildNt, ChildNtMeta, NodeMatcher, Nt, NtBase, NtError, NtExpectKind,
-    NtParseResult, NtState, SumNt, SumNtError, SumNtState,
+    ChildNt, ChildNtMeta, NodeMatcher, NodeNt, NodeNtState, NtBase, NtError,
+    NtExpectKind, NtParseResult, SumNt, SumNtError, SumNtState,
 };
 pub use superst::{SuperState, SuperStateContext};
 
@@ -205,7 +205,7 @@ macro_rules! ele_parse {
                 $(
                     ([<$nt ChildNt_>]::$ntref, $ntref, false),
                     ([<$nt ChildNt_>]::$ntref, $ntref) ->
-                )* (NtState::<$nt>::ExpectCloseOrLast, (), true),
+                )* (NodeNtState::<$nt>::ExpectCloseOrLast, (), true),
             }
         }
     } };
@@ -253,13 +253,13 @@ macro_rules! ele_parse {
 
         impl From<[<$nt ChildNt_>]> for meta::Super {
             fn from(child_nt: [<$nt ChildNt_>]) -> Self {
-                NtState::<$nt>::from(child_nt).into()
+                NodeNtState::<$nt>::from(child_nt).into()
             }
         }
 
-        impl From<[<$nt ChildNt_>]> for NtState<$nt> {
+        impl From<[<$nt ChildNt_>]> for NodeNtState<$nt> {
             fn from(child_nt: [<$nt ChildNt_>]) -> Self {
-                NtState::Jmp(child_nt)
+                NodeNtState::Jmp(child_nt)
             }
         }
 
@@ -282,7 +282,7 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn first_nt_or_close(meta: ChildNtMeta) -> NtState<Self::Nt> {
+            fn first_nt_or_close(meta: ChildNtMeta) -> NodeNtState<Self::Nt> {
                 $ntfirst(meta).into()
             }
 
@@ -300,31 +300,31 @@ macro_rules! ele_parse {
         ///
         #[doc=concat!("Parser for element [`", stringify!($qname), "`].")]
         #[derive(Debug, PartialEq, Eq)]
-        pub struct $nt(NtState<$nt>);
+        pub struct $nt(NodeNtState<$nt>);
 
-        impl From<NtState<$nt>> for $nt {
-            fn from(st: NtState<$nt>) -> Self {
+        impl From<NodeNtState<$nt>> for $nt {
+            fn from(st: NodeNtState<$nt>) -> Self {
                 $nt(st)
             }
         }
 
         impl NtBase for $nt {
             type NtSuper = meta::Super;
-            type ParseState = NtState<$nt>;
+            type ParseState = NodeNtState<$nt>;
             type ParseError = NtError<$nt>;
 
             fn preemptable() -> Self::ParseState {
-                NtState::Expecting(NtExpectKind::Preemptable)
+                NodeNtState::Expecting(NtExpectKind::Preemptable)
             }
 
             #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self::ParseState {
-                NtState::Expecting(NtExpectKind::NonPreemptable)
+                NodeNtState::Expecting(NtExpectKind::NonPreemptable)
             }
 
             #[inline]
             fn matches(qname: QName) -> Option<Self::NtSuper> {
-                <Self as Nt>::matcher()
+                <Self as NodeNt>::matcher()
                     .matches(qname)
                     .then_some(Self::preemptable().into())
             }
@@ -345,7 +345,7 @@ macro_rules! ele_parse {
                     xir::fmt::EleSumList,
                 };
 
-                let matcher = &<Self as Nt>::matcher();
+                let matcher = &<Self as NodeNt>::matcher();
                 EleSumList::fmt_nth(n, *i, matcher, f)?;
                 *i += 1;
 
@@ -359,7 +359,7 @@ macro_rules! ele_parse {
             }
         }
 
-        impl Nt for $nt {
+        impl NodeNt for $nt {
             type AttrState = [<$nt AttrState_>];
             type ChildNt = [<$nt ChildNt_>];
 
