@@ -19,14 +19,49 @@
 
 //! Element parser generator for parsing of [XIRF](super::super::flat).
 //!
-//! _TODO:_ This needs significantly more documentation;
+//! _TODO: This needs significantly more documentation;
 //!   this is one of the most confusing and complex components of TAMER.
 //! Until then,
 //!   this module has extensive test cases that illustrate its behavior and
 //!   can serve as examples.
+//! See also the source code of [`crate::nir::XirfToNir`],
+//!   which uses this DSL._
+//!
+//! The [`ele_parse!`] macro implements a DSL for defining a grammar that is
+//!   a rough schema of an XML document.
+//! From this grammar,
+//!   a parser is generated for TAMER's lowering pipeline
+//!   (see [`crate::parse`]).
+//!
+//! This grammar is intentionally restrictive---the
+//!   purpose is to strip away the document format (XML) and emit a stream
+//!   of tokens representing the data described by the document.
+//! It is the responsibility of downstream parsers to perform robust
+//!   semantic rules,
+//!     as well as more sophisticed structural rules.
+//!
+//!
+//! Nonterminals
+//! ============
+//! Each identifier in the DSL is associated with a nonterminal (NT).
+//! Each nonterminal is defined as either
+//!
+//!   - An XML node, or
+//!   - A sum of other NTs.
+//!
+//! The parser-generator represents these as [`NodeNt`] and [`SumNt`]
+//!   respectively.
+//! Each NT is backed by a [`ParseState`],
+//!   either [`NodeNtState`] or [`SumNtState`].
+//! This collection of parsers is aggregated by a [`SuperState`],
+//!   representing the toplevel parser that recognizes the entire XML
+//!   document beginning at the root node.
+//!
+//! XML nodes are identified by pre-interned [`QName`]s
+//!   (see [`crate::xir::st::qname`]).
 
 #[cfg(doc)]
-use crate::{ele_parse, parse::Parser};
+use crate::{ele_parse, parse::prelude::*, xir::QName};
 
 mod nt;
 mod superst;
@@ -39,6 +74,9 @@ pub use nt::{
 };
 pub use superst::{SuperState, SuperStateContext};
 
+/// XML element parser-generator.
+///
+/// See the [parent module](super) for more information.
 #[macro_export]
 macro_rules! ele_parse {
     (
