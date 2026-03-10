@@ -24,8 +24,8 @@ use crate::{parse::prelude::*, xir::QName};
 mod node;
 mod sum;
 
-pub use node::{ChildNt, ChildNtMeta, NodeMatcher, Nt, NtState};
-pub use sum::{SumNt, SumNtState};
+pub use node::{ChildNt, ChildNtMeta, NodeMatcher, Nt, NtError, NtState};
+pub use sum::{SumNt, SumNtError, SumNtState};
 
 pub trait NtBase: PartialEq + Debug
 where

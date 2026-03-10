@@ -20,12 +20,13 @@
 use super::{NtBase, NtExpectKind};
 
 use crate::{
-    fmt::TtQuote,
+    fmt::{DisplayFn, TtQuote},
     parse::prelude::*,
+    span::Span,
     xir::{
         EleSpan, OpenSpan, QName,
         flat::{Depth, RefinedText, XirfToken},
-        parse::{SumNtError, SuperState, SuperStateContext},
+        parse::{SuperState, SuperStateContext},
     },
 };
 
@@ -202,5 +203,52 @@ where
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         matches!(self, SumNtState::Expecting(..))
+    }
+}
+
+/// Error during parsing of a sum nonterminal.
+#[derive(Debug, PartialEq)]
+pub enum SumNtError<NT: SumNt> {
+    UnexpectedEle(QName, Span, PhantomData<NT>),
+}
+
+impl<NT: SumNt> Error for SumNtError<NT> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
+impl<NT: SumNt> Display for SumNtError<NT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use crate::xir::fmt::TtOpenXmlEle;
+
+        match self {
+            Self::UnexpectedEle(qname, _, _) => {
+                write!(f, "unexpected {}", TtOpenXmlEle::wrap(qname))
+            }
+        }
+    }
+}
+
+impl<NT: SumNt> Diagnostic for SumNtError<NT> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
+        // Note that we should place expected values in the help
+        //   footnote rather than the span label because it can
+        //   get rather long.
+        // Maybe in the future the diagnostic renderer can be
+        //   smart about that based on the terminal width and
+        //   automatically move into the footer.
+        match self {
+            Self::UnexpectedEle(qname, span, _) => span
+                .error(format!(
+                    "element {name} cannot appear here",
+                    name = TtQuote::wrap(qname),
+                ))
+                .with_help(format!(
+                    "expecting {}",
+                    DisplayFn(NT::fmt_matches_top)
+                ))
+                .into(),
+        }
     }
 }

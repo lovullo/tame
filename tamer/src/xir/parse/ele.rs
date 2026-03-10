@@ -34,8 +34,8 @@ mod superst;
 // TODO: We can encapsulate further once more is extracted from the
 //   `ele_parse` macro.
 pub use nt::{
-    ChildNt, ChildNtMeta, NodeMatcher, Nt, NtBase, NtExpectKind, NtParseResult,
-    NtState, SumNt, SumNtState,
+    ChildNt, ChildNtMeta, NodeMatcher, Nt, NtBase, NtError, NtExpectKind,
+    NtParseResult, NtState, SumNt, SumNtError, SumNtState,
 };
 pub use superst::{SuperState, SuperStateContext};
 

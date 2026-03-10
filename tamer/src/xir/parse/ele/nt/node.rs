@@ -29,12 +29,17 @@ use crate::{
         attr::{Attr, AttrSpan},
         flat::{Depth, RefinedText, XirfToken},
         parse::{
-            AttrParseState, NtError, SuperState, SuperStateContext, parse_attrs,
+            AttrParseError, AttrParseState, SuperState, SuperStateContext,
+            parse_attrs,
         },
     },
 };
 
-use std::fmt::{Debug, Display, Formatter};
+use std::{
+    convert::Infallible,
+    fmt::{Debug, Display, Formatter},
+    marker::PhantomData,
+};
 
 /// Nonterminal.
 pub trait Nt: NtBase {
@@ -468,6 +473,93 @@ impl Display for NodeMatcher {
         match self {
             Self::QName(qname) => Display::fmt(qname, f),
             Self::Prefix(prefix) => XmlPrefixAnyLocal::fmt(prefix, f),
+        }
+    }
+}
+
+type NtAttrValueError<NT> =
+    <<NT as NtBase>::NtSuper as SuperState>::AttrValueError;
+
+#[derive(Debug, PartialEq)]
+pub enum NtError<NT: Nt> {
+    /// An element was expected,
+    ///   but the name of the element was unexpected.
+    UnexpectedEle(QName, Span),
+
+    /// Unexpected input while expecting an end tag for this
+    ///   element.
+    ///
+    /// The span corresponds to the opening tag.
+    CloseExpected(QName, OpenSpan, XirfToken<RefinedText>),
+
+    Attrs(AttrParseError<NtAttrValueError<NT>>, PhantomData<NT>),
+}
+
+impl<NT: Nt, EV: Diagnostic> From<AttrParseError<EV>> for NtError<NT>
+where
+    <NT as NtBase>::NtSuper: SuperState<AttrValueError = EV>,
+{
+    fn from(e: AttrParseError<EV>) -> Self {
+        Self::Attrs(e, PhantomData)
+    }
+}
+
+impl<NT: Nt> Error for NtError<NT> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        // TODO
+        None
+    }
+}
+
+impl<NT: Nt> From<Infallible> for NtError<NT> {
+    fn from(_value: Infallible) -> Self {
+        unreachable!("From<Infallible>")
+    }
+}
+
+impl<NT: Nt> Display for NtError<NT> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        use crate::xir::fmt::{TtCloseXmlEle, TtOpenXmlEle};
+
+        match self {
+            Self::UnexpectedEle(name, _) => write!(
+                f,
+                "unexpected {unexpected} (expecting {expected})",
+                unexpected = TtOpenXmlEle::wrap(name),
+                expected = TtOpenXmlEle::wrap(NT::matcher()),
+            ),
+
+            Self::CloseExpected(qname, _, tok) => write!(
+                f,
+                "expected {}, but found {}",
+                TtCloseXmlEle::wrap(qname),
+                TtQuote::wrap(tok)
+            ),
+
+            Self::Attrs(e, _) => Display::fmt(e, f),
+        }
+    }
+}
+
+impl<NT: Nt> Diagnostic for NtError<NT> {
+    fn describe(&self) -> Vec<crate::diagnose::AnnotatedSpan<'_>> {
+        use crate::{parse::Token, xir::fmt::TtCloseXmlEle};
+
+        match self {
+            Self::UnexpectedEle(_, ospan) => ospan
+                .error(format!(
+                    "expected {ele_name} here",
+                    ele_name = TtQuote::wrap(NT::matcher())
+                ))
+                .into(),
+
+            Self::CloseExpected(qname, ospan, tok) => vec![
+                ospan.span().note("element starts here"),
+                tok.span()
+                    .error(format!("expected {}", TtCloseXmlEle::wrap(qname),)),
+            ],
+
+            Self::Attrs(e, _) => e.describe(),
         }
     }
 }

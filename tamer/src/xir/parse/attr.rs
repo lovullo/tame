@@ -42,11 +42,13 @@
 //!     or attributes that cannot be parsed into the final type.
 
 use crate::{
-    diagnose::Diagnostic,
+    diagnose::{Annotate, AnnotatedSpan, Diagnostic},
+    fmt::{DisplayWrapper, TtQuote},
     parse::ClosedParseState,
-    xir::{OpenSpan, QName},
+    xir::{OpenSpan, QName, attr::Attr},
 };
-use std::convert::Infallible;
+
+use std::{convert::Infallible, error::Error, fmt::Display};
 
 /// Attribute parsing automaton.
 ///
@@ -228,6 +230,54 @@ macro_rules! attr_parse_stream {
             }
         }
     } };
+}
+
+/// Error while parsing element attributes.
+#[derive(Debug, PartialEq)]
+pub enum AttrParseError<EV: Diagnostic> {
+    /// An attribute was encountered that was not expected by this parser.
+    ///
+    /// Parsing may recover by simply ignoring this attribute.
+    UnexpectedAttr(Attr, QName),
+
+    /// An error occurred while parsing an attribute value into the
+    ///   declared type.
+    InvalidValue(EV, QName),
+}
+
+impl<EV: Diagnostic> Display for AttrParseError<EV> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::UnexpectedAttr(attr, ele_name) => {
+                write!(
+                    f,
+                    "unexpected attribute `{attr}` for \
+                       element `{ele_name}`"
+                )
+            }
+
+            Self::InvalidValue(ev, ele_name) => {
+                Display::fmt(ev, f)?;
+                write!(f, " for element {}", TtQuote::wrap(ele_name))
+            }
+        }
+    }
+}
+
+impl<EV: Diagnostic> Error for AttrParseError<EV> {}
+
+impl<EV: Diagnostic> Diagnostic for AttrParseError<EV> {
+    fn describe(&self) -> Vec<AnnotatedSpan<'_>> {
+        match self {
+            // TODO: help stating attributes that can appear instead
+            Self::UnexpectedAttr(attr @ Attr(.., aspan), ele_name) => aspan
+                .key_span()
+                .error(format!("element `{ele_name}` cannot contain `{attr}`"))
+                .into(),
+
+            Self::InvalidValue(ev, _) => ev.describe(),
+        }
+    }
 }
 
 #[cfg(test)]
