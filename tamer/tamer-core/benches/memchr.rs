@@ -28,7 +28,7 @@
 //! See the [`memchr`] crate for more information.
 
 extern crate memchr;
-extern crate tamer;
+extern crate tamer_core;
 extern crate test;
 
 use test::Bencher;

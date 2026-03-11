@@ -193,9 +193,9 @@ pub trait TryMap<T, U = T>: Sized {
 /// For example:
 ///
 /// ```
-/// # #[macro_use] extern crate tamer;
-/// # use tamer::impl_mono_map;
-/// # use tamer::f::Map;
+/// # #[macro_use] extern crate tamer_core;
+/// # use tamer_core::impl_mono_map;
+/// # use tamer_core::f::Map;
 /// # fn main() {
 ///   #[derive(Debug, PartialEq)]
 ///   struct Foo(u8, Bar);

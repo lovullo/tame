@@ -46,7 +46,7 @@
 //! For example:
 //!
 //! ```
-//! # use tamer::{fmt::*, xir::fmt::*};
+//! # use tamer_core::{fmt::*, xir::fmt::*};
 //! let attrs = ["foo", "bar", "baz"];
 //!
 //! assert_eq!(

@@ -36,12 +36,12 @@
 //!   and help to obviate any potential future regressions.
 
 extern crate quick_xml;
-extern crate tamer;
+extern crate tamer_core;
 extern crate test;
 
 use std::convert::{TryFrom, TryInto};
-use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
-use tamer::xir::{NCName, QName, Token};
+use tamer_core::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
+use tamer_core::xir::{NCName, QName, Token};
 use test::Bencher;
 
 fn gen_strs(n: usize, suffix: &str) -> Vec<String> {
@@ -124,8 +124,8 @@ mod writer {
         events::{BytesStart, BytesText, Event as XmlEvent},
     };
     use std::borrow::Cow;
-    use tamer::xir::{CloseSpan, Escaper, OpenSpan, writer::XmlWriter};
-    use tamer::{span::Span, xir::DefaultEscaper};
+    use tamer_core::xir::{CloseSpan, Escaper, OpenSpan, writer::XmlWriter};
+    use tamer_core::{span::Span, xir::DefaultEscaper};
 
     const FRAGMENT: &str = r#"<fragment>
 This is pretend fragment text.  We need a lot of it.

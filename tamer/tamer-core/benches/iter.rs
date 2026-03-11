@@ -19,10 +19,10 @@
 
 #![feature(test)]
 
-extern crate tamer;
+extern crate tamer_core;
 extern crate test;
 
-use tamer::iter::into_iter_while_ok;
+use tamer_core::iter::into_iter_while_ok;
 use test::Bencher;
 
 mod trip {

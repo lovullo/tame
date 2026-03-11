@@ -178,7 +178,7 @@ where
 ///     ownership.
 ///
 /// ```
-/// use tamer::iter::with_iter_while_ok;
+/// use tamer_core::iter::with_iter_while_ok;
 ///
 /// let mut values = [Ok(0), Err("trip"), Ok(1)].into_iter();
 ///
@@ -226,7 +226,7 @@ where
 ///     see that function for more information.
 ///
 /// ```
-/// use tamer::iter::into_iter_while_ok;
+/// use tamer_core::iter::into_iter_while_ok;
 ///
 /// let values = [Ok(0), Err("trip"), Ok(1)];
 ///

@@ -27,7 +27,7 @@
 //! `tamec` compiles source code into object files that are later linked
 //!   into a final executable using [`tameld`](../tameld).
 
-extern crate tamer;
+extern crate tamer_core;
 
 use getopts::{Fail, Options};
 use std::{
@@ -39,8 +39,8 @@ use std::{
     io::{self, BufReader, BufWriter},
     path::Path,
 };
-use tamer::{
-    asg::DefaultAsg,
+use tamer_core::{
+    asg::{self, DefaultAsg},
     diagnose::{
         AnnotatedSpan, Diagnostic, FsSpanResolver, Reporter, VisualReporter,
     },
@@ -92,7 +92,7 @@ fn src_reader<'a>(
     input: &'a String,
     escaper: &'a DefaultEscaper,
 ) -> Result<XmlXirReader<'a, BufReader<File>>, UnrecoverableError> {
-    use tamer::fs::{File, PathFile};
+    use tamer_core::fs::{File, PathFile};
 
     let source = Path::new(input);
 
@@ -111,7 +111,7 @@ fn src_reader<'a>(
 fn copy_xml_to<'e, W: io::Write + 'e>(
     mut fout: Option<W>,
     escaper: &'e DefaultEscaper,
-) -> impl FnMut(&Result<tamer::xir::Token, tamer::xir::Error>) + 'e {
+) -> impl FnMut(&Result<xir::Token, xir::Error>) + 'e {
     let mut xmlwriter = Default::default();
 
     move |tok_result| match (fout.as_mut(), tok_result) {
@@ -201,11 +201,11 @@ fn compile<R: Reporter>(
 ///     but will look different;
 ///       TAMER reasons about the system using a different paradigm.
 fn derive_xmli(
-    asg: tamer::asg::Asg,
+    asg: asg::Asg,
     mut fout: impl std::io::Write,
     escaper: &DefaultEscaper,
 ) -> Result<(), UnrecoverableError> {
-    use tamer::{
+    use tamer_core::{
         asg::visit::tree_reconstruction, pipeline, xir::writer::WriterState,
     };
 
@@ -325,7 +325,7 @@ diagnostic_error_sum! {
     ///
     /// These are errors that will result in aborting execution and exiting with
     ///   a non-zero status.
-    /// Contrast this with recoverable errors in [`tamer::pipeline`],
+    /// Contrast this with recoverable errors in [`tamer_core::pipeline`],
     ///   which is reported real-time to the user and _does not_ cause the
     ///   program to abort until the end of the compilation unit.
     ///

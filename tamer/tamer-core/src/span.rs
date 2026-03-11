@@ -37,8 +37,8 @@
 //!     [`OsStr`](std::ffi::OsStr).
 //!
 //! ```
-//! use tamer::span::{Span, Context};
-//! use tamer::sym::GlobalSymbolIntern;
+//! use tamer_core::span::{Span, Context};
+//! use tamer_core::sym::GlobalSymbolIntern;
 //!
 //! // From raw parts
 //! let ctx: Context = "some/path/foo".intern().into();
@@ -80,8 +80,8 @@
 //!     as shown in the example below.
 //!
 //! ```
-//! # use tamer::span::{Span, Context};
-//! # use tamer::sym::GlobalSymbolIntern;
+//! # use tamer_core::span::{Span, Context};
+//! # use tamer_core::sym::GlobalSymbolIntern;
 //! #
 //! # let ctx: Context = "some/path/foo".intern().into();
 //! #
@@ -340,8 +340,8 @@ impl Span {
     ///   represented by [`SpanOffsetSize`].
     ///
     /// ```
-    /// # use tamer::span::{Span, Context};
-    /// # use tamer::sym::GlobalSymbolIntern;
+    /// # use tamer_core::span::{Span, Context};
+    /// # use tamer_core::sym::GlobalSymbolIntern;
     /// #
     /// # let ctx: Context = "some/path/foo".intern().into();
     /// #

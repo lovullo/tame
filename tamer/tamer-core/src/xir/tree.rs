@@ -27,8 +27,8 @@
 //!   [`parser_from`] or [`parse`][parse()].
 //!
 //! ```
-//! use tamer::xir::tree::{Stack, parse, parser_from};
-//!# use tamer::xir::Token;
+//! use tamer_core::xir::tree::{Stack, parse, parser_from};
+//!# use tamer_core::xir::Token;
 //!
 //!# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 //! // Lazily parse a stream of XIR tokens as an iterator, yielding the next
@@ -732,8 +732,8 @@ impl Diagnostic for StackError {
 ///   iterator it scans returns [`None`].
 ///
 /// ```
-/// use tamer::xir::tree::{Stack, parse};
-///# use tamer::xir::Token;
+/// use tamer_core::xir::tree::{Stack, parse};
+///# use tamer_core::xir::Token;
 ///
 ///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // The above is equivalent to:
@@ -761,8 +761,8 @@ pub fn parse(
 ///   see the [module-level documentation](self).
 ///
 /// ```
-/// use tamer::xir::tree::parser_from;
-///# use tamer::xir::Token;
+/// use tamer_core::xir::tree::parser_from;
+///# use tamer_core::xir::Token;
 ///
 ///# let token_stream: std::vec::IntoIter<Token> = vec![].into_iter();
 /// // Lazily parse a stream of XIR tokens as an iterator.

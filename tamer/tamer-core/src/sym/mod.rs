@@ -45,7 +45,7 @@
 //! [arena]: bumpalo
 //!
 //! ```
-//! use tamer::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
+//! use tamer_core::sym::{GlobalSymbolIntern, GlobalSymbolResolve, SymbolId};
 //!
 //! // Interns are represented by `SymbolId`.
 //! let foo: SymbolId = "foo".intern();

@@ -23,11 +23,11 @@
 
 #![feature(test)]
 
-extern crate tamer;
+extern crate tamer_core;
 extern crate test;
 
 use std::rc::Rc;
-use tamer::sym::*;
+use tamer_core::sym::*;
 use test::Bencher;
 
 fn gen_strs(n: usize) -> Vec<String> {
@@ -285,7 +285,7 @@ mod interner {
     // Note that these tests don't drop the global interner in-between.
     mod global {
         use super::*;
-        use tamer::sym::GlobalSymbolIntern;
+        use tamer_core::sym::GlobalSymbolIntern;
 
         #[bench]
         fn with_all_new_1000(bench: &mut Bencher) {

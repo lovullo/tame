@@ -33,7 +33,7 @@ SHELL = /bin/bash -o pipefail
 CARGO_BUILD_FLAGS=@CARGO_BUILD_FLAGS@
 RUSTFLAGS=@RUSTFLAGS@
 
-ontviz_svg := target/doc/tamer/asg/ontviz.svg
+ontviz_svg := target/doc/tamer_core/asg/ontviz.svg
 
 .DEFAULT: bin
 

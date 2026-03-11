@@ -71,7 +71,7 @@
 //!   one of which is reproduced here:
 //!
 //! ```
-//! use tamer::iter::TrippableIterator;
+//! use tamer_core::iter::TrippableIterator;
 //!
 //! let mut values = [Ok(0), Err("trip"), Ok(1)].into_iter();
 //!
@@ -176,9 +176,9 @@
 //! This effectively defines a basic schema.
 //!
 //! ```
-//! use tamer::iter::{TryCollect, TryFromIterator};
-//! use tamer::sym::{GlobalSymbolIntern, SymbolId};
-//! use tamer::sym::st::raw::{L_NAME, L_VALUE};
+//! use tamer_core::iter::{TryCollect, TryFromIterator};
+//! use tamer_core::sym::{GlobalSymbolIntern, SymbolId};
+//! use tamer_core::sym::st::raw::{L_NAME, L_VALUE};
 //!
 //! struct Attr(SymbolId, SymbolId);
 //!
@@ -245,7 +245,7 @@
 //!   provides:
 //!
 //! ```
-//! use tamer::iter::TryCollect;
+//! use tamer_core::iter::TryCollect;
 //!
 //! // Wraps `Iterator::collect`.
 //! assert_eq!(

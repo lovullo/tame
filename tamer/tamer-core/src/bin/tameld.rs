@@ -22,13 +22,13 @@
 //! produce a final executable.
 //!
 //! For more information about the linker,
-//!   see the [`tamer::ld`] module.
+//!   see the [`tamer_core::ld`] module.
 
-extern crate tamer;
+extern crate tamer_core;
 
 use getopts::{Fail, Options};
 use std::env;
-use tamer::{
+use tamer_core::{
     diagnose::{FsSpanResolver, Reporter, VisualReporter},
     ld::poc::{self, TameldError},
 };

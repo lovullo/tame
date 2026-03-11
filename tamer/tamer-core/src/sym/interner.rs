@@ -33,7 +33,7 @@
 //!     as documented in the [parent module](super).
 //!
 //! ```
-//! use tamer::sym::{DefaultProgInterner, Interner, SymbolId};
+//! use tamer_core::sym::{DefaultProgInterner, Interner, SymbolId};
 //!
 //! // Inputs to be interned
 //! let a = "foo";

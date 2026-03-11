@@ -1,10 +1,6 @@
-[package]
-name = "tamer"
-version = "0.0.0"
-authors = ["Mike Gerwitz <mike.gerwitz@ryansg.com>"]
-description="TAME in Rust"
-license="GPLv3+"
-edition = "2024"
+[workspace]
+resolver = "3"
+members = ["tamer-core"]
 
 [profile.dev]
 # Release-level optimizations.  Spending the extra couple of moments
@@ -22,34 +18,4 @@ lto = true
 # in a release.
 lto = true
 
-[dependencies]
-arrayvec = ">= 0.7.1"
-bumpalo = ">= 2.6.0"
-exitcode = "1.1.2"
-fixedbitset = ">= 0.4.1"  # also used by petgraph
-fxhash = ">= 0.2.1"
-getopts = "0.2"
-memchr = ">= 2.3.4"  # quick-xml expects =2.3.4 at the time
-paste = ">= 1.0.5"
-petgraph = "0.6.0"
-quick-xml = ">= 0.23.0-alpha3"
-static_assertions = ">= 1.1.0"
-unicode-width = "0.1.5"
-
-# Feature flags can be specified using `./configure FEATURES=foo,bar,baz`.
-#
-# Flags beginning with "wip-" are short-lived flags that exist only during
-# development of a particular feature; you should not hard-code them
-# anywhere, since the build will break once they are removed.  Enabling WIP
-# flags should also be expected to cause undesirable behavior in some form
-# or another.  Once WIP features are finalized, they are enabled by default
-# and the flag removed.
-[features]
-
-# Cause `Parser` to emit a verbose, human-readable trace to stderr for every
-# token.  This is not intended to be machine-readable, so please do not
-# parse it.
-#
-# This is enabled automatically for the `test` profile.
-parser-trace-stderr = []
 
