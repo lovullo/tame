@@ -355,7 +355,6 @@ macro_rules! ele_parse {
                 NodeNtState::Expecting(NtExpectKind::Preemptable)
             }
 
-            #[allow(dead_code)] // not utilized for every NT
             fn non_preemptable() -> Self::ParseState {
                 NodeNtState::Expecting(NtExpectKind::NonPreemptable)
             }
@@ -367,12 +366,10 @@ macro_rules! ele_parse {
                     .then_some(Self::preemptable().into())
             }
 
-            #[allow(dead_code)] // used by Sum NTs
             fn matches_n() -> usize {
                 1
             }
 
-            #[allow(dead_code)] // used by Sum NTs
             fn fmt_matches(
                 n: usize,
                 i: &mut usize,
@@ -783,7 +780,6 @@ macro_rules! ele_parse {
                 }
             }
 
-            #[allow(dead_code)] // TODO: Remove when using for tpl apply
             fn can_preempt_node(&self) -> bool {
                 match self {
                     $(
@@ -793,7 +789,6 @@ macro_rules! ele_parse {
             }
 
             /// Force current state into a non-preemptable expecting state.
-            #[allow(dead_code)]  // Only used with sum NTs
             fn expect_non_preemptable(self) -> Self {
                 match self {
                     $(

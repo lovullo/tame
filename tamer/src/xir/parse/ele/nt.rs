@@ -51,7 +51,6 @@ where
     fn preemptable() -> Self::ParseState;
 
     /// A default state that cannot be preempted by [`Self::NtSuper`].
-    #[allow(dead_code)] // not utilized for every NT
     fn non_preemptable() -> Self::ParseState;
 
     /// Whether the given QName would be matched by any of the

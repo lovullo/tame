@@ -238,7 +238,6 @@ where
     fn parse_token(
         self,
         tok: Self::Token,
-        #[allow(unused_variables)] // used only if child NTs
         stack: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
         use NodeNtState::{

@@ -84,7 +84,6 @@ pub trait SuperState:
     ///   performing error recovery in such a way as to ignore all child
     ///   tokens,
     ///     then we would emit an object in an incorrect context.
-    #[allow(dead_code)] // TODO: Remove when using for tpl apply
     fn can_preempt_node(&self) -> bool;
 
     /// Force current state into a non-preemptable expecting state.
