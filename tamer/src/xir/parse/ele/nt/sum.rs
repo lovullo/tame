@@ -17,15 +17,15 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Nt, NtExpectKind};
+use super::{Nt, NtExpectKind, NtMeta};
 
 use crate::{
     fmt::{DisplayFn, TtQuote},
     parse::prelude::*,
     span::Span,
     xir::{
-        EleSpan, OpenSpan, QName,
-        flat::{Depth, RefinedText, XirfToken},
+        EleSpan, QName,
+        flat::{RefinedText, XirfToken},
         parse::{SuperState, SuperStateContext},
     },
 };
@@ -54,7 +54,7 @@ pub enum SumNtState<NT: SumNt> {
 
     /// Recovery state ignoring all remaining tokens for this
     ///   element.
-    RecoverEleIgnore(QName, OpenSpan, Depth, PhantomData<NT>),
+    RecoverEleIgnore(NtMeta, PhantomData<NT>),
 }
 
 impl<NT: SumNt> SumNtState<NT> {
@@ -84,7 +84,7 @@ impl<NT: SumNt> Display for SumNtState<NT> {
                 NT::fmt_matches_top(f)
             }
 
-            RecoverEleIgnore(name, _, _, _) => {
+            RecoverEleIgnore(NtMeta(name, _, _), _) => {
                 write!(
                     f,
                     "attempting to recover by ignoring element \
@@ -142,9 +142,7 @@ where
                         //   we're expected to be able to process this token
                         //   or fail trying.
                         Transition(RecoverEleIgnore(
-                            qname,
-                            span,
-                            depth,
+                            NtMeta(qname, span, depth),
                             Default::default(),
                         ))
                         .err(
@@ -191,7 +189,7 @@ where
             // XIRF ensures that the closing tag matches the opening,
             //   so we need only check depth.
             (
-                RecoverEleIgnore(_, _, depth_open, _),
+                RecoverEleIgnore(NtMeta(_, _, depth_open), _),
                 XirfToken::Close(_, _, depth_close),
             ) if depth_open == depth_close => {
                 Transition(Expecting(Preemptable)).incomplete()

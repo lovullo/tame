@@ -27,7 +27,7 @@ use crate::{
     xir::{
         CloseSpan, EleSpan, OpenSpan, Prefix, QName,
         attr::{Attr, AttrSpan},
-        flat::{Depth, RefinedText, XirfToken},
+        flat::{RefinedText, XirfToken},
         parse::{
             AttrParseError, AttrParseState, SuperState, SuperStateContext,
             parse_attrs,
@@ -86,11 +86,11 @@ pub enum NodeNtState<NT: NodeNt> {
 
     /// Recovery state ignoring all remaining tokens for this
     ///   element.
-    RecoverEleIgnore(QName, OpenSpan, Depth),
+    RecoverEleIgnore(NtMeta),
 
     // Recovery completed because end tag corresponding to the
     //   invalid element has been found.
-    RecoverEleIgnoreClosed(QName, CloseSpan),
+    RecoverEleIgnoreClosed(NtMeta, CloseSpan),
 
     /// Recovery state ignoring all tokens when a `Close` is
     ///   expected.
@@ -99,17 +99,17 @@ pub enum NodeNtState<NT: NodeNt> {
     ///   may be a child element,
     ///     but it may be text,
     ///     for example.
-    CloseRecoverIgnore((QName, OpenSpan, Depth), Span),
+    CloseRecoverIgnore(NtMeta, Span),
 
     /// Parsing element attributes.
-    Attrs((QName, OpenSpan, Depth), NT::AttrState),
+    Attrs(NtMeta, NT::AttrState),
 
     /// Preparing to pass control (jump) to a child NT's parser.
     Jmp(NT::ChildNt),
 
     /// Expecting a closing tag for this element,
     ///   or another child element matching the last [`NodeNt::ChildNt`].
-    ExpectCloseOrLast((QName, OpenSpan, Depth)),
+    ExpectCloseOrLast(NtMeta),
 
     /// Closing tag found and parsing of the element is
     ///   complete.
@@ -176,17 +176,17 @@ impl<NT: NodeNt> Display for NodeNtState<NT> {
                 "expecting {preempt} opening tag {}",
                 TtOpenXmlEle::wrap(NT::matcher()),
             ),
-            RecoverEleIgnore(name, _, _) | RecoverEleIgnoreClosed(name, _) => {
+            RecoverEleIgnore(meta) | RecoverEleIgnoreClosed(meta, _) => {
                 write!(
                     f,
                     "attempting to recover by ignoring element \
                         with unexpected name {given} \
                         (expected {expected})",
-                    given = TtQuote::wrap(name),
+                    given = TtQuote::wrap(meta.qname()),
                     expected = TtQuote::wrap(NT::matcher()),
                 )
             }
-            CloseRecoverIgnore((qname, _, depth), _) => write!(
+            CloseRecoverIgnore(NtMeta(qname, _, depth), _) => write!(
                 f,
                 "attempting to recover by ignoring input \
                     until the expected end tag {expected} \
@@ -255,7 +255,7 @@ where
                     NT::try_open_from(qname, span)
                         .map(ParseStatus::Object)
                         .transition(Attrs(
-                            (qname, span, depth),
+                            NtMeta(qname, span, depth),
                             parse_attrs(qname, span),
                         ))
                 } else if st.can_preempt_node() || matches!(st, Closed(..)) {
@@ -264,17 +264,19 @@ where
                 } else {
                     // We must do something with this token,
                     //   so the only option is to enter recovery.
-                    Transition(RecoverEleIgnore(qname, span, depth)).err(
-                        Self::Error::UnexpectedEle(qname, span.name_span()),
-                    )
+                    Transition(RecoverEleIgnore(NtMeta(qname, span, depth)))
+                        .err(Self::Error::UnexpectedEle(
+                            qname,
+                            span.name_span(),
+                        ))
                 }
             }
 
             (
-                RecoverEleIgnore(qname, _, depth_open),
+                RecoverEleIgnore(meta @ NtMeta(_, _, depth_open)),
                 XirfToken::Close(_, span, depth_close),
             ) if depth_open == depth_close => {
-                Transition(RecoverEleIgnoreClosed(qname, span)).incomplete()
+                Transition(RecoverEleIgnoreClosed(meta, span)).incomplete()
             }
 
             (Attrs(meta, sa), tok) => {
@@ -343,7 +345,7 @@ where
             //       expected in the last NT rather than just
             //       telling them a closing tag was expected.
             (
-                st @ ExpectCloseOrLast(meta @ (mqname, mspan, _)),
+                st @ ExpectCloseOrLast(meta @ NtMeta(mqname, mspan, _)),
                 tok @ XirfToken::Open(..),
             ) => {
                 if let Some(child_nt) = <NT as NodeNt>::ChildNt::last_nt(meta) {
@@ -367,8 +369,8 @@ where
             // XIRF ensures proper nesting,
             //   so we do not need to check the element name.
             (
-                ExpectCloseOrLast((qname, _, depth))
-                | CloseRecoverIgnore((qname, _, depth), _),
+                ExpectCloseOrLast(NtMeta(qname, _, depth))
+                | CloseRecoverIgnore(NtMeta(qname, _, depth), _),
                 XirfToken::Close(_, span, tok_depth),
             ) if tok_depth == depth => {
                 if let Some(close) = NT::try_close_from(qname, span) {
@@ -379,11 +381,11 @@ where
                 .transition(Closed(Some(qname), span.tag_span()))
             }
 
-            (ExpectCloseOrLast(meta @ (qname, otspan, _)), unexpected_tok) => {
-                Transition(CloseRecoverIgnore(meta, unexpected_tok.span())).err(
-                    Self::Error::CloseExpected(qname, otspan, unexpected_tok),
-                )
-            }
+            (
+                ExpectCloseOrLast(meta @ NtMeta(qname, otspan, _)),
+                unexpected_tok,
+            ) => Transition(CloseRecoverIgnore(meta, unexpected_tok.span()))
+                .err(Self::Error::CloseExpected(qname, otspan, unexpected_tok)),
 
             // We're still in recovery,
             //   so this token gets thrown out.

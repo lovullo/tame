@@ -145,4 +145,23 @@ impl Display for NtExpectKind {
 /// This is used primarily to match on an associated closing token at the
 ///   appropriate depth
 ///     and to provide diagnostic information.
-pub type NtMeta = (QName, OpenSpan, Depth);
+///
+/// Note on [`Copy`]
+/// ================
+/// Each of these values are relatively small,
+///   and if we need to pass it around,
+///   we will always reconstruct it to get around the borrow checker;
+///     let's just keep things simple.
+/// In some cases,
+///   the borrow checker doesn't realize that only one branch is taken and
+///   that a copy won't occur,
+///     but this has been improving as Rust evolves!
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct NtMeta(QName, OpenSpan, Depth);
+
+impl NtMeta {
+    pub fn qname(&self) -> QName {
+        let NtMeta(name, _, _) = self;
+        *name
+    }
+}
