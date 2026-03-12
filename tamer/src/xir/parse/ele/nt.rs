@@ -157,11 +157,8 @@ impl Display for NtExpectKind {
 ///   that a copy won't occur,
 ///     but this has been improving as Rust evolves!
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct NtMeta(QName, OpenSpan, Depth);
-
-impl NtMeta {
-    pub fn qname(&self) -> QName {
-        let NtMeta(name, _, _) = self;
-        *name
-    }
+pub struct NtMeta {
+    qname: QName,
+    ospan: OpenSpan,
+    depth: Depth,
 }

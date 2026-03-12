@@ -182,11 +182,11 @@ impl<NT: NodeNt> Display for NodeNtState<NT> {
                     "attempting to recover by ignoring element \
                         with unexpected name {given} \
                         (expected {expected})",
-                    given = TtQuote::wrap(meta.qname()),
+                    given = TtQuote::wrap(meta.qname),
                     expected = TtQuote::wrap(NT::matcher()),
                 )
             }
-            CloseRecoverIgnore(NtMeta(qname, _, depth), _) => write!(
+            CloseRecoverIgnore(NtMeta { qname, depth, .. }, _) => write!(
                 f,
                 "attempting to recover by ignoring input \
                     until the expected end tag {expected} \
@@ -249,14 +249,18 @@ where
         match (self, tok) {
             (
                 st @ (Expecting(..) | Closed(..)),
-                tok @ XirfToken::Open(qname, span, depth),
+                tok @ XirfToken::Open(qname, ospan, depth),
             ) => {
                 if NT::matches(qname).is_some() {
-                    NT::try_open_from(qname, span)
+                    NT::try_open_from(qname, ospan)
                         .map(ParseStatus::Object)
                         .transition(Attrs(
-                            NtMeta(qname, span, depth),
-                            parse_attrs(qname, span),
+                            NtMeta {
+                                qname,
+                                ospan,
+                                depth,
+                            },
+                            parse_attrs(qname, ospan),
                         ))
                 } else if st.can_preempt_node() || matches!(st, Closed(..)) {
                     // Maybe someone else can handle this for us
@@ -264,16 +268,21 @@ where
                 } else {
                     // We must do something with this token,
                     //   so the only option is to enter recovery.
-                    Transition(RecoverEleIgnore(NtMeta(qname, span, depth)))
-                        .err(Self::Error::UnexpectedEle(
-                            qname,
-                            span.name_span(),
-                        ))
+                    Transition(RecoverEleIgnore(NtMeta {
+                        qname,
+                        ospan,
+                        depth,
+                    }))
+                    .err(Self::Error::UnexpectedEle(qname, ospan.name_span()))
                 }
             }
 
             (
-                RecoverEleIgnore(meta @ NtMeta(_, _, depth_open)),
+                RecoverEleIgnore(
+                    meta @ NtMeta {
+                        depth: depth_open, ..
+                    },
+                ),
                 XirfToken::Close(_, span, depth_close),
             ) if depth_open == depth_close => {
                 Transition(RecoverEleIgnoreClosed(meta, span)).incomplete()
@@ -344,10 +353,7 @@ where
             //       which will tell the user what elements were
             //       expected in the last NT rather than just
             //       telling them a closing tag was expected.
-            (
-                st @ ExpectCloseOrLast(meta @ NtMeta(mqname, mspan, _)),
-                tok @ XirfToken::Open(..),
-            ) => {
+            (st @ ExpectCloseOrLast(meta), tok @ XirfToken::Open(..)) => {
                 if let Some(child_nt) = <NT as NodeNt>::ChildNt::last_nt(meta) {
                     stack.transfer_with_ret(
                         Transition(st),
@@ -361,16 +367,17 @@ where
                 } else {
                     // If there are no child NTs,
                     //   then all we can do is expect a close.
-                    Transition(CloseRecoverIgnore(meta, tok.span()))
-                        .err(Self::Error::CloseExpected(mqname, mspan, tok))
+                    Transition(CloseRecoverIgnore(meta, tok.span())).err(
+                        Self::Error::CloseExpected(meta.qname, meta.ospan, tok),
+                    )
                 }
             }
 
             // XIRF ensures proper nesting,
             //   so we do not need to check the element name.
             (
-                ExpectCloseOrLast(NtMeta(qname, _, depth))
-                | CloseRecoverIgnore(NtMeta(qname, _, depth), _),
+                ExpectCloseOrLast(NtMeta { qname, depth, .. })
+                | CloseRecoverIgnore(NtMeta { qname, depth, .. }, _),
                 XirfToken::Close(_, span, tok_depth),
             ) if tok_depth == depth => {
                 if let Some(close) = NT::try_close_from(qname, span) {
@@ -382,10 +389,10 @@ where
             }
 
             (
-                ExpectCloseOrLast(meta @ NtMeta(qname, otspan, _)),
+                ExpectCloseOrLast(meta @ NtMeta { qname, ospan, .. }),
                 unexpected_tok,
             ) => Transition(CloseRecoverIgnore(meta, unexpected_tok.span()))
-                .err(Self::Error::CloseExpected(qname, otspan, unexpected_tok)),
+                .err(Self::Error::CloseExpected(qname, ospan, unexpected_tok)),
 
             // We're still in recovery,
             //   so this token gets thrown out.

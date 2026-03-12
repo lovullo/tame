@@ -84,13 +84,13 @@ impl<NT: SumNt> Display for SumNtState<NT> {
                 NT::fmt_matches_top(f)
             }
 
-            RecoverEleIgnore(NtMeta(name, _, _), _) => {
+            RecoverEleIgnore(meta, _) => {
                 write!(
                     f,
                     "attempting to recover by ignoring element \
                     with unexpected name {given} \
                     (expected",
-                    given = TtQuote::wrap(name),
+                    given = TtQuote::wrap(meta.qname),
                 )?;
 
                 NT::fmt_matches_top(f)?;
@@ -122,7 +122,7 @@ where
         match (self, tok) {
             (
                 Expecting(NonPreemptable),
-                tok @ XirfToken::Open(qname, span, depth),
+                tok @ XirfToken::Open(qname, ospan, depth),
             ) => {
                 NT::matches(qname)
                     .map(|nt| {
@@ -142,7 +142,11 @@ where
                         //   we're expected to be able to process this token
                         //   or fail trying.
                         Transition(RecoverEleIgnore(
-                            NtMeta(qname, span, depth),
+                            NtMeta {
+                                qname,
+                                ospan,
+                                depth,
+                            },
                             Default::default(),
                         ))
                         .err(
@@ -152,7 +156,7 @@ where
                             //     not the fact that it's an element.
                             SumNtError::UnexpectedEle(
                                 qname,
-                                span.name_span(),
+                                ospan.name_span(),
                                 Default::default(),
                             ),
                         )
@@ -189,7 +193,12 @@ where
             // XIRF ensures that the closing tag matches the opening,
             //   so we need only check depth.
             (
-                RecoverEleIgnore(NtMeta(_, _, depth_open), _),
+                RecoverEleIgnore(
+                    NtMeta {
+                        depth: depth_open, ..
+                    },
+                    _,
+                ),
                 XirfToken::Close(_, _, depth_close),
             ) if depth_open == depth_close => {
                 Transition(Expecting(Preemptable)).incomplete()
