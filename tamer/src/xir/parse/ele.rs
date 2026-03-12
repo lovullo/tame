@@ -69,8 +69,8 @@ mod superst;
 // TODO: We can encapsulate further once more is extracted from the
 //   `ele_parse` macro.
 pub use nt::{
-    ChildNt, ChildNtMeta, NodeMatcher, NodeNt, NodeNtState, Nt, NtError,
-    NtExpectKind, NtParseResult, SumNt, SumNtError, SumNtState,
+    ChildNt, NodeMatcher, NodeNt, NodeNtState, Nt, NtError, NtExpectKind,
+    NtMeta, NtParseResult, SumNt, SumNtError, SumNtState,
 };
 pub use superst::{SuperState, SuperStateContext};
 
@@ -285,7 +285,7 @@ macro_rules! ele_parse {
         #[derive(Debug, PartialEq, Eq)]
         pub enum [<$nt ChildNt_>] {
             $(
-                $ntref(ChildNtMeta),
+                $ntref(NtMeta),
             )*
         }
 
@@ -320,11 +320,11 @@ macro_rules! ele_parse {
                 }
             }
 
-            fn first_nt_or_close(meta: ChildNtMeta) -> NodeNtState<Self::Nt> {
+            fn first_nt_or_close(meta: NtMeta) -> NodeNtState<Self::Nt> {
                 $ntfirst(meta).into()
             }
 
-            fn last_nt(meta: ChildNtMeta) -> Option<Self> {
+            fn last_nt(meta: NtMeta) -> Option<Self> {
                 let _ = meta; // not used if there are no child NTs
 
                 None::<Self>

@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Nt, NtExpectKind, NtParseResult};
+use super::{Nt, NtExpectKind, NtMeta, NtParseResult};
 
 use crate::{
     fmt::TtQuote,
@@ -407,9 +407,6 @@ where
     }
 }
 
-/// Metadata used to track active element for reporting and debugging.
-pub type ChildNtMeta = (QName, OpenSpan, Depth);
-
 /// Set of possible child NTs for some parent [`NodeNt`].
 pub trait ChildNt: Sized {
     type Nt: NodeNt;
@@ -430,11 +427,11 @@ pub trait ChildNt: Sized {
     /// Parser of the first child NT in the sequence.
     /// Otherwise,
     ///   [`NodeNtState::ExpectCloseOrLast`].
-    fn first_nt_or_close(meta: ChildNtMeta) -> NodeNtState<Self::Nt>;
+    fn first_nt_or_close(meta: NtMeta) -> NodeNtState<Self::Nt>;
 
     /// The final child NT in the parent's sequence,
     ///   if any.
-    fn last_nt(meta: ChildNtMeta) -> Option<Self>;
+    fn last_nt(meta: NtMeta) -> Option<Self>;
 }
 
 /// Match some type of node.

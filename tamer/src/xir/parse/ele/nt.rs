@@ -19,14 +19,15 @@
 
 use super::SuperState;
 
-use crate::{parse::prelude::*, xir::QName};
+use crate::{
+    parse::prelude::*,
+    xir::{OpenSpan, QName, flat::Depth},
+};
 
 mod node;
 mod sum;
 
-pub use node::{
-    ChildNt, ChildNtMeta, NodeMatcher, NodeNt, NodeNtState, NtError,
-};
+pub use node::{ChildNt, NodeMatcher, NodeNt, NodeNtState, NtError};
 pub use sum::{SumNt, SumNtError, SumNtState};
 
 /// A nonterminal for an [`ele_parse`](crate::ele_parse) grammar.
@@ -135,3 +136,13 @@ impl Display for NtExpectKind {
         }
     }
 }
+
+/// Metadata used to track active element.
+///
+/// After an NT is matched,
+///   data on the [`Open`](crate::xir::flat::XirfToken::Open) token is used
+///   to populate these data.
+/// This is used primarily to match on an associated closing token at the
+///   appropriate depth
+///     and to provide diagnostic information.
+pub type NtMeta = (QName, OpenSpan, Depth);
