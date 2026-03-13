@@ -17,6 +17,8 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::NtExpectKind;
+
 use crate::{
     diagnose::Diagnostic,
     parse::{StateStack, prelude::*},
@@ -86,8 +88,8 @@ pub trait SuperState:
     ///     then we would emit an object in an incorrect context.
     fn can_preempt_node(&self) -> bool;
 
-    /// Force current state into a non-preemptable expecting state.
-    fn expect_non_preemptable(self) -> Self;
+    /// Force current state into an expecting state of the indicated kind.
+    fn expect_kind(self, kind: NtExpectKind) -> Self;
 }
 
 /// [`SuperState`] [`Context`] that gets propagated to each child parser.

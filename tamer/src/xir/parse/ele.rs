@@ -315,7 +315,9 @@ macro_rules! ele_parse {
             fn as_nt_preemptable(&self) -> <Self::Nt as Nt>::NtSuper {
                 match *self {
                     $(
-                        Self::$ntref(..) => <$ntref>::preemptable().into(),
+                        Self::$ntref(..) => {
+                            <$ntref>::from_expect(NtExpectKind::Preemptable).into()
+                        },
                     )*
                 }
             }
@@ -351,19 +353,17 @@ macro_rules! ele_parse {
             type ParseState = NodeNtState<$nt>;
             type ParseError = NtError<$nt>;
 
-            fn preemptable() -> Self::ParseState {
-                NodeNtState::Expecting(NtExpectKind::Preemptable)
-            }
-
-            fn non_preemptable() -> Self::ParseState {
-                NodeNtState::Expecting(NtExpectKind::NonPreemptable)
+            fn from_expect(kind: NtExpectKind) -> Self::ParseState {
+                NodeNtState::Expecting(kind)
             }
 
             #[inline]
             fn matches(qname: QName) -> Option<Self::NtSuper> {
                 <Self as NodeNt>::matcher()
                     .matches(qname)
-                    .then_some(Self::preemptable().into())
+                    .then_some(
+                        Self::from_expect(NtExpectKind::Preemptable).into()
+                    )
             }
 
             fn matches_n() -> usize {
@@ -474,12 +474,8 @@ macro_rules! ele_parse {
             type ParseState = SumNtState<$nt>;
             type ParseError = SumNtError<$nt>;
 
-            fn preemptable() -> Self::ParseState {
-               SumNtState::Expecting(NtExpectKind::Preemptable)
-            }
-
-            fn non_preemptable() -> Self::ParseState {
-                SumNtState::Expecting(NtExpectKind::NonPreemptable)
+            fn from_expect(kind: NtExpectKind) -> Self::ParseState {
+                SumNtState::Expecting(kind)
             }
 
             fn matches(qname: QName) -> Option<Self::NtSuper> {
@@ -699,7 +695,7 @@ macro_rules! ele_parse {
                                     Transition(st),
                                     Transition(
                                         // Prevent recursing on this token.
-                                        $pre_nt::non_preemptable()
+                                        $pre_nt::from_expect(NtExpectKind::NonPreemptable)
                                     )
                                     .incomplete()
                                     .with_lookahead(XirfToken::Open(
@@ -788,11 +784,10 @@ macro_rules! ele_parse {
                 }
             }
 
-            /// Force current state into a non-preemptable expecting state.
-            fn expect_non_preemptable(self) -> Self {
+            fn expect_kind(self, kind: NtExpectKind) -> Self {
                 match self {
                     $(
-                        Self::$nt(_) => $nt::non_preemptable().into(),
+                        Self::$nt(_) => $nt::from_expect(kind).into(),
                     )*
                 }
             }
@@ -800,7 +795,7 @@ macro_rules! ele_parse {
     }};
 
     (@!ntfirst_init $super:ident, $ntfirst:ident $($nt:ident)*) => {
-        $ntfirst::non_preemptable().into()
+        $ntfirst::from_expect(NtExpectKind::NonPreemptable).into()
     }
 }
 

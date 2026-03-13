@@ -430,7 +430,8 @@ pub trait ChildNt: Sized {
     /// Parser of current child,
     ///   not able to be preempted and must handle next token of input.
     fn as_nt_non_preemptable(&self) -> <Self::Nt as Nt>::NtSuper {
-        self.as_nt_preemptable().expect_non_preemptable()
+        self.as_nt_preemptable()
+            .expect_kind(NtExpectKind::NonPreemptable)
     }
 
     /// Parser of the first child NT in the sequence.

@@ -48,11 +48,8 @@ where
     /// Errors emitted by [`Self::ParseState`].
     type ParseError: Diagnostic + Debug + PartialEq;
 
-    /// A default state that can be preempted by [`Self::NtSuper`].
-    fn preemptable() -> Self::ParseState;
-
-    /// A default state that cannot be preempted by [`Self::NtSuper`].
-    fn non_preemptable() -> Self::ParseState;
+    /// An expecting state based on the status of another expecting state.
+    fn from_expect(kind: NtExpectKind) -> Self::ParseState;
 
     /// Whether the given QName would be matched by any of the
     ///   NT parsers associated with this type.

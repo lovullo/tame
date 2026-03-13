@@ -132,7 +132,7 @@ where
                             //   otherwise we'll provide a lookback of
                             //   the original token and end up recursing
                             //   until we hit the `stack` limit.
-                            Transition(nt.expect_non_preemptable())
+                            Transition(nt.expect_kind(NonPreemptable))
                                 .incomplete()
                                 .with_lookahead(tok),
                         )
