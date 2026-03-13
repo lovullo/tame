@@ -505,11 +505,7 @@ macro_rules! ele_parse {
             }
         }
 
-        impl SumNt for $nt {
-            fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
-            }
-        }
+        impl SumNt for $nt {}
 
         impl std::fmt::Display for $nt {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

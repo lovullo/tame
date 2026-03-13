@@ -34,7 +34,10 @@ use std::{fmt::Display, marker::PhantomData};
 
 /// Sum nonterminal.
 pub trait SumNt: Nt {
-    fn fmt_matches_top(f: &mut std::fmt::Formatter) -> std::fmt::Result;
+    /// Format all constituent matchers for display.
+    fn fmt_matches_all(f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        Self::fmt_matches(Self::matches_n().saturating_sub(1), &mut 0, f)
+    }
 }
 
 /// States for sum nonterminals.
@@ -81,7 +84,7 @@ impl<NT: SumNt> Display for SumNtState<NT> {
         match self {
             Expecting(preempt) => {
                 write!(f, "expecting {preempt} ")?;
-                NT::fmt_matches_top(f)
+                NT::fmt_matches_all(f)
             }
 
             RecoverEleIgnore(meta, _) => {
@@ -93,7 +96,7 @@ impl<NT: SumNt> Display for SumNtState<NT> {
                     given = TtQuote::wrap(meta.qname),
                 )?;
 
-                NT::fmt_matches_top(f)?;
+                NT::fmt_matches_all(f)?;
                 f.write_str(")")
             }
         }
@@ -253,7 +256,7 @@ impl<NT: SumNt> Diagnostic for SumNtError<NT> {
                 ))
                 .with_help(format!(
                     "expecting {}",
-                    DisplayFn(NT::fmt_matches_top)
+                    DisplayFn(NT::fmt_matches_all)
                 ))
                 .into(),
         }
