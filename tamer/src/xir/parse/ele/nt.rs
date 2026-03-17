@@ -99,7 +99,7 @@ pub type NtParseResult<NT> = Result<
 >;
 
 /// Preemption status of the next expected node.
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum NtExpectKind {
     /// Another NT's parser can preempt our own,
     ///   taking a token from us.
@@ -114,13 +114,19 @@ pub enum NtExpectKind {
     ///   otherwise it must produce an error and initiate recovery.
     /// No other parser is permitted to preempt.
     NonPreemptable,
+
+    /// This NT has preempted parsing.
+    /// It acts similar to a [`Self::NonPreemptable`].
+    PreemptedParsing,
 }
 
 impl NtExpectKind {
+    /// Whether parsing can be preempted while waiting for a token.
     fn can_preempt_node(&self) -> bool {
         match self {
             Self::Preemptable => true,
             Self::NonPreemptable => false,
+            Self::PreemptedParsing => false,
         }
     }
 }
@@ -130,6 +136,9 @@ impl Display for NtExpectKind {
         match self {
             Self::Preemptable => write!(f, "preemptable"),
             Self::NonPreemptable => write!(f, "non-preemptable"),
+            Self::PreemptedParsing => {
+                write!(f, "non-preemptable (this NT already preempted)")
+            }
         }
     }
 }
@@ -155,7 +164,39 @@ impl Display for NtExpectKind {
 ///     but this has been improving as Rust evolves!
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct NtMeta {
-    qname: QName,
-    ospan: OpenSpan,
-    depth: Depth,
+    pub qname: QName,
+    pub ospan: OpenSpan,
+    pub depth: Depth,
+
+    /// Whether the active NT is the cause of preemption.
+    pub caused_preemption: PreemptionStatus,
+}
+
+/// Whether the NT is responsible for preempting parsing.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum PreemptionStatus {
+    /// The NT preempted whatever parsing was ongoing.
+    ///
+    /// This status applies _only_ to the NT that triggered preemption;
+    ///   it does not apply to its children.
+    PreemptedParsing,
+
+    /// This NT is a valid child of its current context without any
+    ///   preemption.
+    ///
+    /// Note that this designation also applies to root nodes
+    ///   (which are children of the document).
+    NoPreemption,
+}
+
+impl From<NtExpectKind> for PreemptionStatus {
+    fn from(value: NtExpectKind) -> Self {
+        use NtExpectKind::*;
+
+        match value {
+            Preemptable => Self::NoPreemption,
+            NonPreemptable => Self::NoPreemption,
+            PreemptedParsing => Self::PreemptedParsing,
+        }
+    }
 }

@@ -58,6 +58,14 @@ pub enum SumNtState<NT: SumNt> {
     /// Recovery state ignoring all remaining tokens for this
     ///   element.
     RecoverEleIgnore(NtMeta, PhantomData<NT>),
+
+    /// Closing tag of the NT we delegated to has been found and the parsing
+    ///   of the NT is complete;
+    ///     this parser must not parse another element.
+    ///
+    /// This indicates that the parser was used in an ephemeral context for
+    ///   parsing of a single element and must yield to the prior state.
+    ClosedEphemeral,
 }
 
 impl<NT: SumNt> SumNtState<NT> {
@@ -73,6 +81,24 @@ impl<NT: SumNt> SumNtState<NT> {
             //   be parsed when they ought to be ignored,
             //     so we must process all tokens during recovery.
             RecoverEleIgnore(..) => false,
+
+            // Upon completion of an ephemeral parse,
+            //   we want to force ourselves to handle the next token so that
+            //   we can produce a dead state to trigger a stack return.
+            //
+            // To understand this,
+            //   assume that we have just completed a preemption parse,
+            //   and the superstate just encountered another preemption
+            //   token.
+            // The superstate consults this function to see if preemption is
+            //   permitted within this context.
+            // If we were to return `true`,
+            //   then every sibling preemption would continue to grow the
+            //   stack;
+            //     if there are enough siblings,
+            //       we would eventually hit the parsing stack limit and
+            //       fail.
+            ClosedEphemeral => false,
         }
     }
 }
@@ -99,6 +125,11 @@ impl<NT: SumNt> Display for SumNtState<NT> {
                 NT::fmt_matches_all(f)?;
                 f.write_str(")")
             }
+
+            ClosedEphemeral => {
+                write!(f, "done parsing single element (ephemeral) of ")?;
+                NT::fmt_matches_all(f)
+            }
         }
     }
 }
@@ -124,18 +155,23 @@ where
 
         match (self, tok) {
             (
-                Expecting(NonPreemptable),
+                Expecting(kind @ (NonPreemptable | PreemptedParsing)),
                 tok @ XirfToken::Open(qname, ospan, depth),
             ) => {
                 NT::matches(qname)
                     .map(|nt| {
                         stack.transfer_with_ret(
-                            Transition(Expecting(Preemptable)),
+                            // Preemptions trigger an ephemeral parse
+                            //   (we stop after a single match)
+                            match kind {
+                                PreemptedParsing => Transition(ClosedEphemeral),
+                                _ => Transition(Expecting(Preemptable)),
+                            },
                             // Propagate non-preemption status,
                             //   otherwise we'll provide a lookback of
                             //   the original token and end up recursing
                             //   until we hit the `stack` limit.
-                            Transition(nt.expect_kind(NonPreemptable))
+                            Transition(nt.expect_kind(kind))
                                 .incomplete()
                                 .with_lookahead(tok),
                         )
@@ -149,6 +185,7 @@ where
                                 qname,
                                 ospan,
                                 depth,
+                                caused_preemption: kind.into(),
                             },
                             Default::default(),
                         ))
@@ -175,7 +212,7 @@ where
                             //   borrow checker can't prove a single use
                             //   between this closure and below; it should
                             //   optimize away
-                            Transition(nt)
+                            Transition(nt.expect_kind(Preemptable))
                                 .incomplete()
                                 .with_lookahead(tok.clone()),
                         )
@@ -189,9 +226,15 @@ where
 
             // An unexpected token when repeating ends repetition
             //   and should not result in an error.
-            (Expecting(..), tok) => {
-                Transition(Expecting(Preemptable)).dead(tok)
-            }
+            // The explicit match of each variant is intentional to force
+            //   attention on this parser when variants change.
+            (
+                Expecting(NonPreemptable | Preemptable | PreemptedParsing),
+                tok,
+            ) => Transition(Expecting(Preemptable)).dead(tok),
+
+            // Ephemeral parses must conclude after a single element.
+            (st @ ClosedEphemeral, tok) => Transition(st).dead(tok),
 
             // XIRF ensures that the closing tag matches the opening,
             //   so we need only check depth.

@@ -32,6 +32,24 @@
 //! To force it to output on a successful test to observe the behavior of
 //!   the system,
 //!     simply force the test to panic at the end.
+//!
+//!
+//! These Are Not Unit Tests
+//! ========================
+//! These act as functional tests and examples of the DSL itself.
+//!
+//! This system evolved from a single macro;
+//!   while these did start out as unit tests,
+//!     the complexity of this system is now such that it is not feasible to
+//!     test every possible combination of behaviors.
+//!
+//! Later refactoring has begun to split up the parser into generic
+//!   components that are able to be independently unit-tested
+//!     (see [`super`]).
+//! As these tests develop,
+//!   _do not remove these tests_;
+//!     they serve as an important anchor demonstrating that this DSL works
+//!     as intended in practical ways.
 
 use std::{
     assert_matches::assert_matches, convert::Infallible, error::Error,
@@ -2614,6 +2632,111 @@ ele_parse_test! {
     },
 }
 
+// Transitioning back to the same element that was preempted even when a
+//   sibling element is available.
+ele_parse_test! {
+    name: superstate_preempt_without_sibling_transition,
+    setup: {
+        #[derive(Debug, PartialEq, Eq)]
+        pub enum Foo {
+            Root,
+            RootClose,
+            ChildA,
+            ChildAClose,
+            ChildB,
+            ChildBClose,
+            PreA,
+            PreAClose,
+        }
+
+        impl crate::parse::Object for Foo {}
+
+        const QN_ROOT: QName = QN_PACKAGE;
+        const QN_CHILDA: QName = QN_NAME;
+        const QN_CHILDB: QName = QN_DIM;
+        const QN_PRE_A: QName = QN_CLASSIFY;
+
+        ele_parse! {
+            enum Sut;
+
+            type AttrValueError = Infallible;
+            type Object = Foo;
+
+            [super] {
+                PreA
+            };
+
+            Root := QN_ROOT {
+                (Open(..)) => Foo::Root,
+
+                @ {}
+
+                // Note how `PreA` is _not_ a child here.
+                ChildA,
+                ChildB, // <-- we do not want to transition
+                //             to this too early
+
+                (Close(..)) => Foo::RootClose,
+            };
+
+            ChildA := QN_CHILDA {
+                (Open(..)) => Foo::ChildA,
+                @ {}
+                (Close(..)) => Foo::ChildAClose,
+            };
+
+            ChildB := QN_CHILDB {
+                (Open(..)) => Foo::ChildB,
+                @ {}
+                (Close(..)) => Foo::ChildBClose,
+            };
+
+            PreA := QN_PRE_A {
+                (Open(..)) => Foo::PreA,
+                @ {}
+                (Close(..)) => Foo::PreAClose,
+            };
+        }
+    },
+    test: {
+        let toks = vec![
+            XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
+              // Start with a normal parse.
+              XirfToken::Open(QN_CHILDA, OpenSpan(S3, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+              // -- we must not transition to ChildB at this point --
+
+              // We're expecting either a close or another `ChildA`.
+              // Preempt with `PreA` instead.
+              XirfToken::Open(QN_PRE_A, OpenSpan(S4, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S4), Depth(1)),
+
+              // We should once again be expecting `ChildA`.
+              XirfToken::Open(QN_CHILDA, OpenSpan(S5, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S5), Depth(1)),
+            XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+        ];
+
+        use Parsed::*;
+        assert_eq!(
+            Ok(vec![
+                Object(Foo::Root),          // [Root]  Root Open
+                  Object(Foo::ChildA),      // [ChildA]  ChildA Open
+                  Object(Foo::ChildAClose), // [ChildA]  ChildA Close
+
+                  Object(Foo::PreA),        // [PreA]    PreA Open
+                  Object(Foo::PreAClose),   // [PreA]    PreA Close
+
+                  Object(Foo::ChildA),      // [ChildA]  ChildA Open
+                  Object(Foo::ChildAClose), // [ChildA]  ChildA Close
+                Object(Foo::RootClose),     // [Root]  Root Close
+            ]),
+            Sut::parse(toks.into_iter()).collect(),
+        );
+    },
+}
+
 // Layers of preemption
 //   (e.g. nested template applications).
 ele_parse_test! {
@@ -2686,6 +2809,232 @@ ele_parse_test! {
                 Object(Foo::RootClose),         // [Root] Root Close
             ]),
             Sut::parse(toks.into_iter()).collect(),
+        );
+    },
+}
+
+// Sibling preemptions must close the previous without growing the stack.
+// This is not a concern for non-preemption scenarios because the NT state
+//   machine simply doesn't permit it.
+// The problem with preemption is that it sets aside the current state
+//   machine and does its own thing.
+// If we just completed a preemption,
+//   and we set that aside to start another,
+//   then we'll just keep growing the stack until preemption stops;
+//     if we have dozens or hundreds of preemption siblings
+//       (template applications in the language of TAME),
+//       then we eventually hit the ele_parse parser stack limit.
+//
+// Sum NTs are another special case;
+//   see `superstate_adjacent_preempt_without_stack_growth_sum`.
+ele_parse_test! {
+    name: superstate_adjacent_preempt_without_stack_growth_non_sum,
+    setup: {
+        #[derive(Debug, PartialEq, Eq)]
+        pub enum Foo {
+            Root,
+            RootClose,
+            PreA,
+            PreAClose,
+        }
+
+        impl crate::parse::Object for Foo {}
+
+        const QN_ROOT: QName = QN_PACKAGE;
+        const QN_PRE_A: QName = QN_CLASSIFY;
+
+        ele_parse! {
+            enum Sut;
+
+            type AttrValueError = Infallible;
+            type Object = Foo;
+
+            [super] {
+                PreA
+            };
+
+            Root := QN_ROOT {
+                (Open(..)) => Foo::Root,
+
+                @ {}
+
+                // We don't need any children for this test.
+
+                (Close(..)) => Foo::RootClose,
+            };
+
+            PreA := QN_PRE_A {
+                (Open(..)) => Foo::PreA,
+                @ {}
+                (Close(..)) => Foo::PreAClose,
+            };
+        }
+    },
+    test: {
+        let toks = vec![
+            XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
+              // Our first preemption:
+              XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+              // At this point we have a completed preemption parse.
+              // We are now going to preempt again,
+              //   and we expect that we _replace_ the current state,
+              //     not push it onto the stack.
+
+              XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+              // At this point we expect that the stack has _not_ grown.
+              // If this one did grow,
+              //   then _every_ sibling preemption would cause growth.
+            XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+        ];
+
+        use Parsed::*;
+
+        let mut sut = Sut::parse(toks.into_iter());
+
+        assert_eq!(Some(Ok(Object(Foo::Root))), sut.next());
+        assert_eq!(Some(Ok(Object(Foo::PreA))), sut.next());
+        assert_eq!(Some(Ok(Object(Foo::PreAClose))), sut.next());
+
+        // We are now "at this point" in the above example.
+
+        let first_preempt_size = sut.inspect_context().len();
+
+        assert_eq!(Some(Ok(Object(Foo::PreA))), sut.next());
+        assert_eq!(Some(Ok(Object(Foo::PreAClose))), sut.next());
+
+        // Since the previous preemption completed,
+        //   we need to make sure that the previous state was discarded
+        //   instead of being pushed onto the stack.
+        // Otherwise,
+        //   we'd accumulate state with each sibling preemption.
+
+        assert_eq!(
+            first_preempt_size,
+            sut.inspect_context().len(),
+            "Parser state stack length must not change"
+        );
+    },
+}
+
+// Same concept as
+//   `superstate_adjacent_preempt_without_stack_growth_non_sum`,
+//     but this time using a sum NT as the preemption NT.
+ele_parse_test! {
+    name: superstate_adjacent_preempt_without_stack_growth_sum,
+    setup: {
+        #[derive(Debug, PartialEq, Eq)]
+        pub enum Foo {
+            Root,
+            RootClose,
+            PreA,
+            PreAClose,
+        }
+
+        impl crate::parse::Object for Foo {}
+
+        const QN_ROOT: QName = QN_PACKAGE;
+        const QN_PRE_A: QName = QN_CLASSIFY;
+        const QN_PRE_B: QName = QN_RATE;
+
+        ele_parse! {
+            enum Sut;
+
+            type AttrValueError = Infallible;
+            type Object = Foo;
+
+            [super] {
+                PreAB // <-- sum NT
+            };
+
+            Root := QN_ROOT {
+                (Open(..)) => Foo::Root,
+
+                @ {}
+
+                // We don't need any children for this test.
+
+                (Close(..)) => Foo::RootClose,
+            };
+
+            PreAB := (PreA | PreB);
+
+            PreA := QN_PRE_A {
+                (Open(..)) => Foo::PreA,
+                @ {}
+                (Close(..)) => Foo::PreAClose,
+            };
+
+            PreB := QN_PRE_B {
+                (Open(..)) => Foo::PreA,
+                @ {}
+                (Close(..)) => Foo::PreAClose,
+            };
+        }
+    },
+    test: {
+        let toks = vec![
+            XirfToken::Open(QN_ROOT, OpenSpan(S2, N), Depth(0)),
+              // Our first preemption:
+              XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+              // At this point we have a completed preemption parse.
+              // We are now going to preempt again,
+              //   and we expect that we _replace_ the current state,
+              //     not push it onto the stack.
+              //
+              // This is more subtle than a node NT,
+              //   because we are working with _two_ layers that require
+              //   cleanup:
+              //     the NT that we have dispatched to as part of a choice
+              //       of NTs (the sum);
+              //     and the sum NT itself.
+              // If we discard the state of the NT that we delegated to,
+              //   but we do not discard our state,
+              //   then we grow the stack half as quickly,
+              //     but we still grow all the same.
+              // This situation is even harder to catch since it requires a
+              //   pretty large package,
+              //     usually generated.
+
+              XirfToken::Open(QN_PRE_A, OpenSpan(S3, N), Depth(1)),
+              XirfToken::Close(None, CloseSpan::empty(S3), Depth(1)),
+
+              // At this point we expect that the stack has _not_ grown.
+              // If this one did grow,
+              //   then _every_ sibling preemption would cause growth.
+            XirfToken::Close(Some(QN_ROOT), CloseSpan(S2, N), Depth(0)),
+        ];
+
+        use Parsed::*;
+
+        let mut sut = Sut::parse(toks.into_iter());
+
+        assert_eq!(Some(Ok(Object(Foo::Root))), sut.next());
+        assert_eq!(Some(Ok(Object(Foo::PreA))), sut.next());
+        assert_eq!(Some(Ok(Object(Foo::PreAClose))), sut.next());
+
+        // We are now "at this point" in the above example.
+
+        let first_preempt_size = sut.inspect_context().len();
+
+        assert_eq!(Some(Ok(Object(Foo::PreA))), sut.next());
+        assert_eq!(Some(Ok(Object(Foo::PreAClose))), sut.next());
+
+        // Since the previous preemption completed,
+        //   we need to make sure that the previous state was discarded
+        //   instead of being pushed onto the stack.
+        // Otherwise,
+        //   we'd accumulate state with each sibling preemption.
+
+        assert_eq!(
+            first_preempt_size,
+            sut.inspect_context().len(),
+            "Parser state stack length must not change"
         );
     },
 }

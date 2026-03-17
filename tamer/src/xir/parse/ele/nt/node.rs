@@ -17,7 +17,7 @@
 //  You should have received a copy of the GNU General Public License
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Nt, NtExpectKind, NtMeta, NtParseResult};
+use super::{Nt, NtExpectKind, NtMeta, NtParseResult, PreemptionStatus};
 
 use crate::{
     fmt::TtQuote,
@@ -112,8 +112,17 @@ pub enum NodeNtState<NT: NodeNt> {
     ExpectCloseOrLast(NtMeta),
 
     /// Closing tag found and parsing of the element is
-    ///   complete.
-    Closed(Option<QName>, Span),
+    ///   complete;
+    ///     the parser may resume by parsing another element.
+    ClosedResumeable(Option<QName>, Span),
+
+    /// Closing tag found and parsing of the element is
+    ///   complete;
+    ///     the parser must not parse another element.
+    ///
+    /// This indicates that the parser was used in an ephemeral context for
+    ///   parsing of a single element and must yield to the prior state.
+    ClosedEphemeral(Option<QName>, Span),
 }
 
 impl<NT: NodeNt> Default for NodeNtState<NT> {
@@ -123,6 +132,13 @@ impl<NT: NodeNt> Default for NodeNtState<NT> {
 }
 
 impl<NT: NodeNt> NodeNtState<NT> {
+    // TODO: This is also used by NodeNt to mean "I can indicate a dead
+    //         state"; need another abstraction for that.
+    /// Whether preemption is permitted in the current context.
+    ///
+    /// If preemption is _not_ permitted,
+    ///   then this NT will be provided with an opening element as if it
+    ///   were a child node.
     pub fn can_preempt_node(&self) -> bool {
         use NodeNtState::*;
 
@@ -157,10 +173,57 @@ impl<NT: NodeNt> NodeNtState<NT> {
             //   appear in this context as children.
             ExpectCloseOrLast(..) => true,
 
-            // If we're done,
-            //   we want to be able to yield a dead state so that we can
-            //   transition away from this parser.
-            RecoverEleIgnoreClosed(..) | Closed(..) => false,
+            // These closed states await new elements
+            //   and so are preemptable.
+            RecoverEleIgnoreClosed(..) | ClosedResumeable(..) => true,
+
+            // Upon completion of an ephemeral parse,
+            //   we want to force ourselves to handle the next token so that
+            //   we can produce a dead state to trigger a stack return.
+            //
+            // To understand this,
+            //   assume that we have just completed a preemption parse,
+            //   and the superstate just encountered another preemption
+            //   token.
+            // The superstate consults this function to see if preemption is
+            //   permitted within this context.
+            // If we were to return `true`,
+            //   then every sibling preemption would continue to grow the
+            //   stack;
+            //     if there are enough siblings,
+            //       we would eventually hit the parsing stack limit and
+            //       fail.
+            ClosedEphemeral(..) => false,
+        }
+    }
+
+    /// Whether the parse of the active element should be considered to have
+    ///   caused preemption of another parse.
+    ///
+    /// Children are never considered preemptions even when their immediate
+    ///   parent is responsible for preemption;
+    ///     consequently,
+    ///       a [`Self::Jmp`] state is not a preemption as it represents an
+    ///       eminent transition to a child.
+    fn caused_preemption(&self) -> PreemptionStatus {
+        use NodeNtState::*;
+
+        match self {
+            Expecting(kind) => (*kind).into(),
+
+            RecoverEleIgnore(meta)
+            | RecoverEleIgnoreClosed(meta, _)
+            | CloseRecoverIgnore(meta, _)
+            | Attrs(meta, _)
+            | ExpectCloseOrLast(meta) => meta.caused_preemption,
+
+            // We're about to transition to a child NT,
+            //   and children are never considered to be the source of
+            //   preemptions.
+            Jmp(..) => PreemptionStatus::NoPreemption,
+
+            ClosedResumeable(..) => PreemptionStatus::NoPreemption,
+            ClosedEphemeral(..) => PreemptionStatus::PreemptedParsing,
         }
     }
 }
@@ -173,7 +236,7 @@ impl<NT: NodeNt> Display for NodeNtState<NT> {
         match self {
             Expecting(preempt) => write!(
                 f,
-                "expecting {preempt} opening tag {}",
+                "expecting opening tag {}, which is {preempt}",
                 TtOpenXmlEle::wrap(NT::matcher()),
             ),
             RecoverEleIgnore(meta) | RecoverEleIgnoreClosed(meta, _) => {
@@ -211,15 +274,26 @@ impl<NT: NodeNt> Display for NodeNtState<NT> {
                         parser for next child element(s)"
                 )
             }
-            Closed(Some(qname), _) => {
-                write!(f, "done parsing element {}", TtQuote::wrap(qname),)
+            ClosedResumeable(Some(qname), _) => {
+                write!(
+                    f,
+                    "done parsing element {} (resumeable)",
+                    TtQuote::wrap(qname),
+                )
             }
             // Should only happen on an unexpected `Close`.
-            Closed(None, _) => write!(
+            ClosedResumeable(None, _) | ClosedEphemeral(None, _) => write!(
                 f,
                 "skipped parsing element {}",
                 TtQuote::wrap(NT::matcher()),
             ),
+            ClosedEphemeral(Some(qname), _) => {
+                write!(
+                    f,
+                    "done parsing single element {} (ephemeral)",
+                    TtQuote::wrap(qname),
+                )
+            }
         }
     }
 }
@@ -240,15 +314,12 @@ where
         tok: Self::Token,
         stack: &mut Self::Context,
     ) -> TransitionResult<Self::Super> {
-        use NodeNtState::{
-            Attrs, CloseRecoverIgnore, Closed, ExpectCloseOrLast, Expecting,
-            Jmp, RecoverEleIgnore, RecoverEleIgnoreClosed,
-        };
+        use NodeNtState::*;
         use NtExpectKind::*;
 
         match (self, tok) {
             (
-                st @ (Expecting(..) | Closed(..)),
+                st @ (Expecting(..) | ClosedResumeable(..)),
                 tok @ XirfToken::Open(qname, ospan, depth),
             ) => {
                 if NT::matches(qname).is_some() {
@@ -259,10 +330,13 @@ where
                                 qname,
                                 ospan,
                                 depth,
+                                caused_preemption: st.caused_preemption(),
                             },
                             parse_attrs(qname, ospan),
                         ))
-                } else if st.can_preempt_node() || matches!(st, Closed(..)) {
+                } else if st.can_preempt_node() {
+                    // TODO: Using the concept of preemption for this isn't
+                    //         appropriate; see TODO on `can_preempt_node`
                     // Maybe someone else can handle this for us
                     Transition(Expecting(Preemptable)).dead(tok)
                 } else {
@@ -272,6 +346,7 @@ where
                         qname,
                         ospan,
                         depth,
+                        caused_preemption: st.caused_preemption(),
                     }))
                     .err(Self::Error::UnexpectedEle(qname, ospan.name_span()))
                 }
@@ -376,16 +451,31 @@ where
             // XIRF ensures proper nesting,
             //   so we do not need to check the element name.
             (
-                ExpectCloseOrLast(NtMeta { qname, depth, .. })
-                | CloseRecoverIgnore(NtMeta { qname, depth, .. }, _),
+                ExpectCloseOrLast(meta) | CloseRecoverIgnore(meta, _),
                 XirfToken::Close(_, span, tok_depth),
-            ) if tok_depth == depth => {
-                if let Some(close) = NT::try_close_from(qname, span) {
-                    close.map(ParseStatus::Object)
-                } else {
-                    Ok(ParseStatus::Incomplete)
+            ) if tok_depth == meta.depth => {
+                let NtMeta {
+                    qname,
+                    caused_preemption: preempted,
+                    ..
+                } = meta;
+
+                let status =
+                    if let Some(close) = NT::try_close_from(qname, span) {
+                        close.map(ParseStatus::Object)
+                    } else {
+                        Ok(ParseStatus::Incomplete)
+                    };
+
+                match preempted {
+                    PreemptionStatus::PreemptedParsing => status.transition(
+                        ClosedEphemeral(Some(qname), span.tag_span()),
+                    ),
+
+                    PreemptionStatus::NoPreemption => status.transition(
+                        ClosedResumeable(Some(qname), span.tag_span()),
+                    ),
                 }
-                .transition(Closed(Some(qname), span.tag_span()))
             }
 
             (
@@ -400,11 +490,17 @@ where
                 Transition(st).incomplete()
             }
 
+            // Ephemeral parsers can never resume;
+            //   wait to be discarded.
+            (st @ ClosedEphemeral(..), tok) => Transition(st).dead(tok),
+
             // Note that this does not necessarily represent an
             //   accepting state
             //     (see `is_accepting`).
             (
-                st @ (Expecting(..) | Closed(..) | RecoverEleIgnoreClosed(..)),
+                st @ (Expecting(..)
+                | ClosedResumeable(..)
+                | RecoverEleIgnoreClosed(..)),
                 tok,
             ) => Transition(st).dead(tok),
         }
@@ -412,7 +508,12 @@ where
 
     fn is_accepting(&self, _: &Self::Context) -> bool {
         use NodeNtState::*;
-        matches!(*self, Closed(..) | RecoverEleIgnoreClosed(..))
+        matches!(
+            *self,
+            ClosedResumeable(..)
+                | ClosedEphemeral(..)
+                | RecoverEleIgnoreClosed(..)
+        )
     }
 }
 

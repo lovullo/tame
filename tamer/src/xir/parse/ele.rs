@@ -70,7 +70,7 @@ mod superst;
 //   `ele_parse` macro.
 pub use nt::{
     ChildNt, NodeMatcher, NodeNt, NodeNtState, Nt, NtError, NtExpectKind,
-    NtMeta, NtParseResult, SumNt, SumNtError, SumNtState,
+    NtMeta, NtParseResult, PreemptionStatus, SumNt, SumNtError, SumNtState,
 };
 pub use superst::{SuperState, SuperStateContext};
 
@@ -691,7 +691,7 @@ macro_rules! ele_parse {
                                     Transition(st),
                                     Transition(
                                         // Prevent recursing on this token.
-                                        $pre_nt::from_expect(NtExpectKind::NonPreemptable)
+                                        $pre_nt::from_expect(NtExpectKind::PreemptedParsing)
                                     )
                                     .incomplete()
                                     .with_lookahead(XirfToken::Open(

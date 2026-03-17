@@ -28,6 +28,6 @@ mod ele;
 pub use attr::{AttrParseError, AttrParseState, parse_attrs};
 pub use ele::{
     ChildNt, NodeMatcher, NodeNt, NodeNtState, Nt, NtError, NtExpectKind,
-    NtMeta, NtParseResult, SumNt, SumNtError, SumNtState, SuperState,
-    SuperStateContext,
+    NtMeta, NtParseResult, PreemptionStatus, SumNt, SumNtError, SumNtState,
+    SuperState, SuperStateContext,
 };
