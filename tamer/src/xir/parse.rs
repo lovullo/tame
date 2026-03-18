@@ -24,11 +24,10 @@
 
 mod attr;
 mod ele;
-mod error;
 
-pub use attr::{AttrParseState, parse_attrs};
+pub use attr::{AttrParseError, AttrParseState, parse_attrs};
 pub use ele::{
-    EleParseState, NodeMatcher, Nt, NtState, SumNt, SumNtState, SuperState,
-    SuperStateContext,
+    ChildNt, NodeMatcher, NodeNt, NodeNtState, Nt, NtError, NtExpectKind,
+    NtMeta, NtParseResult, PreemptionStatus, SumNt, SumNtError, SumNtState,
+    SuperState, SuperStateContext,
 };
-pub use error::{AttrParseError, NtError, SumNtError};

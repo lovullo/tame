@@ -114,7 +114,8 @@
 //!       possibly expand into anything else.
 //! What the template system does with those tokens is beyond our concern.
 //!
-//! See [`TplKw`] for template tokens that are accepted anywhere.
+//! See [`nir_parse_state::TplKw`] for template tokens that are accepted
+//!   anywhere.
 
 use super::{Nir::*, *};
 use crate::{
@@ -122,6 +123,9 @@ use crate::{
     sym::st::raw::*,
     xir::st::{prefix::*, qname::*},
 };
+
+// TODO: The name suggests this is private; what should we do here?
+pub use nir_parse_state::NirParseStateError_;
 
 ele_parse! {
     /// Parser lowering [XIR](crate::xir) into [`Nir`].
@@ -164,6 +168,7 @@ ele_parse! {
     /// Superstate
     /// ----------
     pub enum NirParseState;
+    mod nir_parse_state;
 
     type AttrValueError = NirAttrParseError;
     type Object = Nir;
@@ -172,7 +177,7 @@ ele_parse! {
     //   program;
     //     see [`NirParseState`] for more information.
     [super] {
-        [text](sym, span) => Nir::Text(SPair(sym, span)),
+        (Text(sym, span)) => Nir::Text(SPair(sym, span)),
         TplKw
     };
 
@@ -205,7 +210,9 @@ ele_parse! {
     ///
     /// The term "rater" is historical,
     ///   since TAME was designed for producing insurance rating systems.
-    RaterStmt := QN_RATER(_, ospan) {
+    RaterStmt := QN_RATER {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_XMLNS => TodoAttr,
             QN_XMLNS_C => TodoAttr,
@@ -214,7 +221,7 @@ ele_parse! {
             // TODO: Is this still needed?
             // TODO: PkgName type
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         ImportStmt,
         PkgBodyStmt,
@@ -226,7 +233,9 @@ ele_parse! {
     ///   packages.
     /// See [`PkgTypeStmt`] for more information on the distinction between
     ///   different package types.
-    PackageStmt := QN_PACKAGE(_, ospan) {
+    PackageStmt := QN_PACKAGE {
+        (Open(_, ospan)) => NirEntity::Package.open(ospan),
+
         @ {
             QN_XMLNS => literal(URI_LV_RATER),
             QN_XMLNS_C => literal(URI_LV_CALC),
@@ -248,23 +257,25 @@ ele_parse! {
 
             // TODO: Can this go away now?
             QN_NAME => TodoAttr,
-        } => NirEntity::Package.open(ospan),
-        /(cspan) => NirEntity::Package.close(cspan),
+        }
 
         ImportStmt,
         PkgBodyStmt,
+
+        (Close(_, cspan)) => NirEntity::Package.close(cspan),
     };
 
     /// Import another package's symbol table into this one.
     ///
     /// Imports allow referencing identifiers from another package and allow
     ///   for composing larger systems out of smaller components.
-    ImportStmt := QN_IMPORT(_, ospan) {
+    ImportStmt := QN_IMPORT {
+        (Open(_, ospan)) => Noop(ospan.into()),
+
         @ {
             QN_PACKAGE => Import,
             QN_EXPORT => TodoAttr,
-        } => Noop(ospan.into()),
-        //   ^ we only care about the `Ref`
+        }
     };
 
     /// A statement that is accepted within the body of a package.
@@ -304,7 +315,9 @@ ele_parse! {
     ///   that /at most one/ other package provides a definition for this
     ///   symbol and that the definition is compatible with this
     ///   declaration.
-    ExternStmt := QN_EXTERN(_, ospan) {
+    ExternStmt := QN_EXTERN {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_TYPE => TodoAttr,
@@ -312,14 +325,16 @@ ele_parse! {
             QN_DIM => TodoAttr,
             QN_PARENT => TodoAttr,
             QN_YIELDS => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Define an input parameter accepting data from an external system.
     ///
     /// Parameters are generally populated via a map,
     ///   such as [`ProgramMapStmt`].
-    ParamStmt := QN_PARAM(_, ospan) {
+    ParamStmt := QN_PARAM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_TYPE => TodoAttr,
@@ -328,7 +343,7 @@ ele_parse! {
             QN_SET => TodoAttr,
             QN_DEFAULT => TodoAttr,
             QN_SYM => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Associate static data with an identifier.
@@ -342,7 +357,9 @@ ele_parse! {
     ///   constants ought to be defined as expressions that can be evaluated
     ///   at compile-time,
     ///     and re-use that familiar syntax.
-    ConstStmt := QN_CONST(_, ospan) {
+    ConstStmt := QN_CONST {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_DESC => TodoAttr,
@@ -353,7 +370,7 @@ ele_parse! {
             QN_SYM => TodoAttr,
             // TODO: Misnomer
             QN_SET => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         ConstStmtBody,
     };
@@ -370,20 +387,24 @@ ele_parse! {
     ///
     /// TODO: The use of [`QN_SET`] is a terrible misnomer representing
     ///   dimensionality and will be changed in future versions.
-    ConstMatrixRow := QN_SET(_, ospan) {
+    ConstMatrixRow := QN_SET {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_DESC => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         ConstVectorItem,
     };
 
     /// Constant vector scalar item definition.
-    ConstVectorItem := QN_ITEM(_, ospan) {
+    ConstVectorItem := QN_ITEM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_VALUE => TodoAttr,
             QN_DESC => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Define a classification and associate it with an identifier.
@@ -391,7 +412,9 @@ ele_parse! {
     /// A classification is a logic expression yielding a boolean result
     ///   with the dimensionality matching the largest dimensionality of its
     ///   inputs.
-    ClassifyStmt := QN_CLASSIFY(_, ospan) {
+    ClassifyStmt := QN_CLASSIFY {
+        (Open(_, ospan)) => NirEntity::Classify.open(ospan),
+
         @ {
             QN_AS => BindIdent,
             QN_DESC => Desc,
@@ -399,10 +422,11 @@ ele_parse! {
             QN_YIELDS => TodoAttr,
             QN_SYM => TodoAttr,
             QN_TERMINATE => TodoAttr,
-        } => NirEntity::Classify.open(ospan),
-        /(cspan) => NirEntity::Classify.close(cspan),
+        }
 
         LogExpr,
+
+        (Close(_, cspan)) => NirEntity::Classify.close(cspan),
     };
 
     /// Define a calculation and associate it with an identifier.
@@ -412,7 +436,9 @@ ele_parse! {
     ///     the term originates from TAME's history as an insurance rating
     ///     system.
     /// This will eventually be renamed to a more general term.
-    RateStmt := QN_RATE(_, ospan) {
+    RateStmt := QN_RATE {
+        (Open(_, ospan)) => NirEntity::Rate.open(ospan),
+
         @ {
             QN_CLASS => TodoAttr,
             QN_NO => TodoAttr,
@@ -427,10 +453,11 @@ ele_parse! {
             // TODO: We'll have private-by-default later.
             //   This is a kludge.
             QN_LOCAL => TodoAttr,
-        } => NirEntity::Rate.open(ospan),
-        /(cspan) => NirEntity::Rate.close(cspan),
+        }
 
         CalcExpr,
+
+        (Close(_, cspan)) => NirEntity::Rate.close(cspan),
     };
 
     /// Define a calculation that maps a calculation to each item of a
@@ -439,7 +466,9 @@ ele_parse! {
     ///
     /// This expands into an equivalent [`RateStmt`] with a nested
     ///   [`SumExpr`] serving as the item-wise map.
-    RateEachStmt := QN_RATE_EACH(_, ospan) {
+    RateEachStmt := QN_RATE_EACH {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_CLASS => TodoAttr,
             QN_NO => TodoAttr,
@@ -448,18 +477,20 @@ ele_parse! {
             QN_YIELDS => TodoAttr,
             QN_SYM => TodoAttr,
             QN_GENSYM => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcExpr,
     };
 
     /// Define a new type that restricts the domain of data.
-    TypedefStmt := QN_TYPEDEF(_, ospan) {
+    TypedefStmt := QN_TYPEDEF {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_DESC => TodoAttr,
             QN_SYM => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         InnerTypedefStmt,
     };
@@ -471,36 +502,42 @@ ele_parse! {
     ///
     /// This is used for primitives and allows for core types to be exposed
     ///   to the user.
-    BaseTypeStmt := QN_BASE_TYPE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    BaseTypeStmt := QN_BASE_TYPE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
     };
 
     /// Define an enumerated type.
     ///
     /// Enums are types that have an explicit set of values,
     ///   each with associated constant identifiers.
-    EnumStmt := QN_ENUM(_, ospan) {
+    EnumStmt := QN_ENUM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_TYPE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         ItemEnumStmt,
     };
 
     /// Define an item of the domain of an enumerated type and associate it
     ///   with a constant identifier.
-    ItemEnumStmt := QN_ITEM(_, ospan) {
+    ItemEnumStmt := QN_ITEM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_VALUE => TodoAttr,
             QN_DESC => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Define a type whose domain is the union of the domains of multiple
     ///   other types.
-    UnionStmt := QN_UNION(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    UnionStmt := QN_UNION {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
 
         TypedefStmt,
     };
@@ -514,8 +551,9 @@ ele_parse! {
     ///
     /// This is being replaced with the `__yield__` template in `core`
     ///   (this statement predates the template system in TAME).
-    YieldStmt := QN_YIELD(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    YieldStmt := QN_YIELD {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
 
         CalcExpr,
     };
@@ -534,21 +572,25 @@ ele_parse! {
     ///   the body of a section is the same as that of [`PackageStmt`],
     ///     with the exception of imports,
     ///       which must appear outside of sections.
-    SectionStmt := QN_SECTION(_, ospan) {
+    SectionStmt := QN_SECTION {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_TITLE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         PkgBodyStmt,
     };
 
     /// Define a function and associate it with an identifier.
-    FunctionStmt := QN_FUNCTION(_, ospan) {
+    FunctionStmt := QN_FUNCTION {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_DESC => TodoAttr,
             QN_SYM => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         FunctionParamStmt,
         CalcExpr,
@@ -556,14 +598,16 @@ ele_parse! {
 
     /// Define a function parameter and associate it with an identifier that
     ///   is scoped to the function body.
-    FunctionParamStmt := QN_PARAM(_, ospan) {
+    FunctionParamStmt := QN_PARAM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_TYPE => TodoAttr,
             // _TODO: This is a misnomer.
             QN_SET => TodoAttr,
             QN_DESC => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
 
@@ -583,38 +627,47 @@ ele_parse! {
     ///
     /// The dimensionality of the expression will be automatically
     ///   determined by the dimensionality of the matches' [`@on`](QN_ON).
-    MatchExpr := QN_MATCH(_, ospan) {
+    MatchExpr := QN_MATCH {
+        (Open(_, ospan)) => NirEntity::Match.open(ospan),
+
         @ {
             QN_ON => RefSubject,
             QN_VALUE => Ref,
             QN_INDEX => TodoAttr,
             QN_ANY_OF => TodoAttr,
-        } => NirEntity::Match.open(ospan),
-        /(cspan) => NirEntity::Match.close(cspan),
+        }
 
         CalcPredExpr,
+
+        (Close(_, cspan)) => NirEntity::Match.close(cspan),
     };
 
     /// Logical disjunction (∨).
     ///
     /// This represents an expression that matches when _any_ of its inner
     ///   [`LogExpr`] expressions match.
-    AnyExpr := QN_ANY(_, ospan) {
-        @ {} => NirEntity::Any.open(ospan),
-        /(cspan) => NirEntity::Any.close(cspan),
+    AnyExpr := QN_ANY {
+        (Open(_, ospan)) => NirEntity::Any.open(ospan),
+
+        @ {}
 
         LogExpr,
+
+        (Close(_, cspan)) => NirEntity::Any.close(cspan),
     };
 
     /// Logical conjunction (∧).
     ///
     /// This represents an expression that matches when _all_ of its inner
     ///   [`LogExpr`] expressions match.
-    AllExpr := QN_ALL(_, ospan) {
-        @ {} => NirEntity::All.open(ospan),
-        /(cspan) => NirEntity::All.close(cspan),
+    AllExpr := QN_ALL {
+        (Open(_, ospan)) => NirEntity::All.open(ospan),
+
+        @ {}
 
         LogExpr,
+
+        (Close(_, cspan)) => NirEntity::All.close(cspan),
     };
 
 
@@ -670,7 +723,9 @@ ele_parse! {
     ///   identified by [`@generates`](QN_GENERATES).
     ///
     /// Summation is generated automatically by [`RateEachStmt`].
-    SumExpr := QN_C_SUM(_, ospan) {
+    SumExpr := QN_C_SUM {
+        (Open(_, ospan)) => NirEntity::Sum.open(ospan),
+
         @ {
             QN_OF => TodoAttr,
             QN_GENERATES => TodoAttr,
@@ -679,11 +734,12 @@ ele_parse! {
             QN_LABEL => TodoAttr,
             QN_SYM => TodoAttr,
             QN_DIM => TodoAttr,
-        } => NirEntity::Sum.open(ospan),
-        /(cspan) => NirEntity::Sum.close(cspan),
+        }
 
         WhenExpr,
         CalcExpr,
+
+        (Close(_, cspan)) => NirEntity::Sum.close(cspan),
     };
 
     /// Product (Π) expression.
@@ -692,7 +748,9 @@ ele_parse! {
     ///   product can also be used to produce a generator where each
     ///   iteration over `@of` yields a corresponding element in the vector
     ///   identified by [`@generates`](QN_GENERATES).
-    ProductExpr := QN_C_PRODUCT(_, ospan) {
+    ProductExpr := QN_C_PRODUCT {
+        (Open(_, ospan)) => NirEntity::Product.open(ospan),
+
         @ {
             QN_OF => TodoAttr,
             QN_GENERATES => TodoAttr,
@@ -702,11 +760,12 @@ ele_parse! {
             QN_DOT => TodoAttr,
             QN_SYM => TodoAttr,
             QN_DIM => TodoAttr,
-        } => NirEntity::Product.open(ospan),
-        /(cspan) => NirEntity::Product.close(cspan),
+        }
 
         WhenExpr,
         CalcExpr,
+
+        (Close(_, cspan)) => NirEntity::Product.close(cspan),
     };
 
     /// Quotient (÷) expression.
@@ -716,10 +775,12 @@ ele_parse! {
     ///   as only two [`CalcExpr`] expressions
     ///     (though either could be a [`QuotientExpr`] as well).
     /// TAMER will be relaxing that restriction.
-    QuotientExpr := QN_C_QUOTIENT(_, ospan) {
+    QuotientExpr := QN_C_QUOTIENT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcExpr,
     };
@@ -734,8 +795,11 @@ ele_parse! {
     ///   TAME expected only a base and an exponent
     ///     (respectively),
     ///   but TAMER will be relaxing that restriction.
-    ExptExpr := QN_C_EXPT(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ExptExpr := QN_C_EXPT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
+
         CalcExpr,
     };
 
@@ -745,12 +809,14 @@ ele_parse! {
     ///   with vectors requiring an [`@index`](QN_INDEX).
     /// Matrices require use of a nested [`IndexExpr`] qualifier to resolve
     ///   a scalar.
-    ValueOfExpr := QN_C_VALUE_OF(_, ospan) {
+    ValueOfExpr := QN_C_VALUE_OF {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_INDEX => TodoAttr,
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         IndexExpr,
         WhenExpr,
@@ -763,15 +829,20 @@ ele_parse! {
     /// Sibling [`IndexExpr`]s evaluate to nested subscripts where the
     ///   subling applies to the result of the previous index operation
     ///     such that **M**_ⱼ,ₖ_ ≡ (**M**_ⱼ_)_ₖ_.
-    IndexExpr := QN_C_INDEX(_, ospan) {
+    IndexExpr := QN_C_INDEX {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
+
         CalcExpr,
     };
 
     /// Expression yielding a constant scalar value.
-    ConstExpr := QN_C_CONST(_, ospan) {
+    ConstExpr := QN_C_CONST {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_VALUE => TodoAttr,
             // TODO: Description was historically required to avoid magic
@@ -785,29 +856,35 @@ ele_parse! {
             QN_DESC => TodoAttr,
             // _TODO: deprecate?
             QN_TYPE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         WhenExpr,
     };
 
     /// Ceiling (⌈_x_⌉) expression.
-    CeilExpr := QN_C_CEIL(_, ospan) {
+    CeilExpr := QN_C_CEIL {
+        (Open(_, ospan)) => NirEntity::Ceil.open(ospan),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => NirEntity::Ceil.open(ospan),
-        /(cspan) => NirEntity::Ceil.close(cspan),
+        }
 
         CalcExpr,
+
+        (Close(_, cspan)) => NirEntity::Ceil.close(cspan),
     };
 
     /// Floor (⌊_x_⌋) expression.
-    FloorExpr := QN_C_FLOOR(_, ospan) {
+    FloorExpr := QN_C_FLOOR {
+        (Open(_, ospan)) => NirEntity::Floor.open(ospan),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => NirEntity::Floor.open(ospan),
-        /(cspan) => NirEntity::Floor.close(cspan),
+        }
 
         CalcExpr,
+
+        (Close(_, cspan)) => NirEntity::Floor.close(cspan),
     };
 
     /// An expression that conditionally evaluates to sub-expressions
@@ -823,10 +900,12 @@ ele_parse! {
     ///   [`OtherwiseExpr`] is evaluated,
     ///     if pressent,
     ///     otherwise the value `0` is yielded.
-    CasesExpr := QN_C_CASES(_, ospan) {
+    CasesExpr := QN_C_CASES {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CaseExpr,
         OtherwiseExpr,
@@ -843,10 +922,12 @@ ele_parse! {
     /// Otherwise,
     ///   evaluation continues with the next sibling case,
     ///     if any.
-    CaseExpr := QN_C_CASE(_, ospan) {
+    CaseExpr := QN_C_CASE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         WhenExpr,
         CalcExpr,
@@ -866,10 +947,12 @@ ele_parse! {
     /// If this behavior is unclear within a given context,
     ///   then [`OtherwiseExpr`] ought to be used to make the behavior
     ///   explicit.
-    OtherwiseExpr := QN_C_OTHERWISE(_, ospan) {
+    OtherwiseExpr := QN_C_OTHERWISE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcExpr,
     };
@@ -879,8 +962,11 @@ ele_parse! {
     /// This also yields the number of rows of a matrix,
     ///   which are vectors of vectors.
     /// It is not defined for scalars.
-    LengthOfExpr := QN_C_LENGTH_OF(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    LengthOfExpr := QN_C_LENGTH_OF {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
+
         CalcExpr,
     };
 
@@ -893,8 +979,11 @@ ele_parse! {
     ///     lexically scoped to the inner [`CalcExpr`].
     /// The result of the let expression is the result of the inner
     ///   [`CalcExpr`].
-    LetExpr := QN_C_LET(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    LetExpr := QN_C_LET {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
+
         LetValues,
         CalcExpr,
     };
@@ -903,8 +992,11 @@ ele_parse! {
     ///   to be lexically scoped to the sibling [`CalcExpr`].
     ///
     /// See [`LetExpr`] for more information.
-    LetValues := QN_C_VALUES(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    LetValues := QN_C_VALUES {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
+
         LetValue,
     };
 
@@ -914,24 +1006,28 @@ ele_parse! {
     /// A value cannot observe sibling values,
     ///   but it can observe values of an ancestor [`LetExpr`] that is not
     ///   its parent.
-    LetValue := QN_C_VALUE(_, ospan) {
+    LetValue := QN_C_VALUE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_TYPE => TodoAttr,
             // Misnomer
             QN_SET => TodoAttr,
             QN_DESC => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcExpr,
     };
 
     /// An expression yielding a vector consisting of each of its child
     ///   expressions' values as respective items.
-    VectorExpr := QN_C_VECTOR(_, ospan) {
+    VectorExpr := QN_C_VECTOR {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcExpr,
     };
@@ -947,10 +1043,13 @@ ele_parse! {
     ///   body [`ValueOfExpr`] such that `α="x"` expands into
     ///   `<`[`c:arg`](QN_C_ARG)` name="α"><`[`c:value-of`](QN_C_VALUE_OF)
     ///     `name="x" /></c:arg>`.
-    ApplyExpr := QN_C_APPLY(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ApplyExpr := QN_C_APPLY {
+        (Open(_, ospan)) => Todo(ospan.into()),
 
-        [attr](attr) => TodoAttr(SPair(attr.value(), attr.span())),
+        // TODO: Allow for removing this
+        @ {}
+
+        (Attr(_, value, attrspan)) => TodoAttr(SPair(value, attrspan.span())),
 
         ApplyArg,
     };
@@ -960,10 +1059,12 @@ ele_parse! {
     /// Alternatively,
     ///   the parent element [`ApplyExpr`] may contain short-hand arguments
     ///   as attributes.
-    ApplyArg := QN_C_ARG(_, ospan) {
+    ApplyArg := QN_C_ARG {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcExpr,
     };
@@ -977,10 +1078,13 @@ ele_parse! {
     ///   arguments of the parent,
     ///     allowing for concise recursion in terms of only what has changed
     ///     in that recursive step.
-    RecurseExpr := QN_C_RECURSE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    RecurseExpr := QN_C_RECURSE {
+        (Open(_, ospan)) => Todo(ospan.into()),
 
-        [attr](attr) => TodoAttr(SPair(attr.value(), attr.span())),
+        // TODO: Allow for removing this
+        @ {}
+
+        (Attr(_, value, attrspan)) => TodoAttr(SPair(value, attrspan.span())),
 
         ApplyArg,
     };
@@ -990,18 +1094,24 @@ ele_parse! {
     ///
     /// This terminology originates from Lisp.
     /// It is equivalent to an `unshift` operation.
-    ConsExpr := QN_C_CONS(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ConsExpr := QN_C_CONS {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
+
         CalcExpr,
     };
 
     /// Retrieve the first element in a list (vector).
     ///
     /// This terminology originates from Lisp.
-    CarExpr := QN_C_CAR(_, ospan) {
+    CarExpr := QN_C_CAR {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
+
         CalcExpr,
     };
 
@@ -1010,10 +1120,13 @@ ele_parse! {
     /// This terminology originates from Lisp,
     ///   and is pronounced "could-er".
     /// It is also called "tail".
-    CdrExpr := QN_C_CDR(_, ospan) {
+    CdrExpr := QN_C_CDR {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_LABEL => TodoAttr,
-        } => Todo(ospan.into()),
+        }
+
         CalcExpr,
     };
 
@@ -1030,12 +1143,14 @@ ele_parse! {
     /// The exception is [`CaseExpr`],
     ///   which requires [`WhenExpr`] as part of its grammar to define
     ///   conditions for which case to evaluate.
-    WhenExpr := QN_C_WHEN(_, ospan) {
+    WhenExpr := QN_C_WHEN {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_INDEX => TodoAttr,
             QN_VALUE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         CalcPredExpr,
     };
@@ -1054,38 +1169,44 @@ ele_parse! {
     );
 
     /// Equality predicate (=).
-    EqCalcPredExpr := QN_C_EQ(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    EqCalcPredExpr := QN_C_EQ {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         CalcExpr,
     };
 
     /// Non-equality predicate (≠).
-    NeCalcPredExpr := QN_C_NE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    NeCalcPredExpr := QN_C_NE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         CalcExpr,
     };
 
     /// Less-than predicate (<).
-    LtCalcPredExpr := QN_C_LT(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    LtCalcPredExpr := QN_C_LT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         CalcExpr,
     };
 
     /// Greater-than predicate (>).
-    GtCalcPredExpr := QN_C_GT(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    GtCalcPredExpr := QN_C_GT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         CalcExpr,
     };
 
     /// Less-than or equality predicate (≤).
-    LteCalcPredExpr := QN_C_LTE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    LteCalcPredExpr := QN_C_LTE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         CalcExpr,
     };
 
     /// Greater-than or equality predicate (≥).
-    GteCalcPredExpr := QN_C_GTE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    GteCalcPredExpr := QN_C_GTE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         CalcExpr,
     };
 
@@ -1107,12 +1228,14 @@ ele_parse! {
     /// The mapping occurs between the bucket and TAME params.
     ///
     /// This will be generalized in the future.
-    ProgramMapStmt := QN_PROGRAM_MAP(_, ospan) {
+    ProgramMapStmt := QN_PROGRAM_MAP {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_XMLNS => TodoAttr,
             QN_XMLNS_LV => TodoAttr,
             QN_SRC => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         MapPkgImportStmt,
         MapImportStmt,
@@ -1126,11 +1249,13 @@ ele_parse! {
     ///   the caller.
     /// This is also the only place where TAME is able to produce dynamic
     ///   string values.
-    ReturnMapStmt := QN_RETURN_MAP(_, ospan) {
+    ReturnMapStmt := QN_RETURN_MAP {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_XMLNS => TodoAttr,
             QN_XMLNS_LV => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         MapPkgImportStmt,
         MapImportStmt,
@@ -1142,11 +1267,13 @@ ele_parse! {
     /// This is only necessary because of [`MapImportStmt`];
     ///   both that and [`MapPkgImportStmt`] will be removed in the future
     ///   in favor of [`ImportStmt`].
-    MapPkgImportStmt := QN_LV_IMPORT(_, ospan) {
+    MapPkgImportStmt := QN_LV_IMPORT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_PACKAGE => TodoAttr,
             QN_EXPORT => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Import a map package.
@@ -1154,10 +1281,12 @@ ele_parse! {
     /// The distinction between this an [`ImportStmt`] is historical and is
     ///   no longer meaningful;
     ///     it will be removed in the future.
-    MapImportStmt := QN_IMPORT(_, ospan) {
+    MapImportStmt := QN_IMPORT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_PATH => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Define the value of a key in the destination.
@@ -1166,20 +1295,24 @@ ele_parse! {
     /// Map a value into a key of the destination without modification.
     ///
     /// See also [`MapStmt`] if the value needs to be modified in some way.
-    MapPassStmt := QN_PASS(_, ospan) {
+    MapPassStmt := QN_PASS {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_DEFAULT => TodoAttr,
             QN_SCALAR => TodoAttr,
             QN_OVERRIDE => TodoAttr,
             QN_NOVALIDATE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Map a value into a key of the destination.
     ///
     /// See also [`MapPassStmt`] if the value does not need modification.
-    MapStmt := QN_MAP(_, ospan) {
+    MapStmt := QN_MAP {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_TO => TodoAttr,
             QN_FROM => TodoAttr,
@@ -1192,7 +1325,7 @@ ele_parse! {
             QN_SCALAR => TodoAttr,
             QN_OVERRIDE => TodoAttr,
             QN_NOVALIDATE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         MapStmtBody,
     };
@@ -1201,23 +1334,27 @@ ele_parse! {
     MapStmtBody := (MapFromStmt | MapSetStmt | MapTransformStmt);
 
     /// Source of data for a map operation.
-    MapFromStmt := QN_FROM(_, ospan) {
+    MapFromStmt := QN_FROM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_DEFAULT => TodoAttr,
             QN_SCALAR => TodoAttr,
             QN_NOVALIDATE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         MapTranslateStmt,
     };
 
     /// List of 1:1 value translations for a map.
-    MapTranslateStmt := QN_TRANSLATE(_, ospan) {
+    MapTranslateStmt := QN_TRANSLATE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_KEY => TodoAttr,
             QN_VALUE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Yield a vector of values where each item corresponds to the
@@ -1226,8 +1363,10 @@ ele_parse! {
     /// TODO: This is a misnomer,
     ///   since the result is a vector,
     ///   not a set.
-    MapSetStmt := QN_SET(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    MapSetStmt := QN_SET {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
 
         MapSetBody,
     };
@@ -1236,10 +1375,12 @@ ele_parse! {
     MapSetBody := (MapFromStmt | MapConstStmt);
 
     /// Map from a constant value.
-    MapConstStmt := QN_CONST(_, ospan) {
+    MapConstStmt := QN_CONST {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_VALUE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Transform a value using some function.
@@ -1248,10 +1389,12 @@ ele_parse! {
     ///   for example to convert input string case and hash values.
     ///
     /// Transformations may be composed via nesting.
-    MapTransformStmt := QN_TRANSFORM(_, ospan) {
+    MapTransformStmt := QN_TRANSFORM {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_METHOD => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         MapStmtBody,
     };
@@ -1277,13 +1420,15 @@ ele_parse! {
     ///
     /// Calculations are rendered in the order in which they appear in this
     ///   definition.
-    WorksheetStmt := QN_WORKSHEET(_, ospan) {
+    WorksheetStmt := QN_WORKSHEET {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_XMLNS => TodoAttr,
 
             QN_NAME => TodoAttr,
             QN_PACKAGE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         ExpandFunctionStmt,
         DisplayStmt,
@@ -1297,18 +1442,22 @@ ele_parse! {
     /// The default behavior is intended to encapsulate details of functions
     ///   that happen to be used by the system but that the user is unlikely
     ///   to care about.
-    ExpandFunctionStmt := QN_EXPAND_FUNCTION(_, ospan) {
+    ExpandFunctionStmt := QN_EXPAND_FUNCTION {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Render a simplified, human-readable display of the calculation,
     ///   along with its result.
-    DisplayStmt := QN_DISPLAY(_, ospan) {
+    DisplayStmt := QN_DISPLAY {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
 
@@ -1397,15 +1546,18 @@ ele_parse! {
     /// See also [`InlineTemplate`] for template definitions.
     ///
     /// Templates are applied using [`ApplyTemplate`] or [`TplApplyShort`].
-    TemplateStmt := QN_TEMPLATE(_, ospan) {
+    TemplateStmt := QN_TEMPLATE {
+        (Open(_, ospan)) => NirEntity::Tpl.open(ospan),
+
         @ {
             QN_NAME => BindIdent,
             QN_DESC => Desc,
-        } => NirEntity::Tpl.open(ospan),
-        /(cspan) => NirEntity::Tpl.close(cspan),
+        }
 
         TplHeading,
         AnyStmtOrExpr,
+
+        (Close(_, cspan)) => NirEntity::Tpl.close(cspan),
     };
 
     /// Heading of a template definition.
@@ -1423,14 +1575,17 @@ ele_parse! {
     /// Parameters are treated as string data during application,
     ///   but their final type depends on the context into which they are
     ///   expanded.
-    TplParamStmt := QN_PARAM(_, ospan) {
+    TplParamStmt := QN_PARAM {
+        (Open(_, ospan)) => Nir::Open(NirEntity::TplParam, ospan.into()),
+
         @ {
             QN_NAME => BindIdentMeta,
             QN_DESC => Desc,
-        } => Nir::Open(NirEntity::TplParam, ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplParam, cspan.into()),
+        }
 
         TplParamDefault,
+
+        (Close(_, cspan)) => Nir::Close(NirEntity::TplParam, cspan.into()),
     };
 
     /// Define the default value for a parameter when a value is not
@@ -1464,10 +1619,12 @@ ele_parse! {
     ///   This is consequently ambiguous with omitting this node entirely;
     ///     this might be okay,
     ///       but this needs explicit design.
-    TplText := QN_TEXT(_, ospan) {
+    TplText := QN_TEXT {
+        (Open(_, ospan)) => Noop(ospan.into()),
+
         @ {
             QN_UNIQUE => TodoAttr,
-        } => Noop(ospan.into()),
+        }
     };
 
     /// Default the param to the value of another template param,
@@ -1479,7 +1636,9 @@ ele_parse! {
     /// This list will be refined further in TAMER,
     ///   since manipulation of values in the XSLT-based TAME was
     ///   cumbersome and slow
-    TplParamValue := QN_PARAM_VALUE(_, ospan) {
+    TplParamValue := QN_PARAM_VALUE {
+        (Open(_, ospan)) => Noop(ospan.into()),
+
         @ {
             QN_NAME => Ref,
             QN_DASH => TodoAttr,
@@ -1490,7 +1649,7 @@ ele_parse! {
             QN_RMUNDERSCORE => TodoAttr,
             QN_IDENTIFIER => TodoAttr,
             QN_SNAKE => TodoAttr,
-        } => Noop(ospan.into()),
+        }
     };
 
     /// Inherit a default value from a metavalue.
@@ -1502,21 +1661,25 @@ ele_parse! {
     ///     from siblings and ancestors,
     ///       which is defined lexically relative to the expansion position
     ///       of the template.
-    TplParamInherit := QN_PARAM_INHERIT(_, ospan) {
+    TplParamInherit := QN_PARAM_INHERIT {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_META => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Sum a numeric value with a numeric template parameter.
     ///
     /// Combined with [`TplParamInherit`],
     ///   this can be used to perform bounded recursive template expansion.
-    TplParamAdd := QN_PARAM_ADD(_, ospan) {
+    TplParamAdd := QN_PARAM_ADD {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_VALUE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Look up the [`@yields`](QN_YIELDS) of a [`ClassifyStmt`].
@@ -1534,10 +1697,12 @@ ele_parse! {
     ///   defined,
     ///     so this will always produce some valid identifier for a
     ///     classification.
-    TplParamClassToYields := QN_PARAM_CLASS_TO_YIELDS(_, ospan) {
+    TplParamClassToYields := QN_PARAM_CLASS_TO_YIELDS {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Given a numeric literal,
@@ -1578,21 +1743,25 @@ ele_parse! {
     /// Without the use of types,
     ///   querying for a constant numeric value would be ambiguous and
     ///   potentially yield false matches.
-    TplParamTypedefLookup := QN_PARAM_TYPEDEF_LOOKUP(_, ospan) {
+    TplParamTypedefLookup := QN_PARAM_TYPEDEF_LOOKUP {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_VALUE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Look up an attribute from the symbol table for a given identifier.
-    TplParamSymValue := QN_PARAM_SYM_VALUE(_, ospan) {
+    TplParamSymValue := QN_PARAM_SYM_VALUE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_VALUE => TodoAttr,
             QN_PREFIX => TodoAttr,
             QN_IGNORE_MISSING => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Keywords that trigger template expansion.
@@ -1632,10 +1801,12 @@ ele_parse! {
     // TODO: This has to go away so that we can always statically lower all
     //   primitives without having to perform template expansion in order to
     //   determine what they may be.
-    DynNode := QN_DYN_NODE(_, ospan) {
+    DynNode := QN_DYN_NODE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         // But we can at least restrict it for now by ensuring that it's
         //   used only to contain expressions.
@@ -1650,8 +1821,10 @@ ele_parse! {
     /// Errors will result in a compilation failure.
     /// See also [`WarningKw`] to provide a message to the user as
     ///   compiler output without failing compilation.
-    ErrorKw := QN_ERROR(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ErrorKw := QN_ERROR {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
 
         // In addition to text that is globally permitted.
         TplParamValue,
@@ -1666,8 +1839,10 @@ ele_parse! {
     ///   missed in a sea of build output;
     ///     you should consider using [`ErrorKw`] whenever possible to
     ///     ensure that problems are immediately resolved.
-    WarningKw := QN_WARNING(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    WarningKw := QN_WARNING {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
 
         // In addition to text that is globally permitted.
         TplParamValue,
@@ -1686,13 +1861,16 @@ ele_parse! {
     ///
     /// See also [`TplApplyShort`],
     ///   which gets desugared into this via [`super::tplshort`].
-    ApplyTemplate := QN_APPLY_TEMPLATE(_, ospan) {
+    ApplyTemplate := QN_APPLY_TEMPLATE {
+        (Open(_, ospan)) => Nir::Open(NirEntity::TplApply, ospan.into()),
+
         @ {
             QN_NAME => RefSubject,
-        } => Nir::Open(NirEntity::TplApply, ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplApply, cspan.into()),
+        }
 
         ApplyTemplateParam,
+
+        (Close(_, cspan)) => Nir::Close(NirEntity::TplApply, cspan.into()),
     };
 
     /// Long-form template argument.
@@ -1701,12 +1879,15 @@ ele_parse! {
     ///
     /// See also [`TplApplyShort`],
     ///   which gets desugared into this via [`super::tplshort`].
-    ApplyTemplateParam := QN_WITH_PARAM(_, ospan) {
+    ApplyTemplateParam := QN_WITH_PARAM {
+        (Open(_, ospan)) => Nir::Open(NirEntity::TplParam, ospan.into()),
+
         @ {
             QN_NAME => BindIdentMeta,
             QN_VALUE => Text,
-        } => Nir::Open(NirEntity::TplParam, ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplParam, cspan.into()),
+        }
+
+        (Close(_, cspan)) => Nir::Close(NirEntity::TplParam, cspan.into()),
     };
 
     /// Shorthand template application.
@@ -1723,14 +1904,16 @@ ele_parse! {
     ///   only_;
     ///     so `bar="baz"` will be desugared into a param `@bar@` with a
     ///     text value `baz`.
-    TplApplyShort := NS_T(qname, ospan) {
-        @ {} => Nir::Open(NirEntity::TplApplyShort(qname), ospan.into()),
-        /(cspan) => Nir::Close(NirEntity::TplApplyShort(qname), cspan.into()),
+    TplApplyShort := NS_T {
+        (Open(qname, ospan)) =>
+            Nir::Open(NirEntity::TplApplyShort(qname), ospan.into()),
+
+        @ {}
 
         // Streaming attribute parsing;
         //   this takes precedence over any attribute parsing above
         //     (which is used only for emitting the opening object).
-        [attr](Attr(name, value, AttrSpan(name_span, value_span))) => {
+        (Attr(name, value, AttrSpan(name_span, value_span))) => {
             Nir::Open(
                 // TODO: This simply _ignores_ the namespace prefix.
                 //   If it's not a useful construct,
@@ -1747,6 +1930,9 @@ ele_parse! {
         //   so we have to just accept everything and defer to a future
         //   lowering operation to validate semantics.
         AnyStmtOrExpr,
+
+        (Close(qname, cspan)) =>
+            Nir::Close(NirEntity::TplApplyShort(qname), cspan.into()),
     };
 
     /// Define an anonymous template and immediately apply it zero or more
@@ -1760,8 +1946,10 @@ ele_parse! {
     ///   [`InlineTemplateForEach`],
     ///     and have the unique ability to perform symbol table
     ///     introspection using [`InlineTemplateSymSet`].
-    InlineTemplate := QN_INLINE_TEMPLATE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    InlineTemplate := QN_INLINE_TEMPLATE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
 
         InlineTemplateForEach,
         AnyStmtOrExpr,
@@ -1775,8 +1963,10 @@ ele_parse! {
     ///   N times,
     ///     each with the respective [`InlineTemplateArgs`] set as its
     ///     arguments.
-    InlineTemplateForEach := QN_FOR_EACH(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    InlineTemplateForEach := QN_FOR_EACH {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
 
         InlineTemplateArgs,
     };
@@ -1792,11 +1982,13 @@ ele_parse! {
     ///   parameter as an argument.
     ///
     /// See also parent [`InlineTemplateForEach`].
-    InlineTemplateArgSet := QN_SET(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    InlineTemplateArgSet := QN_SET {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
+        @ {}
 
         // Streaming attribute parsing.
-        [attr](attr) => TodoAttr(SPair(attr.value(), attr.span())),
+        (Attr(_, value, attrspan)) => TodoAttr(SPair(value, attrspan.span())),
 
         // TODO: REMOVE ME
         //   (bug in `ele_parse!` requiring at least one NT in this
@@ -1816,12 +2008,14 @@ ele_parse! {
     ///
     /// TODO: This is a really powerful feature that needs plenty of
     ///   documentation and examples.
-    InlineTemplateSymSet := QN_SYM_SET(_, ospan) {
+    InlineTemplateSymSet := QN_SYM_SET {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME_PREFIX => TodoAttr,
             QN_TYPE => TodoAttr,
             // TODO: Look at XSL sources for others
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Perform template expansion on each successive child node in order,
@@ -1850,8 +2044,9 @@ ele_parse! {
     ///     and error-prone.
     /// The concept originates from TeX's `\expandafter`, `\edef`, and
     ///   related macros.
-    ExpandSequence := QN_EXPAND_SEQUENCE(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ExpandSequence := QN_EXPAND_SEQUENCE {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         AnyStmtOrExpr,
     };
 
@@ -1860,8 +2055,9 @@ ele_parse! {
     /// This exists to work around performance pitfalls of the XSLT-based
     ///   implementation of [`ExpandSequence`];
     ///     see that NT for more information.
-    ExpandGroup := QN_EXPAND_GROUP(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ExpandGroup := QN_EXPAND_GROUP {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         AnyStmtOrExpr,
     };
 
@@ -1870,8 +2066,9 @@ ele_parse! {
     /// An expansion barrier is a seldom-needed feature that stops the
     ///   template system from expanding its body beyond a certain point,
     ///     which is sometimes needed for template-producing templates.
-    ExpandBarrier := QN_EXPAND_BARRIER(_, ospan) {
-        @ {} => Todo(ospan.into()),
+    ExpandBarrier := QN_EXPAND_BARRIER {
+        (Open(_, ospan)) => Todo(ospan.into()),
+        @ {}
         AnyStmtOrExpr,
     };
 
@@ -1881,25 +2078,31 @@ ele_parse! {
     ///   whose value is (conceptually) an XML tree.
     ///
     /// This allows creating templates that accept children.
-    TplParamCopy := QN_PARAM_COPY(_, ospan) {
+    TplParamCopy := QN_PARAM_COPY {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Define a metavalue at this point in the expansion environment.
     ///
     /// For more information on how these values are used,
     ///   see [`TplParamInherit`].
-    TplParamMeta := QN_PARAM_META(_, ospan) {
+    TplParamMeta := QN_PARAM_META {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_VALUE => TodoAttr,
-        } => Todo(ospan.into()),
+        }
     };
 
     /// Conditionally expand the body if the provided predicate matches.
-    TplIf := QN_IF(_, ospan) {
+    TplIf := QN_IF {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_EQ => TodoAttr,
@@ -1909,7 +2112,7 @@ ele_parse! {
             QN_LTE => TodoAttr,
             QN_PREFIX => TodoAttr,
             QN_SUFFIX => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         AnyStmtOrExpr,
     };
@@ -1919,7 +2122,9 @@ ele_parse! {
     ///
     /// This can be used as a sibling of [`TplIf`] to create the equivalent
     ///   of an `else` clause.
-    TplUnless := QN_UNLESS(_, ospan) {
+    TplUnless := QN_UNLESS {
+        (Open(_, ospan)) => Todo(ospan.into()),
+
         @ {
             QN_NAME => TodoAttr,
             QN_EQ => TodoAttr,
@@ -1929,7 +2134,7 @@ ele_parse! {
             QN_LTE => TodoAttr,
             QN_PREFIX => TodoAttr,
             QN_SUFFIX => TodoAttr,
-        } => Todo(ospan.into()),
+        }
 
         AnyStmtOrExpr,
     };

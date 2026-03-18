@@ -225,6 +225,16 @@ impl<S: ClosedParseState, I: TokenStream<S::Token>> Parser<S, I> {
         }
     }
 
+    /// Peek at a readonly context.
+    ///
+    /// _This must only be exposed for testing._
+    /// Note that this does not return [`S::PubContext`],
+    ///   because we do not require `AsRef<S::PubContext>`.
+    #[cfg(test)]
+    pub fn inspect_context(&self) -> &S::Context {
+        &self.ctx
+    }
+
     /// Feed an input token to the parser.
     ///
     /// This _pushes_ data into the parser,
