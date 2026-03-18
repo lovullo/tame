@@ -644,7 +644,7 @@ impl From<Infallible> for NirAttrParseError {
     }
 }
 
-type ExpectedSymbolId = SymbolId;
+pub type ExpectedSymbolId = SymbolId;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum NirAttrParseError {

@@ -35,6 +35,15 @@
 //   simply replace each alias reference with its definition,
 //   or possibly write a trait with a `Self` bound.
 #![feature(trait_alias)]
+// Trait bounds are normally discarded on type aliases;
+//   this changes that,
+//     which is important for allowing traits to serve as reasonable
+//     abstractions over complex types.
+// This cannot be stabalized until a future Rust edition because it changes
+//   existing behavior.
+// Since this is more restrictive than the default behavior,
+//   removing this should be possible if needed.
+#![feature(lazy_type_alias)]
 // Can be replaced with `assert!(matches!(...))`,
 //   but at a loss of a better error message.
 #![feature(assert_matches)]

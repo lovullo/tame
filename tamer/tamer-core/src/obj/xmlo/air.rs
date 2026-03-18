@@ -85,7 +85,7 @@ impl XmloAirContext {
     }
 }
 
-type PackageSPair = SPair;
+pub type PackageSPair = SPair;
 
 /// State machine for lowering into the [`Asg`](crate::asg::Asg) via
 ///   [`Air`].

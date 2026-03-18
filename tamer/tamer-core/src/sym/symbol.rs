@@ -173,8 +173,8 @@ macro_rules! supported_symbol_index {
     };
 }
 
-type Static16Interner = DefaultInterner<'static, u16>;
-type Static32Interner = DefaultInterner<'static, u32>;
+pub type Static16Interner = DefaultInterner<'static, u16>;
+pub type Static32Interner = DefaultInterner<'static, u32>;
 
 thread_local! {
     pub(super) static INTERNER_16: Static16Interner = super::prefill::st16::fill(

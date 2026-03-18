@@ -381,7 +381,8 @@ where
 ///
 /// This storage is statically allocated,
 ///   allowing XIRF's parser to avoid memory allocation entirely.
-type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
+pub type ElementStack<const MAX_DEPTH: usize> =
+    ArrayVec<(QName, Span), MAX_DEPTH>;
 
 /// Lower [XIR](XirToken) into [XIRF](XirfToken),
 ///   accepting only fully parsed XML documents.
@@ -390,7 +391,7 @@ type ElementStack<const MAX_DEPTH: usize> = ArrayVec<(QName, Span), MAX_DEPTH>;
 ///   see [`PartialXirToXirf`].
 /// For more information on accepting states,
 ///   see [`XirfAcceptor`].
-pub type FullXirToXirf<const MAX_DEPTH: usize, T> =
+pub type FullXirToXirf<const MAX_DEPTH: usize, T: TextType> =
     XirToXirf<MAX_DEPTH, T, AttrParseState, FullXirfAcceptor>;
 
 /// Lower [XIR](XirToken) into [XIRF](XirfToken),
@@ -401,7 +402,7 @@ pub type FullXirToXirf<const MAX_DEPTH: usize, T> =
 ///   system stops parsing before completion.
 /// For more information on accepting states,
 ///   see [`XirfAcceptor`].
-pub type PartialXirToXirf<const MAX_DEPTH: usize, T> =
+pub type PartialXirToXirf<const MAX_DEPTH: usize, T: TextType> =
     XirToXirf<MAX_DEPTH, T, AttrParseState, PartialXirfAcceptor>;
 
 /// Lower [XIR](XirToken) into [XIRF](XirfToken).

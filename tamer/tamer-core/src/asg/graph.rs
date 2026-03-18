@@ -69,13 +69,13 @@ pub type AsgResult<T> = Result<T, AsgError>;
 ///   context in situations where the distinction between the span of the
 ///   target object and the span of the _reference_ to that object is
 ///   important.
-type AsgEdge = (ObjectRelTy, ObjectRelTy, Option<Span>);
+pub type AsgEdge = (ObjectRelTy, ObjectRelTy, Option<Span>);
 
 /// Each node of the graph.
-type Node = ObjectContainer;
+pub type Node = ObjectContainer;
 
 /// Index size for Graph nodes and edges.
-type Ix = global::ProgSymSize;
+pub type Ix = global::ProgSymSize;
 
 /// An abstract semantic graph (ASG) of [objects](object).
 ///

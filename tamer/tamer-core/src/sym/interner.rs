@@ -423,7 +423,7 @@ where
 ///     (which uses SipHash at the time of writing).
 ///
 /// See intern benchmarks for a comparison.
-pub type FxArenaInterner<'i, Ix = global::ProgSymSize> =
+pub type FxArenaInterner<'i, Ix: SymbolIndexSize = global::ProgSymSize> =
     ArenaInterner<'i, FxBuildHasher, Ix>;
 
 /// Recommended [`Interner`] and configuration (size-agnostic).
@@ -434,7 +434,7 @@ pub type FxArenaInterner<'i, Ix = global::ProgSymSize> =
 ///
 /// For more information on the hashing algorithm,
 ///   see [`FxArenaInterner`].
-pub type DefaultInterner<'i, Ix = global::ProgSymSize> =
+pub type DefaultInterner<'i, Ix: SymbolIndexSize = global::ProgSymSize> =
     FxArenaInterner<'i, Ix>;
 
 /// Recommended [`Interner`] and configuration for compilers and linkers

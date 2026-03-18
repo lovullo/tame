@@ -43,7 +43,7 @@ use std::borrow::Cow;
 ///         and by relying on certain parsing behavior to eliminate
 ///           redundant checks.
 
-type Sut<'a, B, S> = XmlXirReader<'a, B, S>;
+type Sut<'a, B: BufRead, S: Escaper> = XmlXirReader<'a, B, S>;
 type SutResultCollect = Result<Vec<Token>, Error>;
 
 #[derive(Debug, Default)]

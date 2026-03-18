@@ -273,7 +273,7 @@ macro_rules! lower_pipeline {
             move |src, sink| {
                 // Recoverable error type (for brevity).
                 #[doc(hidden)]
-                type ER<T> = [<$struct Error>]<T>;
+                type ER<T: Diagnostic + PartialEq + 'static> = [<$struct Error>]<T>;
 
                 let lower_pipeline!(@ret_pat $($($ctx)?)*) = lower_pipeline!(
                     @body_head(src, sink)

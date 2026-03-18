@@ -108,7 +108,7 @@ impl Display for NirToAir {
 }
 
 /// Stack of [`Air`] objects to yield on subsequent iterations.
-type ObjStack = ArrayVec<Air, 2>;
+pub type ObjStack = ArrayVec<Air, 2>;
 
 /// The symbol to use when lexically expanding shorthand notations to
 ///   compare against values of `1`.

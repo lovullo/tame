@@ -258,7 +258,7 @@ pub mod test {
         }
     }
 
-    type Sut<I> = Parser<EchoState, I>;
+    type Sut<I: TokenStream<TestToken>> = Parser<EchoState, I>;
 
     #[test]
     fn successful_parse_in_accepting_state_with_spans() {

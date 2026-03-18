@@ -249,7 +249,7 @@ impl ParseState for TplShortDesugar {
     }
 }
 
-type Stack = ArrayVec<Nir, 7>;
+pub type Stack = ArrayVec<Nir, 7>;
 
 /// Generate a deterministic template identifier name that is unique
 ///   relative to the offset in the source context (file) of the given

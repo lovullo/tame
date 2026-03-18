@@ -93,4 +93,5 @@ pub trait SuperState:
 }
 
 /// [`SuperState`] [`Context`] that gets propagated to each child parser.
-pub type SuperStateContext<S> = Context<StateStack<S, XIR_MAX_DEPTH>>;
+pub type SuperStateContext<S: ClosedParseState + Default> =
+    Context<StateStack<S, XIR_MAX_DEPTH>>;

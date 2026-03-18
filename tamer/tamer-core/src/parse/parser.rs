@@ -35,7 +35,8 @@ use crate::{
 
 /// Result of applying a [`Token`] to a [`ParseState`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type ParsedResult<S> = ParseResult<S, Parsed<<S as ParseState>::Object>>;
+pub type ParsedResult<S: ParseState> =
+    ParseResult<S, Parsed<<S as ParseState>::Object>>;
 
 /// Result of a parsing operation.
 ///

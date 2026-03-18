@@ -205,25 +205,25 @@ pub enum AsgError {
 }
 
 /// A [`Span`] representing the subject of this error.
-type ErrorOccurrenceSpan = Span;
+pub type ErrorOccurrenceSpan = Span;
 
 /// A [`Span`] representing the first occurrence of an object related to the
 ///   subject of this error.
 ///
 /// This should be paired with [`ErrorOccurrenceSpan`].
-type FirstOccurrenceSpan = Span;
+pub type FirstOccurrenceSpan = Span;
 
 /// The context in which an error occurred.
 ///
 /// For example,
 ///   this may refer to the container of the object that caused an error.
-type ErrorContextSpan = Span;
+pub type ErrorContextSpan = Span;
 
 /// The span representing the target of a reference.
 ///
 /// It is expected that a corresponding [`ErrorOccurrenceSpan`] reference
 ///   the _source_ of the reference.
-type ErrorTargetSpan = Span;
+pub type ErrorTargetSpan = Span;
 
 impl Display for AsgError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

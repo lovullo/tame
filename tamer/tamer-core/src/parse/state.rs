@@ -31,7 +31,7 @@ use context::{Context, NoContext};
 
 /// Result of some non-parsing operation on a [`Parser`],
 ///   with any error having been wrapped in a [`ParseError`].
-pub type ParseResult<S, T> =
+pub type ParseResult<S: ParseState, T> =
     Result<T, ParseError<<S as ParseState>::Token, <S as ParseState>::Error>>;
 
 /// Result of a parsing operation.
@@ -487,7 +487,8 @@ where
 ///
 /// This is used by [`ParseState::parse_token`];
 ///   see that function for rationale.
-pub type ParseStateResult<S> = Result<ParseStatus<S>, <S as ParseState>::Error>;
+pub type ParseStateResult<S: ParseState> =
+    Result<ParseStatus<S>, <S as ParseState>::Error>;
 
 /// A [`ParseState`] capable of being automatically stitched together with
 ///   a parent [`ParseState`] `SP` to create a composite parser.

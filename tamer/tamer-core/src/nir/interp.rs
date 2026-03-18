@@ -130,11 +130,11 @@ pub struct GenIdentSymbolId(SymbolId);
 ///
 /// This saves us from having to continuously dereference the symbol for
 ///   each state change.
-type SpecSlice = &'static str;
+pub type SpecSlice = &'static str;
 
 /// Offset within a [`SpecSlice`] to begin parsing at for the current
 ///   [`InterpState`].
-type SpecOffset = usize;
+pub type SpecOffset = usize;
 
 /// Interpolation desugaring operation.
 ///

@@ -228,7 +228,7 @@ where
 ///   a [`ParseState`] may carry a lot of additional type baggage---​
 ///     including lifetimes and other generics---​
 ///   that are irrelevant to the error type.
-pub type ParseStateError<S> =
+pub type ParseStateError<S: ParseState> =
     ParseError<<S as ParseState>::Token, <S as ParseState>::Error>;
 
 /// A [`Diagnostic`] error type common to both `S` and `LS`.
@@ -267,7 +267,7 @@ pub trait WidenedError<S: ParseState, LS: ParseState> =
 pub trait FromParseError<S: ParseState> = From<ParseStateError<S>>;
 
 /// A [`ParsedResult`] with a [`WidenedError`].
-pub type WidenedParsedResult<S, E> =
+pub type WidenedParsedResult<S: ParseState, E> =
     Result<Parsed<<S as ParseState>::Object>, E>;
 
 /// A source of a lowering operation.

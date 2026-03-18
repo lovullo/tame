@@ -31,7 +31,7 @@ pub use node::{ChildNt, NodeMatcher, NodeNt, NodeNtState, NtError};
 pub use sum::{SumNt, SumNtError, SumNtState};
 
 /// A nonterminal for an [`ele_parse`](crate::ele_parse) grammar.
-pub trait Nt: PartialEq + Debug
+pub trait Nt: PartialEq + Debug + Sized
 where
     <Self::NtSuper as ParseState>::Error: From<Self::ParseError>,
 {
@@ -93,7 +93,7 @@ where
 }
 
 /// Result of parsing an NT.
-pub type NtParseResult<NT> = Result<
+pub type NtParseResult<NT: Nt> = Result<
     <<NT as Nt>::ParseState as ParseState>::Object,
     <NT as Nt>::ParseError,
 >;

@@ -169,8 +169,11 @@ impl<const SUFFIX: &'static str, W: DisplayWrapper> DisplayWrapper
 /// Surround a value in delimiters.
 ///
 /// See also [`Prefix`] and [`Suffix`].
-pub type Delim<const LEFT: &'static str, const RIGHT: &'static str, W> =
-    Prefix<LEFT, Suffix<RIGHT, W>>;
+pub type Delim<
+    const LEFT: &'static str,
+    const RIGHT: &'static str,
+    W: DisplayWrapper,
+> = Prefix<LEFT, Suffix<RIGHT, W>>;
 
 /// Denote text that would conventionally be delimited in a teletypewriter
 ///   font.
@@ -179,7 +182,7 @@ pub type Delim<const LEFT: &'static str, const RIGHT: &'static str, W> =
 ///
 /// NB: This does not defend against nested quotes,
 ///   so this is _not_ safe against format escapes.
-pub type Tt<W> = Delim<"`", "`", W>;
+pub type Tt<W: DisplayWrapper> = Delim<"`", "`", W>;
 
 /// Quote text that would conventionally be delimited in a teletypewriter
 ///   font.
@@ -189,7 +192,7 @@ pub type Tt<W> = Delim<"`", "`", W>;
 pub type TtQuote = Tt<Raw>;
 
 /// Prefix with a single space.
-pub type Sp<W> = Prefix<" ", W>;
+pub type Sp<W: DisplayWrapper> = Prefix<" ", W>;
 
 /// Wrapper for a list that maps each element to a context-specific
 ///   [`DisplayWrapper`].
@@ -336,14 +339,14 @@ impl<const CONJ: &'static str, W: DisplayWrapper> ListDisplayWrapper
 
 /// A list of values with a serial comma and the term "and" as a
 ///   conjunction between the penultimate and final items.
-pub type AndConjList<W> = ConjList<"and", W>;
+pub type AndConjList<W: DisplayWrapper> = ConjList<"and", W>;
 /// A list of values with a serial comma and the term "or" as a
 ///   conjunction between the penultimate and final items.
 ///
 /// Terminology note:
 ///   English refers to the term "or" here as a conjunction between words,
 ///     which differs from "or" in logic as a disjunction.
-pub type OrConjList<W> = ConjList<"or", W>;
+pub type OrConjList<W: DisplayWrapper> = ConjList<"or", W>;
 
 /// Format each item of a slice using a [`DisplayWrapper`] formatter,
 ///   outputting an English list with a serial comma and conjunctive term,
@@ -382,7 +385,7 @@ impl<
 pub type AndQualConjList<
     const QUAL_ONE: &'static str,
     const QUAL_MANY: &'static str,
-    W,
+    W: DisplayWrapper,
 > = QualConjList<QUAL_ONE, QUAL_MANY, "and", W>;
 
 /// A list of values with a serial comma and the term "or" as a
@@ -396,7 +399,7 @@ pub type AndQualConjList<
 pub type OrQualConjList<
     const QUAL_ONE: &'static str,
     const QUAL_MANY: &'static str,
-    W,
+    W: DisplayWrapper,
 > = QualConjList<QUAL_ONE, QUAL_MANY, "or", W>;
 
 /// A list of values separated by a delimiter.

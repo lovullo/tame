@@ -72,7 +72,7 @@ impl<'a> Display for AsgTreeToXirf<'a> {
     }
 }
 
-type Xirf = XirfToken<Text>;
+pub type Xirf = XirfToken<Text>;
 
 diagnostic_infallible! {
     pub enum AsgTreeToXirfError {}

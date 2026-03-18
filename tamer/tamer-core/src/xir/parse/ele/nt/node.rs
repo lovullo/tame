@@ -588,7 +588,8 @@ impl Display for NodeMatcher {
     }
 }
 
-type NtAttrValueError<NT> = <<NT as Nt>::NtSuper as SuperState>::AttrValueError;
+pub type NtAttrValueError<NT: Nt> =
+    <<NT as Nt>::NtSuper as SuperState>::AttrValueError;
 
 #[derive(Debug, PartialEq)]
 pub enum NtError<NT: NodeNt> {
